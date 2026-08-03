@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import { MainNav } from "@/components/main-nav";
-import { UserNav } from "@/components/user-nav";
 import { cn } from "@/lib/utils";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
@@ -10,23 +9,20 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const isGamePage = pathname?.startsWith("/play/");
 
     return (
-        <div className="flex-col md:flex min-h-screen">
-            {/* Conditional Header */}
+        <div className="flex flex-col min-h-screen bg-elsass-cream">
+            {/* Barre noire, dans le style du site principal. Masquée pendant une partie. */}
             {!isGamePage && (
-                <div className="border-b">
-                    <div className="flex h-16 items-center px-4 container mx-auto">
-                        <MainNav className="mx-6" />
-                        <div className="ml-auto flex items-center space-x-4">
-                            <UserNav />
-                        </div>
+                <header className="sticky top-0 z-40 bg-elsass-black">
+                    <div className="h-14 sm:h-16 px-4 sm:px-6 max-w-6xl mx-auto flex items-center">
+                        <MainNav />
                     </div>
-                </div>
+                </header>
             )}
-            
-            {/* Conditional Main Content Padding */}
+
+            {/* Mobile-first : padding compact, qui s'ouvre sur les grands écrans. */}
             <main className={cn(
-                "flex-1",
-                isGamePage ? "p-0 pt-0 space-y-0" : "space-y-4 p-8 pt-6"
+                "flex-1 w-full",
+                isGamePage ? "p-0" : "max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8"
             )}>
                 {children}
             </main>

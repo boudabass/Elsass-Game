@@ -17,16 +17,17 @@ import { LogOut, User, Shield, Trophy } from "lucide-react";
 export function UserNav() {
     const { user, role, isLoading, signOut } = useAuth();
 
-    const handleSignOut = async () => {
-        await signOut();
-    };
-
-    if (isLoading) return <div className="h-8 w-24 animate-pulse rounded-md bg-slate-200"></div>;
+    if (isLoading) return <div className="h-8 w-24 animate-pulse rounded-full bg-white/10"></div>;
 
     if (!user) {
         return (
             <Link href="/login">
-                <Button variant="outline" size="sm">Se connecter</Button>
+                <Button
+                    size="sm"
+                    className="bg-elsass-red text-white hover:bg-elsass-red/90 rounded-full font-medium"
+                >
+                    Se connecter
+                </Button>
             </Link>
         );
     }
@@ -36,7 +37,11 @@ export function UserNav() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-elsass-cream hover:bg-white/10 hover:text-elsass-cream rounded-full"
+                >
                     Mon espace
                 </Button>
             </DropdownMenuTrigger>
@@ -77,7 +82,7 @@ export function UserNav() {
                 )}
 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:text-red-600 cursor-pointer">
+                <DropdownMenuItem onClick={() => signOut()} className="text-elsass-red focus:text-elsass-red cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Se déconnecter</span>
                 </DropdownMenuItem>

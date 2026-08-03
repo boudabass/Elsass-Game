@@ -9,7 +9,20 @@ export default {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			heading: ['var(--font-azimut)', 'Georgia', 'serif'],
+  			sans: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
+  		},
   		colors: {
+  			// Palette de marque The Elsassisch (Brand Book, mai 2026).
+  			elsass: {
+  				black: '#141210',
+  				red: '#E31B23',
+  				gold: '#F2B93D',
+  				cream: '#FBF8F3',
+  				ink: '#26221D',
+  				line: '#E9E2D6',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

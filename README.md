@@ -61,6 +61,17 @@ Le socle `core/` est chargé par simples balises `<script>` :
 3. Publier la fiche du jeu depuis `/admin` (l'URL pointe vers `index.html`).
    L'identifiant numérique est injecté automatiquement dans l'URL (`?gid=`).
 
+## Identité de marque
+
+L'interface (connexion, catalogue, barre de navigation) reprend la charte
+graphique de theelsassisch.com : noir / rouge alsacien / or, police **Azimut**
+pour les titres (`public/fonts/azimut/`, licence CC BY-ND 4.0 — caractère créé
+par Benjamin Blaess, Julien Priez & Mathieu Réguer pour la Ville de Strasbourg,
+azimut.strasbourg.eu), **Montserrat** pour le corps de texte. Couleurs
+définies dans `tailwind.config.ts` (`theme.colors.elsass`) et reprises en
+variables CSS dans `globals.css`. Mobile-first : la nav bascule en menu ☰
+sous le palier `sm`.
+
 ## Déploiement
 
 Image Docker `standalone` construite par le `Dockerfile`, déployée sur Coolify.
