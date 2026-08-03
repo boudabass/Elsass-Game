@@ -26,15 +26,11 @@ class GameScene extends Phaser.Scene {
         this.decor = new CigogneDecor(this);
 
         // --- La cigogne ------------------------------------------------------
-        const taille = UI.u(this, C.tailleOiseauPct);
         this.oiseau = this.physics.add.sprite(w * (C.positionXPct / 100), h * 0.4, "cigogne");
         this.oiseau.play("voler");
-        this.oiseau.setDisplaySize(taille, taille).setDepth(20);
-        // Zone de collision plus petite que l'image (le sprite a de grandes
-        // marges transparentes autour de l'oiseau).
-        const hitbox = 256 * C.hitboxRatio;
-        this.oiseau.body.setSize(hitbox, hitbox);
+        this.oiseau.setDepth(20);
         this.oiseau.body.setAllowGravity(false);
+        this.redimensionnerOiseau();
 
         // --- Obstacles -------------------------------------------------------
         this.maisons = this.physics.add.group();
@@ -57,9 +53,30 @@ class GameScene extends Phaser.Scene {
             this.vitesse = C.vitessePar_w * lw;
             this.ecart = C.ecartPar_w * lw;
             this.oiseau.setX(lw * (C.positionXPct / 100));
+            this.redimensionnerOiseau();
             this.texteScore.setPosition(lw / 2, lh * 0.12);
-            this.consigne.setPosition(lw / 2, lh * 0.62);
+            if (this.consigne) this.consigne.setPosition(lw / 2, lh * 0.62);
         });
+    }
+
+    /**
+     * Ajuste la taille de la cigogne à l'écran ET sa boîte de collision.
+     *
+     * L'image source fait 256 x 256 avec beaucoup de vide autour de l'oiseau.
+     * La boîte de collision se définit en pixels de l'IMAGE SOURCE (Phaser
+     * applique ensuite l'échelle tout seul) : lui passer des pixels d'écran
+     * donnait une boîte bien plus grande que la cigogne — d'où l'impression
+     * de heurter un mur invisible.
+     */
+    redimensionnerOiseau() {
+        const C = window.CigogneConfig;
+        const taille = Arcade.UI.u(this, C.tailleOiseauPct);
+
+        this.oiseau.setDisplaySize(taille, taille);
+
+        const cote = 256 * C.hitboxRatio;          // en pixels de l'image source
+        this.oiseau.body.setSize(cote, cote, true); // true = centré sur l'image
+        this.oiseau.body.updateFromGameObject();
     }
 
     /** Un coup d'aile (et le lancement de la partie au premier appui). */
@@ -69,7 +86,10 @@ class GameScene extends Phaser.Scene {
 
         if (!this.enCours) {
             this.enCours = true;
-            this.consigne.destroy();
+            if (this.consigne) {
+                this.consigne.destroy();
+                this.consigne = null;
+            }
             this.oiseau.body.setAllowGravity(true);
             this.creerMaison(this.scale.width * 1.1);
         }
@@ -128,7 +148,14 @@ class GameScene extends Phaser.Scene {
         this.maisons.add(obj);
         obj.body.setAllowGravity(false);
         obj.body.setImmovable(true);
-        obj.body.setSize(obj.displayWidth, obj.displayHeight);
+
+        // La boîte de collision doit coller EXACTEMENT à l'image affichée.
+        // Arcade raisonne en pixels de texture puis applique l'échelle du
+        // sprite : lui donner des pixels d'écran fausserait tout (c'était la
+        // cause du « mur invisible »). updateFromGameObject fait ce calcul.
+        obj.body.setSize(obj.width, obj.height, true);
+        obj.body.updateFromGameObject();
+
         obj.body.setVelocityX(-this.vitesse);
         return obj;
     }

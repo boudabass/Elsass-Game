@@ -21,6 +21,15 @@
 
     window.Arcade = window.Arcade || {};
 
+    /** true si l'URL contient &debug=1 (affichage des boîtes de collision). */
+    Arcade.debugDemande = function () {
+        try {
+            return new URLSearchParams(window.location.search).get("debug") === "1";
+        } catch (e) {
+            return false;
+        }
+    };
+
     Arcade.boot = function (opts) {
         if (!opts || !opts.scenes || !opts.scenes.length) {
             throw new Error("[boot] Il faut au moins une scène de jeu.");
@@ -58,7 +67,10 @@
                 default: "arcade",
                 arcade: {
                     gravity: { x: 0, y: 0 },
-                    debug: !!opts.debugPhysics
+                    // Ajouter &debug=1 à l'URL du jeu affiche les boîtes de
+                    // collision en vert : indispensable pour comprendre un
+                    // « mur invisible ».
+                    debug: !!opts.debugPhysics || Arcade.debugDemande()
                 }
             },
 

@@ -74,39 +74,85 @@
                 })
                 .setOrigin(0.5);
 
-            var box = scene.add.container(o.x || 0, o.y || 0, [bg, label]);
+            // La zone sensible est un VRAI rectangle Phaser, invisible, posé
+            // par-dessus le dessin. Un conteneur, lui, place sa zone sensible
+            // à côté de son contenu selon l'origine : source de décalages.
+            var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0);
+            zone.setInteractive({ useHandCursor: true });
 
-            /** Redessine le bouton à la taille voulue (rotation de l'écran). */
-            box.redimensionner = function (w, h) {
-                bg.clear();
-                bg.fillStyle(couleur, 1);
-                bg.fillRoundedRect(-w / 2, -h / 2, w, h, h * 0.25);
-                label.setFontSize(Math.round(h * 0.42) + "px");
-                box.setSize(w, h);
-                if (box.input) box.input.hitArea.setTo(-w / 2, -h / 2, w, h);
-                return box;
+            var btn = {
+                bg: bg,
+                label: label,
+                zone: zone,
+                x: 0,
+                y: 0,
+                largeur: o.width || 200,
+                hauteur: o.height || 60,
+
+                /** Déplace le bouton (son centre). */
+                setPosition: function (x, y) {
+                    this.x = x;
+                    this.y = y;
+                    this.dessiner();
+                    return this;
+                },
+
+                /** Change sa taille (rotation de l'écran). */
+                redimensionner: function (w, h) {
+                    this.largeur = w;
+                    this.hauteur = h;
+                    this.dessiner();
+                    return this;
+                },
+
+                dessiner: function () {
+                    var w = this.largeur;
+                    var h = this.hauteur;
+                    bg.clear();
+                    bg.fillStyle(couleur, 1);
+                    bg.fillRoundedRect(this.x - w / 2, this.y - h / 2, w, h, h * 0.25);
+                    label.setFontSize(Math.round(h * 0.42) + "px");
+                    label.setPosition(this.x, this.y);
+                    zone.setPosition(this.x, this.y).setSize(w, h);
+                    if (zone.input && zone.input.hitArea) {
+                        zone.input.hitArea.setSize(w, h);
+                    }
+                    return this;
+                },
+
+                setDepth: function (d) {
+                    bg.setDepth(d);
+                    label.setDepth(d + 1);
+                    zone.setDepth(d + 2);
+                    return this;
+                },
+
+                destroy: function () {
+                    bg.destroy();
+                    label.destroy();
+                    zone.destroy();
+                }
             };
 
-            box.redimensionner(o.width || 200, o.height || 60);
-            box.setInteractive(
-                new Phaser.Geom.Rectangle(-box.width / 2, -box.height / 2, box.width, box.height),
-                Phaser.Geom.Rectangle.Contains
-            );
-            box.input.cursor = "pointer";
+            btn.setDepth(50);
+            btn.setPosition(o.x || 0, o.y || 0);
 
-            // Retour tactile : le bouton s'enfonce légèrement.
-            box.on("pointerdown", function () {
-                box.setScale(0.94);
+            // Retour visuel à l'appui : le bouton se ternit légèrement.
+            zone.on("pointerdown", function () {
+                bg.setAlpha(0.75);
+                label.setAlpha(0.75);
             });
-            box.on("pointerout", function () {
-                box.setScale(1);
-            });
-            box.on("pointerup", function () {
-                box.setScale(1);
+            var relacher = function () {
+                bg.setAlpha(1);
+                label.setAlpha(1);
+            };
+            zone.on("pointerout", relacher);
+            zone.on("pointerup", function () {
+                relacher();
                 if (typeof o.onClick === "function") o.onClick();
             });
 
-            return box;
+            return btn;
         },
 
         /**
