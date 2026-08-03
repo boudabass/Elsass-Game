@@ -60,7 +60,7 @@ function LoginForm() {
         </div>
 
         <CardHeader className="text-center pt-8 pb-2">
-          <CardTitle className="font-heading text-3xl text-elsass-ink">
+          <CardTitle className="font-heading font-normal text-3xl text-elsass-ink">
             Connexion
           </CardTitle>
           <CardDescription className="text-muted-foreground mt-1">

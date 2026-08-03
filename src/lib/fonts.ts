@@ -11,6 +11,14 @@
  * Montserrat (corps de texte) : Google Fonts, chargée à la construction du
  * site — nécessite un accès réseau au moment du build (sans effet sur
  * Coolify, qui a accès à internet).
+ *
+ * ⚠️ Pas de graisse grasse : la graisse "Bold" d'Azimut est en réalité un
+ * dessin géométrique/pochoir très éloigné du texte courant — illisible en
+ * dessous d'un très grand corps. On ne charge donc QUE le Regular (+ Italic).
+ * Sans face grasse déclarée, le navigateur ne peut pas non plus la simuler
+ * (voir la règle `font-synthesis: none` sur `.font-heading` dans
+ * globals.css). Pour marquer une emphase en Azimut : texte normal +
+ * MAJUSCULES, jamais le gras.
  */
 import localFont from "next/font/local";
 import { Montserrat } from "next/font/google";
@@ -19,7 +27,6 @@ export const azimut = localFont({
     src: [
         { path: "../../public/fonts/azimut/Azimut-Regular.woff2", weight: "400", style: "normal" },
         { path: "../../public/fonts/azimut/Azimut-Italic.woff2", weight: "400", style: "italic" },
-        { path: "../../public/fonts/azimut/Azimut-Bold.woff2", weight: "700", style: "normal" },
     ],
     variable: "--font-azimut",
     display: "swap",

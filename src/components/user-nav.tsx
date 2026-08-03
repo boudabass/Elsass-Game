@@ -40,7 +40,7 @@ export function UserNav() {
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="text-elsass-cream hover:bg-white/10 hover:text-elsass-cream rounded-full"
+                    className="text-white hover:bg-white/10 hover:text-white rounded-full"
                 >
                     Mon espace
                 </Button>

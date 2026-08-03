@@ -60,7 +60,7 @@ export default async function GamesPage() {
 
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start gap-2">
-                                    <CardTitle className="font-heading text-xl text-elsass-ink">
+                                    <CardTitle className="font-heading font-normal text-xl text-elsass-ink">
                                         {game.name}
                                     </CardTitle>
                                     {!game.published && (

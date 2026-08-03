@@ -32,7 +32,7 @@ const LIENS = [
 function Wordmark() {
     return (
         <Link href="/dashboard" className="flex items-baseline gap-2 shrink-0">
-            <span className="font-heading text-lg sm:text-xl text-elsass-cream tracking-tight leading-none">
+            <span className="font-heading text-lg sm:text-xl text-white tracking-tight leading-none">
                 The Elsassisch
             </span>
             <span className="hidden sm:inline text-elsass-gold text-[10px] font-sans font-semibold uppercase tracking-[0.2em]">
@@ -51,7 +51,7 @@ function LienPastille({ href, label, active }: { href: string; label: string; ac
                 "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                 active
                     ? "bg-elsass-gold text-elsass-black"
-                    : "text-elsass-cream/70 hover:text-elsass-cream"
+                    : "text-white/70 hover:text-white"
             )}
         >
             {label}
@@ -96,14 +96,14 @@ export function MainNav() {
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="sm:hidden text-elsass-cream hover:bg-white/10 hover:text-elsass-cream"
+                            className="sm:hidden text-white hover:bg-white/10 hover:text-white"
                             aria-label="Ouvrir le menu"
                         >
                             <Menu className="w-5 h-5" />
                         </Button>
                     </SheetTrigger>
                     <SheetContent side="right" className="bg-elsass-black border-l border-white/10 w-72">
-                        <SheetTitle className="font-heading text-elsass-cream text-xl mb-6">
+                        <SheetTitle className="font-heading font-normal text-white text-xl mb-6">
                             The Elsassisch
                         </SheetTitle>
                         <nav className="flex flex-col gap-1">
@@ -118,7 +118,7 @@ export function MainNav() {
                                                 "flex items-center gap-3 rounded-lg px-4 py-3 text-base font-medium transition-colors",
                                                 actif
                                                     ? "bg-elsass-gold text-elsass-black"
-                                                    : "text-elsass-cream/80 hover:bg-white/10 hover:text-elsass-cream"
+                                                    : "text-white/80 hover:bg-white/10 hover:text-white"
                                             )}
                                         >
                                             <Icon className="w-5 h-5" /> {l.label}

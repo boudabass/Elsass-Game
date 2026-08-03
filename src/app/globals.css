@@ -88,6 +88,17 @@
     @apply bg-background text-foreground font-sans;
   }
 
+  /*
+   * Azimut n'a pas de graisse grasse chargée (voir src/lib/fonts.ts) : sans
+   * cette règle, un élément qui demande quand même du gras (ex. font-semibold
+   * hérité d'un composant shadcn) pousserait le navigateur à FABRIQUER un
+   * faux gras à partir du Regular — encore moins lisible que l'original.
+   * On l'interdit explicitement, quelle que soit la graisse demandée.
+   */
+  .font-heading {
+    font-synthesis: none;
+  }
+
   /* Scrollbar personnalisée, teintée marque */
   ::-webkit-scrollbar {
     width: 8px;

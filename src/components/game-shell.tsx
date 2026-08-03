@@ -63,12 +63,12 @@ export function GameShell({ gameName, gameUrl }: GameShellProps) {
   return (
     <div ref={wrapperRef} className="flex flex-col h-full bg-black">
       {/* Barre du haut : Retour | Nom | Plein écran */}
-      <div className="flex items-center justify-between h-11 px-2 bg-elsass-black border-b border-white/10 text-elsass-cream shrink-0 relative">
+      <div className="flex items-center justify-between h-11 px-2 bg-elsass-black border-b border-white/10 text-white shrink-0 relative">
         <Link href="/games">
           <Button
             variant="ghost"
             size="sm"
-            className="text-elsass-cream/60 hover:text-elsass-cream hover:bg-white/10"
+            className="text-white/60 hover:text-white hover:bg-white/10"
           >
             <ArrowLeft className="w-4 h-4 mr-1" /> Retour
           </Button>
@@ -83,7 +83,7 @@ export function GameShell({ gameName, gameUrl }: GameShellProps) {
             variant="ghost"
             size="sm"
             onClick={toggleFullscreen}
-            className="text-elsass-cream/60 hover:text-elsass-cream hover:bg-white/10"
+            className="text-white/60 hover:text-white hover:bg-white/10"
             aria-label={isFullscreen ? "Quitter le plein écran" : "Plein écran"}
           >
             {isFullscreen ? (
@@ -98,7 +98,7 @@ export function GameShell({ gameName, gameUrl }: GameShellProps) {
       {/* Zone de jeu : l'iframe remplit tout l'espace restant */}
       <div className="flex-1 relative min-h-0" onClick={focusGame}>
         {isLoading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-elsass-cream bg-elsass-black z-20">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-elsass-black z-20">
             <Loader2 className="w-10 h-10 animate-spin mb-4 text-elsass-gold" />
             <p className="text-lg font-medium animate-pulse font-heading">
               Lancement de {gameName}...
