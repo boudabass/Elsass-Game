@@ -91,20 +91,37 @@ class GameScene extends Phaser.Scene {
                 this.consigne = null;
             }
             this.oiseau.body.setAllowGravity(true);
-            this.creerMaison(this.scale.width * 1.1);
+            this.creerMaison(this.scale.width * 1.05);
         }
 
         this.oiseau.body.setVelocityY(C.battementPar_h * this.scale.height);
     }
 
-    /** Crée une paire de maisons (haut + bas) avec un passage au milieu. */
-    creerMaison(x) {
+    /**
+     * Crée une paire de maisons (haut + bas) avec un passage au milieu.
+     *
+     * `bordGauche` = position du bord GAUCHE de la maison (et non son centre) :
+     * comme la largeur est tirée au hasard, c'est le seul repère qui permet de
+     * garder un trou constant entre deux maisons.
+     */
+    creerMaison(bordGauche) {
         const C = window.CigogneConfig;
         const h = this.scale.height;
-        const w = this.scale.width;
 
-        const largeur = w * (C.largeurMaisonPct / 100);
-        const hauteurToit = largeur * 0.28;
+        // Le bloc de colombage est l'unité de construction. La maison mesure un
+        // nombre ENTIER de blocs (1 à 4), donc la texture tombe toujours juste.
+        const bloc = Arcade.UI.u(this, C.blocPct);
+        const nbBlocs = Phaser.Math.Between(C.blocsMin, C.blocsMax);
+        const largeur = bloc * nbBlocs;
+        // La texture source fait 64 px : on la met à l'échelle d'un bloc.
+        const echelle = bloc / 64;
+
+        // Toit et débord se mesurent en BLOCS, pas en largeur de maison :
+        // une maison large garde ainsi un toit de la même épaisseur.
+        const hauteurToit = bloc * C.hauteurToitBloc;
+        const largeurToit = largeur + bloc * C.debordToitBloc * 2;
+
+        const x = bordGauche + largeur / 2;
         const ouverture = h * (C.ouverturePct / 100);
         const solY = this.decor.niveauSol();
 
@@ -118,28 +135,54 @@ class GameScene extends Phaser.Scene {
 
         const parts = [];
 
-        // Maison suspendue au plafond
+        // --- Maison suspendue au plafond -------------------------------------
         const hMurHaut = Math.max(1, hautY - hauteurToit);
-        parts.push(this.ajouterPart(
-            this.add.tileSprite(x, hMurHaut / 2, largeur, hMurHaut, "facade")
-        ));
+        const murHaut = this.add
+            .tileSprite(x, hMurHaut / 2, largeur, hMurHaut, "facade")
+            .setTileScale(echelle, echelle);
+        // La hauteur, elle, ne peut pas être un multiple de bloc (le passage est
+        // tiré au hasard). On décale donc la texture pour que le bloc entier
+        // s'arrête pile au bord du passage : la coupe part en haut, hors écran.
+        murHaut.tilePositionY = -this.resteDeBloc(hMurHaut, bloc) / echelle;
+        parts.push(this.ajouterPart(murHaut));
+
         parts.push(this.ajouterPart(
             this.add.image(x, hautY - hauteurToit / 2, "toit")
-                .setDisplaySize(largeur * 1.15, hauteurToit)
+                .setDisplaySize(largeurToit, hauteurToit)
         ));
 
-        // Maison posée au sol
+        // --- Maison posée au sol ---------------------------------------------
+        // Ici le bloc entier démarre en haut (au bord du passage) et la coupe
+        // se retrouve en bas, cachée derrière la bande de sol.
         const hMurBas = Math.max(1, solY - basY - hauteurToit);
         parts.push(this.ajouterPart(
-            this.add.tileSprite(x, basY + hauteurToit + hMurBas / 2, largeur, hMurBas, "facade")
+            this.add
+                .tileSprite(x, basY + hauteurToit + hMurBas / 2, largeur, hMurBas, "facade")
+                .setTileScale(echelle, echelle)
         ));
         parts.push(this.ajouterPart(
             this.add.image(x, basY + hauteurToit / 2, "toit")
-                .setDisplaySize(largeur * 1.15, hauteurToit)
+                .setDisplaySize(largeurToit, hauteurToit)
                 .setFlipY(true)
         ));
 
-        this.maisonsList.push({ parts: parts, reference: parts[0], passee: false });
+        this.maisonsList.push({
+            parts: parts,
+            reference: parts[0],
+            largeur: largeur,
+            passee: false
+        });
+    }
+
+    /** Ce qu'il manque à `hauteur` pour tomber sur un nombre entier de blocs. */
+    resteDeBloc(hauteur, bloc) {
+        return (bloc - (hauteur % bloc)) % bloc;
+    }
+
+    /** Bord droit de la dernière maison créée (null s'il n'y en a aucune). */
+    dernierBordDroit() {
+        const derniere = this.maisonsList[this.maisonsList.length - 1];
+        return derniere ? derniere.reference.x + derniere.largeur / 2 : null;
     }
 
     /** Donne un corps physique à un élément de maison et le fait défiler. */
@@ -187,10 +230,14 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Nouvelle maison quand la dernière a assez avancé
-        const derniere = this.maisonsList[this.maisonsList.length - 1];
-        if (!derniere || derniere.reference.x < this.scale.width - this.ecart) {
-            this.creerMaison(this.scale.width * 1.1);
+        // Nouvelle maison quand le BORD DROIT de la dernière a assez avancé :
+        // le trou entre deux maisons reste le même, quelle que soit leur largeur.
+        const bordDroit = this.dernierBordDroit();
+        if (bordDroit === null || bordDroit < this.scale.width - this.ecart) {
+            const depart = bordDroit === null
+                ? this.scale.width * 1.05
+                : Math.max(this.scale.width * 1.05, bordDroit + this.ecart);
+            this.creerMaison(depart);
         }
 
         // Score + ménage

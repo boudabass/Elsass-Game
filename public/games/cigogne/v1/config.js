@@ -18,10 +18,17 @@ window.CigogneConfig = {
     inclinaisonMax: 60,
 
     // --- Obstacles (maisons alsaciennes) ------------------------------------
+    // Une maison est bâtie en BLOCS de colombage. Sa largeur est toujours un
+    // nombre entier de blocs : la texture n'est donc jamais coupée en plein
+    // milieu d'une croix de Saint-André.
     ouverturePct: 30,        // hauteur du passage, en % de la hauteur d'écran
-    largeurMaisonPct: 16,    // largeur d'une maison, en % de la largeur d'écran
+    blocPct: 6,              // côté d'un bloc, en % du plus petit côté de l'écran
+    blocsMin: 1,             // largeur mini d'une maison, en blocs
+    blocsMax: 4,             // largeur maxi d'une maison, en blocs
+    hauteurToitBloc: 0.75,   // épaisseur de l'avant-toit, en blocs
+    debordToitBloc: 0.15,    // débord du toit de chaque côté, en blocs
     vitessePar_w: 0.38,      // défilement : 38 % de la largeur d'écran / seconde
-    ecartPar_w: 0.62,        // distance entre deux maisons, en largeurs d'écran
+    ecartPar_w: 0.46,        // trou entre deux maisons (bord à bord), en largeurs d'écran
     margeHautPct: 12,        // zone interdite en haut, en % de la hauteur
     margeBasPct: 12,         // zone interdite au-dessus du sol
 
