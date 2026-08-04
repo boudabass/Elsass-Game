@@ -9,7 +9,7 @@ export default async function ProfilePage() {
 
     return (
         <div className="container mx-auto py-8 animate-in fade-in duration-500">
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
+            <h1 className="font-heading text-3xl text-elsass-ink sm:text-4xl mb-8">
                 Mon Profil
             </h1>
 
@@ -19,7 +19,7 @@ export default async function ProfilePage() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                     <p className="font-bold text-lg">{user.name}</p>
-                    <p className="text-sm text-slate-500">{user.username}</p>
+                    <p className="text-sm text-muted-foreground">{user.username}</p>
                 </CardContent>
             </Card>
         </div>

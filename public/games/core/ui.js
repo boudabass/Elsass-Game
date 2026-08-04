@@ -53,7 +53,7 @@
                 .text(x, y, content, {
                     fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
                     fontSize: Math.round(Arcade.UI.u(scene, sizePct)) + "px",
-                    color: color || "#0f172a",
+                    color: color || "#141210",
                     align: "center"
                 })
                 .setOrigin(0.5);
@@ -65,7 +65,7 @@
          * @returns {Phaser.GameObjects.Container}
          */
         button: function (scene, o) {
-            var couleur = Phaser.Display.Color.HexStringToColor(o.color || "#4f46e5").color;
+            var couleur = Phaser.Display.Color.HexStringToColor(o.color || "#E31B23").color;
             var bg = scene.add.graphics();
             var label = scene.add
                 .text(0, 0, o.label, {

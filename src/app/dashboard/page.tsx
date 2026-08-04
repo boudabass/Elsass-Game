@@ -31,55 +31,68 @@ export default async function DashboardPage() {
     const userName = user.name || user.username?.split('@')[0] || "Joueur"
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700 container mx-auto py-8">
-            {/* Hero Quick Welcome */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b pb-8">
+        <div className="animate-in fade-in space-y-6 duration-500 sm:space-y-8">
+            {/* Accueil : qui est là, et le raccourci vers le catalogue. */}
+            <div className="flex flex-col gap-4 border-b border-elsass-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:pb-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        Bonjour, <span className="text-indigo-600">{userName}</span>
+                    <h1 className="font-heading text-3xl text-elsass-ink sm:text-4xl">
+                        Bonjour, <span className="text-elsass-red">{userName}</span>
                     </h1>
-                    <p className="text-slate-500 mt-1">Prêt pour une nouvelle partie ?</p>
+                    <p className="mt-1 text-muted-foreground">Prêt pour une nouvelle partie ?</p>
                 </div>
-                <div className="flex gap-3">
-                    <Link href="/games">
-                        <Button size="lg" className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg text-white font-bold">
-                            <Play className="mr-2 w-5 h-5 fill-current" /> Lancer un Jeu
-                        </Button>
-                    </Link>
-                </div>
+                <Link href="/games" className="shrink-0">
+                    <Button
+                        size="lg"
+                        className="w-full bg-elsass-red font-medium text-white hover:bg-elsass-red/90 sm:w-auto"
+                    >
+                        <Play className="mr-2 h-5 w-5 fill-current" /> Lancer un jeu
+                    </Button>
+                </Link>
             </div>
 
-            <Card className="bg-slate-50 border-0 shadow-sm">
+            <Card className="border-elsass-line">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Star className="text-yellow-500 w-5 h-5" /> Nouveautés sur la plateforme
+                    <CardTitle className="flex items-center gap-2 font-heading font-normal text-xl text-elsass-ink">
+                        <Star className="h-5 w-5 text-elsass-gold" /> Nouveautés sur la plateforme
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         {latestGames.length > 0 ? latestGames.map(game => (
-                            <div key={game.id} className="flex items-center justify-between p-3 bg-white rounded-lg border hover:border-indigo-200 transition-colors group">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-12 w-12 rounded-md bg-slate-200 overflow-hidden flex items-center justify-center text-slate-400">
-                                        <Play className="w-6 h-6" />
+                            <div
+                                key={game.id}
+                                className="group flex items-center justify-between gap-3 rounded-lg border border-elsass-line p-3 transition-colors hover:border-elsass-gold"
+                            >
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-elsass-black text-elsass-gold">
+                                        <Play className="h-6 w-6" />
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-800">{game.name}</h4>
-                                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">v1.0</span>
+                                    <div className="min-w-0">
+                                        <h4 className="truncate font-medium text-elsass-ink">{game.name}</h4>
+                                        <span className="rounded-full bg-elsass-gold/20 px-2 py-0.5 text-xs text-elsass-ink">
+                                            v1.0
+                                        </span>
                                     </div>
                                 </div>
-                                <Link href={`/play/${game.id}`}>
-                                    <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600">
-                                        Jouer <ArrowRight className="ml-1 w-4 h-4" />
+                                <Link href={`/play/${game.id}`} className="shrink-0">
+                                    {/* Toujours visible : au doigt, il n'y a pas de survol. */}
+                                    <Button variant="ghost" size="sm" className="text-elsass-red hover:bg-elsass-red/10 hover:text-elsass-red">
+                                        Jouer <ArrowRight className="ml-1 h-4 w-4" />
                                     </Button>
                                 </Link>
                             </div>
-                        )) : <p className="text-slate-400 italic">Aucun jeu récent (ou session expirée).</p>}
+                        )) : (
+                            <p className="italic text-muted-foreground">
+                                Aucun jeu récent (ou session expirée).
+                            </p>
+                        )}
                     </div>
                 </CardContent>
                 <CardFooter>
                     <Link href="/games" className="w-full">
-                        <Button variant="outline" className="w-full">Voir tout le catalogue</Button>
+                        <Button variant="outline" className="w-full border-elsass-line text-elsass-ink hover:bg-elsass-line/40">
+                            Voir tout le catalogue
+                        </Button>
                     </Link>
                 </CardFooter>
             </Card>

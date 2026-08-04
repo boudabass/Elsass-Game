@@ -33,7 +33,7 @@ class OverScene extends Phaser.Scene {
         const menu = UI.button(this, {
             width: UI.u(this, 40), height: UI.u(this, 10),
             label: "Menu",
-            color: "#64748b",
+            color: "#141210",
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(MenuScene.KEY)
         });
@@ -57,6 +57,6 @@ class OverScene extends Phaser.Scene {
                 ? "Nouveau record !"
                 : "Meilleur score : " + Arcade.Score.best
         );
-        if (nouveauRecord) record.setColor("#b45309");
+        if (nouveauRecord) record.setColor("#F2B93D");
     }
 }

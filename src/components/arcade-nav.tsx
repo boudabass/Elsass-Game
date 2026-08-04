@@ -46,7 +46,9 @@ export function ArcadeNav() {
                 // `sticky` ne mord que si l'iframe scrolle elle-même ; sinon
                 // inoffensif, la barre reste simplement en tête de contenu.
                 "sticky top-0 z-40",
-                "border-b border-elsass-line bg-elsass-cream/95 backdrop-blur"
+                // Blanc pur : la page Odoo qui embarque l'iframe est blanche,
+                // le moindre crème se verrait comme un bloc rapporté.
+                "border-b border-elsass-line bg-white/95 backdrop-blur"
             )}
         >
             <div className="mx-auto flex h-12 max-w-6xl items-center justify-between gap-2 px-3 sm:h-14 sm:px-6">

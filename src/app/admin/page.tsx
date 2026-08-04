@@ -45,13 +45,13 @@ export default async function AdminPage() {
   return (
     <div className="container mx-auto py-8 space-y-8 animate-in fade-in duration-500">
       <div className="border-b pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-          <Settings className="w-8 h-8 text-indigo-600" />
+        <h1 className="font-heading text-3xl text-elsass-ink sm:text-4xl flex items-center gap-3">
+          <Settings className="w-8 h-8 text-elsass-red" />
           Gestion du catalogue
         </h1>
-        <p className="text-slate-500 mt-2">
+        <p className="text-muted-foreground mt-2">
           Ajouter, modifier, publier ou retirer des jeux. L&apos;ID d&apos;un jeu est le{" "}
-          <code className="bg-slate-100 px-1 rounded">?gid=</code> injecté dans son iframe.
+          <code className="bg-elsass-line/50 px-1 rounded">?gid=</code> injecté dans son iframe.
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default async function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FolderSearch className="w-5 h-5 text-indigo-600" /> Jeux détectés dans le dossier
+            <FolderSearch className="w-5 h-5 text-elsass-red" /> Jeux détectés dans le dossier
           </CardTitle>
           <CardDescription>
             Trouvés dans <code>public/games/</code> et pas encore au catalogue. Un clic pour les ajouter (ils arrivent en « Publié » : masque-les ensuite si besoin).
@@ -67,15 +67,15 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {detected.length === 0 ? (
-            <p className="text-slate-400 italic">Rien à ajouter : tous les jeux du dossier sont déjà au catalogue.</p>
+            <p className="text-muted-foreground italic">Rien à ajouter : tous les jeux du dossier sont déjà au catalogue.</p>
           ) : (
             detected.map((d) => (
               <form key={d.url} action={addGameAction} className="flex flex-wrap items-center gap-3 border rounded-lg p-3">
                 <input type="hidden" name="url" value={d.url} />
-                <code className="text-xs bg-slate-100 px-2 py-1 rounded">{d.url}</code>
+                <code className="text-xs bg-elsass-line/50 px-2 py-1 rounded">{d.url}</code>
                 <Input name="name" defaultValue={d.suggestedName} className="w-48" required />
                 <Input name="id" type="number" placeholder="ID (auto)" className="w-28" />
-                <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Button type="submit" size="sm" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
                   <Plus className="w-4 h-4 mr-1" /> Ajouter
                 </Button>
               </form>
@@ -88,7 +88,7 @@ export default async function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-indigo-600" /> Ajouter un jeu
+            <Plus className="w-5 h-5 text-elsass-red" /> Ajouter un jeu
           </CardTitle>
           <CardDescription>
             URL = chemin du jeu, ex. <code>/games/_template/v1/index.html</code>. ID vide = automatique.
@@ -100,7 +100,7 @@ export default async function AdminPage() {
             <Input name="url" placeholder="/games/mon-jeu/v1/index.html" required />
             <Textarea name="description" placeholder="Description (optionnel)" className="md:col-span-2" />
             <Input name="id" type="number" placeholder="ID (optionnel, sinon auto)" />
-            <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+            <Button type="submit" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
               <Plus className="mr-2 w-4 h-4" /> Ajouter
             </Button>
           </form>
@@ -114,18 +114,18 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {games.length === 0 ? (
-            <p className="text-slate-400 italic">Catalogue vide : ajoute ton premier jeu ci-dessus.</p>
+            <p className="text-muted-foreground italic">Catalogue vide : ajoute ton premier jeu ci-dessus.</p>
           ) : (
             games.map((game) => (
               <div key={game.id} className="border rounded-lg p-4 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded">#{game.id}</span>
+                    <span className="font-mono text-sm bg-elsass-line/50 px-2 py-1 rounded">#{game.id}</span>
                     <span className="font-bold">{game.name}</span>
                     {game.published ? (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold">Publié</span>
+                      <span className="text-xs bg-elsass-gold/25 text-elsass-black px-2 py-0.5 rounded-full font-semibold">Publié</span>
                     ) : (
-                      <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-semibold">Masqué</span>
+                      <span className="text-xs bg-elsass-line text-elsass-ink/70 px-2 py-0.5 rounded-full font-semibold">Masqué</span>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -146,7 +146,7 @@ export default async function AdminPage() {
                     </form>
                     <form action={deleteGameAction}>
                       <input type="hidden" name="id" value={game.id} />
-                      <Button variant="outline" size="sm" type="submit" className="text-red-600 hover:bg-red-50">
+                      <Button variant="outline" size="sm" type="submit" className="text-elsass-red hover:bg-elsass-red/10">
                         <Trash2 className="w-4 h-4 mr-1" /> Supprimer
                       </Button>
                     </form>

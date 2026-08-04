@@ -48,8 +48,8 @@ window.CigogneConfig = {
         toitBord: 0x7a3a28,  // avant-toit
         herbe: 0x6aa84f,
         terre: 0x8b6b4a,
-        texte: "#0f172a",
+        texte: "#141210",
         texteClair: "#ffffff",
-        bouton: "#4f46e5"
+        bouton: "#E31B23"
     }
 };

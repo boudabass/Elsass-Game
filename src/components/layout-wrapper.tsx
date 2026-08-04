@@ -21,7 +21,8 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     return (
         <div
             className={cn(
-                "flex flex-col bg-elsass-cream",
+                // Fond blanc, comme la page Odoo qui embarque l'iframe.
+                "flex flex-col bg-white",
                 isGamePage && "min-h-screen"
             )}
         >
