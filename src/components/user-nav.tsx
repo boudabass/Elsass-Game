@@ -12,12 +12,28 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { LogOut, User, Shield, Trophy } from "lucide-react";
+import { LogOut, User, Shield, Trophy, CircleUser } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function UserNav() {
+/*
+ * variant "bar" : bouton texte, dans la rangée de pastilles (desktop).
+ * variant "tab" : 4e onglet de la barre du bas (mobile) — icône + label,
+ *                 même gabarit que les autres onglets, menu ouvert vers
+ *                 le haut puisqu'il n'y a rien en dessous.
+ */
+export function UserNav({ variant = "bar" }: { variant?: "bar" | "tab" }) {
     const { user, role, isLoading, signOut } = useAuth();
+    const estTab = variant === "tab";
 
-    if (isLoading) return <div className="h-8 w-24 animate-pulse rounded-full bg-white/10"></div>;
+    if (isLoading)
+        return (
+            <div
+                className={cn(
+                    "animate-pulse rounded-full bg-elsass-line",
+                    estTab ? "m-3 h-8" : "h-8 w-24"
+                )}
+            />
+        );
 
     if (!user) {
         return (
@@ -37,15 +53,31 @@ export function UserNav() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-white/10 hover:text-white rounded-full"
-                >
-                    Mon espace
-                </Button>
+                {estTab ? (
+                    <button
+                        type="button"
+                        className="flex min-h-[56px] flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium text-elsass-ink/50 transition-colors data-[state=open]:text-elsass-red"
+                    >
+                        <CircleUser className="h-5 w-5" strokeWidth={1.8} />
+                        Moi
+                    </button>
+                ) : (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-full text-elsass-ink/70 hover:bg-elsass-line/60 hover:text-elsass-ink"
+                    >
+                        Mon espace
+                    </Button>
+                )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuContent
+                className="w-56"
+                align="end"
+                side={estTab ? "top" : "bottom"}
+                sideOffset={estTab ? 8 : 4}
+                forceMount
+            >
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">Mon Compte</p>

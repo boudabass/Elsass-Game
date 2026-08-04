@@ -1,31 +1,47 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { MainNav } from "@/components/main-nav";
+import { ArcadePills, ArcadeTabs, ArcadeLoginTab } from "@/components/arcade-nav";
 import { cn } from "@/lib/utils";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isGamePage = pathname?.startsWith("/play/");
 
+    /*
+     * Plus d'en-tête : l'arcade vit dans une page Odoo qui a déjà le sien
+     * (voir arcade-nav.tsx). La navigation passe en bas sur mobile, en
+     * pastilles dans le flux sur desktop.
+     *
+     * `min-h-screen` uniquement en mode jeu : hors jeu, la page Odoo donne
+     * à l'iframe la hauteur du contenu, et forcer 100vh ferait grandir
+     * l'iframe à chaque mesure (le contenu vaudrait toujours la hauteur
+     * courante de l'iframe).
+     */
     return (
-        <div className="flex flex-col min-h-screen bg-elsass-cream">
-            {/* Barre noire, dans le style du site principal. Masquée pendant une partie. */}
-            {!isGamePage && (
-                <header className="sticky top-0 z-40 bg-elsass-black">
-                    <div className="h-14 sm:h-16 px-4 sm:px-6 max-w-6xl mx-auto flex items-center">
-                        <MainNav />
-                    </div>
-                </header>
+        <div
+            className={cn(
+                "flex flex-col bg-elsass-cream",
+                isGamePage && "min-h-screen"
             )}
-
-            {/* Mobile-first : padding compact, qui s'ouvre sur les grands écrans. */}
-            <main className={cn(
-                "flex-1 w-full",
-                isGamePage ? "p-0" : "max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8"
-            )}>
+        >
+            <main
+                className={cn(
+                    "w-full flex-1",
+                    isGamePage ? "p-0" : "mx-auto max-w-6xl px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6"
+                )}
+            >
+                {!isGamePage && <ArcadePills />}
                 {children}
             </main>
+
+            {/* Barre d'onglets : masquée pendant une partie, écran au jeu. */}
+            {!isGamePage && (
+                <>
+                    <ArcadeTabs />
+                    <ArcadeLoginTab />
+                </>
+            )}
         </div>
     );
 }
