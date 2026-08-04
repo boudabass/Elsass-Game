@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ArcadePills, ArcadeTabs, ArcadeLoginTab } from "@/components/arcade-nav";
+import { ArcadeNav } from "@/components/arcade-nav";
 import { cn } from "@/lib/utils";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
@@ -9,9 +9,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     const isGamePage = pathname?.startsWith("/play/");
 
     /*
-     * Plus d'en-tête : l'arcade vit dans une page Odoo qui a déjà le sien
-     * (voir arcade-nav.tsx). La navigation passe en bas sur mobile, en
-     * pastilles dans le flux sur desktop.
+     * Plus d'en-tête noir : l'arcade vit dans une page Odoo qui a déjà le
+     * sien (voir arcade-nav.tsx). Reste une barre de sous-menu discrète,
+     * masquée pendant une partie — l'écran est au jeu.
      *
      * `min-h-screen` uniquement en mode jeu : hors jeu, la page Odoo donne
      * à l'iframe la hauteur du contenu, et forcer 100vh ferait grandir
@@ -25,23 +25,18 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
                 isGamePage && "min-h-screen"
             )}
         >
+            {!isGamePage && <ArcadeNav />}
+
             <main
                 className={cn(
                     "w-full flex-1",
-                    isGamePage ? "p-0" : "mx-auto max-w-6xl px-4 pb-6 pt-4 sm:px-6 sm:pb-8 sm:pt-6"
+                    isGamePage
+                        ? "p-0"
+                        : "mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8"
                 )}
             >
-                {!isGamePage && <ArcadePills />}
                 {children}
             </main>
-
-            {/* Barre d'onglets : masquée pendant une partie, écran au jeu. */}
-            {!isGamePage && (
-                <>
-                    <ArcadeTabs />
-                    <ArcadeLoginTab />
-                </>
-            )}
         </div>
     );
 }

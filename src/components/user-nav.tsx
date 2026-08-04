@@ -13,27 +13,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { LogOut, User, Shield, Trophy, CircleUser } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 /*
- * variant "bar" : bouton texte, dans la rangée de pastilles (desktop).
- * variant "tab" : 4e onglet de la barre du bas (mobile) — icône + label,
- *                 même gabarit que les autres onglets, menu ouvert vers
- *                 le haut puisqu'il n'y a rien en dessous.
+ * Bouton de compte, à droite de la barre de l'arcade. Sur mobile la
+ * place manque à côté des trois onglets : on ne garde que l'icône.
  */
-export function UserNav({ variant = "bar" }: { variant?: "bar" | "tab" }) {
+export function UserNav() {
     const { user, role, isLoading, signOut } = useAuth();
-    const estTab = variant === "tab";
 
     if (isLoading)
-        return (
-            <div
-                className={cn(
-                    "animate-pulse rounded-full bg-elsass-line",
-                    estTab ? "m-3 h-8" : "h-8 w-24"
-                )}
-            />
-        );
+        return <div className="h-8 w-8 animate-pulse rounded-full bg-elsass-line sm:w-24" />;
 
     if (!user) {
         return (
@@ -53,31 +42,17 @@ export function UserNav({ variant = "bar" }: { variant?: "bar" | "tab" }) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                {estTab ? (
-                    <button
-                        type="button"
-                        className="flex min-h-[56px] flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium text-elsass-ink/50 transition-colors data-[state=open]:text-elsass-red"
-                    >
-                        <CircleUser className="h-5 w-5" strokeWidth={1.8} />
-                        Moi
-                    </button>
-                ) : (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-full text-elsass-ink/70 hover:bg-elsass-line/60 hover:text-elsass-ink"
-                    >
-                        Mon espace
-                    </Button>
-                )}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Mon espace"
+                    className="shrink-0 rounded-full px-2 text-elsass-ink/70 hover:bg-elsass-line/60 hover:text-elsass-ink sm:px-3"
+                >
+                    <CircleUser className="h-5 w-5 sm:hidden" strokeWidth={1.8} />
+                    <span className="hidden sm:inline">Mon espace</span>
+                </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-                className="w-56"
-                align="end"
-                side={estTab ? "top" : "bottom"}
-                sideOffset={estTab ? 8 : 4}
-                forceMount
-            >
+            <DropdownMenuContent className="w-56" align="end" sideOffset={4} forceMount>
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">Mon Compte</p>
