@@ -9,6 +9,14 @@ window.CigogneConfig = {
     key: "cigogne",
     titre: "Cigogne",
 
+    // --- Textes (libellés français) -----------------------------------------
+    // {score} est un emplacement : la valeur du score est insérée au moment
+    // de l'affichage (voir MenuScene / OverScene).
+    textes: {
+        meilleurScore: "Meilleur score : {score}",
+        nouveauRecord: "Nouveau record !"
+    },
+
     // --- Vol ---------------------------------------------------------------
     // Gravité exprimée en hauteurs d'écran par seconde au carré.
     gravitePar_h: 3.2,
