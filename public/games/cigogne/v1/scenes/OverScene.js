@@ -54,8 +54,8 @@ class OverScene extends Phaser.Scene {
         const nouveauRecord = await Arcade.Score.submit(this.scoreFinal);
         record.setText(
             nouveauRecord
-                ? "Nouveau record !"
-                : "Meilleur score : " + Arcade.Score.best
+                ? C.textes.nouveauRecord
+                : C.textes.meilleurScore.replace("{score}", Arcade.Score.best)
         );
         if (nouveauRecord) record.setColor("#F2B93D");
     }

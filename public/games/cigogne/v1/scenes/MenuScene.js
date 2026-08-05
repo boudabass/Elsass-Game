@@ -56,6 +56,6 @@ class MenuScene extends Phaser.Scene {
 
         // Meilleur score : local d'abord, puis confirmation par le serveur
         await Arcade.Score.load();
-        record.setText("Meilleur score : " + Arcade.Score.best);
+        record.setText(C.textes.meilleurScore.replace("{score}", Arcade.Score.best));
     }
 }
