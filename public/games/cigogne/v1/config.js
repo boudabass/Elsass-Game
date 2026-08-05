@@ -58,6 +58,9 @@ window.CigogneConfig = {
         terre: 0x8b6b4a,
         texte: "#141210",
         texteClair: "#ffffff",
-        bouton: "#E31B23"
+        bouton: "#E31B23",
+        // Encadré du record sur l'écran de fin : orange, texte noir à
+        // l'intérieur (lisible sur le fond bleu ciel).
+        encadreRecord: "#F2B93D"
     }
 };
