@@ -12,6 +12,10 @@ class MenuScene extends Phaser.Scene {
         const C = window.CigogneConfig;
         const UI = Arcade.UI;
 
+        // Fond du menu : ciel orange (crépuscule) — volontairement différent
+        // du ciel bleu des autres scènes pour une vérification visuelle immédiate.
+        this.cameras.main.setBackgroundColor("#f28c28");
+
         this.decor = new CigogneDecor(this);
         this.decor.creerFond();
 
@@ -22,7 +26,7 @@ class MenuScene extends Phaser.Scene {
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texte);
         const bouton = UI.button(this, {
             width: UI.u(this, 40), height: UI.u(this, 12),
-            label: "Jouer",
+            label: "Commencer",
             color: C.couleurs.bouton,
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(GameScene.KEY)
