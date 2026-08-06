@@ -144,7 +144,13 @@ class LaneGenerator {
     /** Fait dériver une liste d'obstacles latéraux (recyclage aux bords). */
     _deriver(obstacles, w, marge, delta) {
         for (const o of obstacles) {
-            o.sprite.x += o.vitesse * (delta / 1000);
+            // Le sens de circulation applique la direction : les obstacles
+            // direction=-1 (« gauche ») dérivent vers la gauche, les
+            // direction=+1 vers la droite (fix NC-1 review t_d8bbd197 —
+            // auparavant la direction n'agissait que sur le recyclage, les
+            // obstacles « gauche » roulaient à l'envers et ne recyclaient
+            // jamais).
+            o.sprite.x += o.direction * o.vitesse * (delta / 1000);
             if (o.direction > 0 && o.sprite.x - o.demiLargeur > w + marge) {
                 o.sprite.x = -o.demiLargeur - marge;   // ressort à gauche
             } else if (o.direction < 0 && o.sprite.x + o.demiLargeur < -marge) {
