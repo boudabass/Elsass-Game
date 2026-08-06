@@ -68,10 +68,15 @@ class ObstaclePool {
             sprite.setTexture(texture);
             sprite.setVisible(true).setActive(true);
         }
+        // Un sprite recyclé peut avoir été retourné (flipX) par sa
+        // précédente vie (véhicules vus de côté, D2-2) : on repart d'un
+        // sprite non retourné, le rendu réapplique le flip si besoin.
+        sprite.setFlipX(false);
         // Corps DÉSACTIVÉ par défaut : un sprite repris du pool ne
         // collisionne jamais tant qu'il n'est pas un obstacle. Le décor
         // (arbres/buissons) reste inerte pour toute sa vie ; seuls les
-        // véhicules, nénuphars et wagons sont réactivés par activer().
+        // véhicules, nénuphars, bateaux et wagons sont réactivés par
+        // activer()/activerRect().
         if (sprite.body) sprite.body.enable = false;
         sprite.setDepth(depth);
         return sprite;
@@ -135,5 +140,53 @@ class ObstaclePool {
             sprite.body.setAllowGravity(false);
             sprite.body.setImmovable(true);
         }
+    }
+
+    /**
+     * Version RECTANGULAIRE d'activer() : véhicules de 1 à 4 cases et
+     * bateaux (spec 708 §5 — largeur = cases × case, hauteur ≈ bande).
+     * @param {Phaser.GameObjects.Sprite} sprite
+     * @param {number} largeur largeur (px)
+     * @param {number} hauteur hauteur (px)
+     */
+    activerRect(sprite, largeur, hauteur) {
+        sprite.setDisplaySize(largeur, hauteur);
+        if (sprite.body) {
+            sprite.body.enable = true;
+            this._setTailleCorpsRect(sprite, largeur, hauteur);
+            sprite.body.setAllowGravity(false);
+            sprite.body.setImmovable(true);
+        }
+    }
+
+    /**
+     * Version RECTANGULAIRE de taille() : redimensionne un sprite vivant
+     * ET son corps (véhicules/flottants, cf. activerRect).
+     * @param {Phaser.GameObjects.Sprite} sprite
+     * @param {number} largeur largeur (px)
+     * @param {number} hauteur hauteur (px)
+     */
+    tailleRect(sprite, largeur, hauteur) {
+        sprite.setDisplaySize(largeur, hauteur);
+        if (sprite.body && sprite.body.enable) {
+            this._setTailleCorpsRect(sprite, largeur, hauteur);
+        }
+    }
+
+    /**
+     * Dimensionne le corps Arcade d'un sprite RECTANGULAIRE déjà
+     * dimensionné (scale appliqué) pour qu'il fasse exactement
+     * `largeur` × `hauteur` pixels à l'écran. setSize dimensionne en
+     * pixels de TEXTURE SOURCE puis Phaser multiplie par le scale du
+     * sprite : on divise par le scale réel (même correctif que
+     * _setTailleCorps — fix NC-1, QA e6a571d).
+     * @param {Phaser.GameObjects.Sprite} sprite
+     * @param {number} largeur largeur voulue à l'écran (px)
+     * @param {number} hauteur hauteur voulue à l'écran (px)
+     */
+    _setTailleCorpsRect(sprite, largeur, hauteur) {
+        const sx = Math.abs(sprite.scaleX) || 1;
+        const sy = Math.abs(sprite.scaleY) || 1;
+        sprite.body.setSize(largeur / sx, hauteur / sy);
     }
 }

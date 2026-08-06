@@ -37,6 +37,15 @@
             scene.load.image("route_pleine", "assets/sol/p8city_route_pleine.png");
             scene.load.image("route_ligne", "assets/sol/p8city_route_ligne_v2.png");
 
+            // D2-2 (spec 708 §3) : terre (tampon du train) et pave (piste
+            // d'atterrissage) — textures atelier town_terre_centre* et
+            // p8city_pave*, tuilées.
+            scene.load.image("terre", "assets/sol/town_terre_centre_v3.png");
+            scene.load.image("terre_v2", "assets/sol/town_terre_centre.png");
+            scene.load.image("piste", "assets/sol/p8city_pave.png");
+            scene.load.image("piste_v2", "assets/sol/p8city_pave_v2.png");
+            scene.load.image("piste_v3", "assets/sol/p8city_pave_v3.png");
+
             // Eau des bandes eau (4 variantes de texture, tuilées).
             scene.load.image("eau", "assets/eau/p8city_eau.png");
             scene.load.image("eau_v2", "assets/eau/p8city_eau_v2.png");
@@ -96,6 +105,27 @@
             scene.load.image("voiture_verte_gauche", "assets/vehicule/p8city_voiture_verte_dessus_gauche.png");
             scene.load.image("voiture_rose_droite", "assets/vehicule/p8city_voiture_rose_dessus_droite.png");
             scene.load.image("voiture_rose_gauche", "assets/vehicule/p8city_voiture_rose_dessus_gauche.png");
+
+            // D2-2 (spec 708 §5 — « tous types mélangés ») : taxi et bus
+            // vus de côté (p8city), en plus des voitures vue de dessus.
+            scene.load.image("taxi_jaune_cote", "assets/vehicule/p8city_taxi_jaune_cote.png");
+            scene.load.image("taxi_jaune_cote_v2", "assets/vehicule/p8city_taxi_jaune_cote_v2.png");
+            scene.load.image("bus_jaune_1", "assets/vehicule/p8city_bus_jaune_1.png");
+
+            // D2-2 (spec 708 §3) — bateaux de l'eau (barques rogrpg, vue de
+            // dessus) : véhicules qui REMPLACENT les plantes en fin de jeu.
+            scene.load.image("barque_v1", "assets/vehicule/rogrpg_barque_v1.png");
+            scene.load.image("barque_v2", "assets/vehicule/rogrpg_barque_v2.png");
+            scene.load.image("barque_v3", "assets/vehicule/rogrpg_barque_v3.png");
+
+            // D2-2 (spec 708 §3) — véhicules volants de la piste
+            // d'atterrissage (avions et hélicos battle, atelier) : même
+            // comportement qu'un véhicule de route (spec 708 §5).
+            scene.load.image("avion_rouge", "assets/vehicule/battle_avion_rouge.png");
+            scene.load.image("avion_vert", "assets/vehicule/battle_avion_vert.png");
+            scene.load.image("avion_bleu", "assets/vehicule/battle_avion_bleu.png");
+            scene.load.image("helico_rouge", "assets/vehicule/battle_helico_rouge.png");
+            scene.load.image("helico_vert", "assets/vehicule/battle_helico_vert.png");
 
             // Décor des zones sûres (prairie et rangées de vigne).
             scene.load.image("buisson_vert", "assets/decor/p8city_buisson_vert.png");

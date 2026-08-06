@@ -51,10 +51,12 @@ window.WaggisConfig = {
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
-    // Étape 2 : bandes zone_sure (prairie/vigne) et route (véhicules
-    // latéraux). Étape 3 : bandes eau (nénuphars qui dérivent). Étape 4 :
-    // bandes rails (voie ferrée, train rapide prévenu par signal). Toutes
-    // les valeurs sont en PROPORTION de l'écran — jamais en pixels.
+    // D2-2 (spec 708 §2/§3/§4/§5/§6 — spec détaillée chiffrée, article 708) :
+    // 7 types de lignes (herbe, buisson, route, eau, train, terre, piste
+    // d'atterrissage), grille de 20 cases de large, tampons obligatoires et
+    // aléatoires, véhicules 1 à 4 cases avec vitesse 1.00+0.01×(niveau−1)
+    // ±30 %, eau plantes/bateaux en miroir. Toutes les valeurs sont en
+    // PROPORTION de l'écran — jamais en pixels.
     lanes: {
         // Hauteur d'une bande, en % de la HAUTEUR d'écran (les bandes sont
         // empilées verticalement, c'est la hauteur qui compte) : 10 % = dix
@@ -65,71 +67,99 @@ window.WaggisConfig = {
         // quelques bandes d'avance quand le joueur monte (pooling).
         margeBandesHaut: 2,
 
-        // Route : durée (en secondes) qu'un véhicule met à traverser
-        // l'écran. Elle diminue avec la difficulté (trafic plus rapide).
-        routeDureeTraversee: { base: 8, parNiveau: 0.6, min: 3.5 },
+        // Grille : une ligne fait 20 cases de large (spec 708 §2). Toutes
+        // les positions d'obstacles, les largeurs de véhicules (1 à 4 cases)
+        // et les densités (75 % max) sont exprimées dans cette grille.
+        largeurCases: 20,
 
-        // Route : nombre de véhicules par bande (densité du trafic).
-        routeVehicules: { min: 1, max: 6, base: 2, parNiveau: 0.5 },
+        // --- Vitesse des véhicules (spec 708 §5) --------------------------
+        // vitesseBase(niveau) = 1.00 + 0.01 × (niveau − 1) → ~2.0 au niveau
+        // 100 (repère, pas un plafond). Variance aléatoire de ±30 % autour
+        // de la base PAR VÉHICULE (ex. niveau 1 : 0.70 à 1.30).
+        // La spec ne fixe pas l'unité absolue du multiplicateur : 1.00 =
+        // `vitesseReferenceCasesParSec` cases/seconde, soit ~8 s pour
+        // traverser les 20 cases au niveau 1 — cohérent avec l'ancien
+        // réglage (routeDureeTraversee base 8 s), conservé pour le game-feel.
+        vitesseReferenceCasesParSec: 2.5,
+        varianceVitesse: 0.3,
 
-        // Anti-frustration (CDC 706 §Génération) : deux bandes route
-        // consécutives, la deuxième est plus clémente (moins de véhicules,
-        // véhicules plus lents) pour rester franchissable.
-        route2eConsecutive: { densite: 0.7, vitesse: 0.85 },
+        // --- Véhicules (spec 708 §5) --------------------------------------
+        // Occupent 1 à 4 cases, tous types de véhicules mélangés (route/eau/
+        // piste), direction alternée par ligne (sens opposé de la ligne de
+        // véhicules précédente, comme Frogger).
+        vehiculeCases: { min: 1, max: 4 },
+        // Densité route/piste : progresse de faible en début de jeu jusqu'à
+        // un maximum de 75 % de la ligne occupée par des véhicules. Le
+        // plafond 75 % garantit structurellement « toujours au moins un
+        // passage traversable » (jamais 100 % bloquée).
+        routeDensite: { minFrac: 0.12, maxFrac: 0.75 },
 
-        // Eau : durée (en secondes) qu'un nénuphar met à traverser l'écran
-        // (le courant). Elle diminue avec la difficulté (dérive plus rapide).
-        eauDureeTraversee: { base: 9, parNiveau: 0.5, min: 4 },
+        // --- Eau (spec 708 §6) --------------------------------------------
+        // Plantes (plateformes) : 75 % de la bande en début de jeu → 1 à 2
+        // plantes seulement en fin de jeu (JAMAIS 0 — garantit le passage).
+        eauPlantes: { minFrac: 0.075, maxFrac: 0.75 },
+        // Bateaux : miroir de la route — 0 % en début → 75 % max en fin, en
+        // REMPLACEMENT des plantes (pas d'addition) : les cases libérées par
+        // la baisse du % de plantes sont prises par les bateaux. Case ni
+        // plante ni bateau = eau vide = mort au contact.
+        eauBateaux: { minFrac: 0, maxFrac: 0.75 },
 
-        // Eau : nombre de nénuphars par bande (densité de prise — plus il y
-        // en a, plus la traversée est facile).
-        eauFlottants: { min: 2, max: 6, base: 3, parNiveau: 0.4 },
+        // --- Tampons (spec 708 §4) ----------------------------------------
+        // Une ligne tampon = 1 à 3 lignes d'affilée (tiré dans cette plage).
+        tamponLignes: { min: 1, max: 3 },
+        // Groupes de routes qui s'enchaînent (spec 708 §4) : une route peut
+        // être suivie d'une autre route (groupe), borné par `max` pour
+        // rester franchissable ; à la fin du groupe, transition route→train
+        // (avec/sans tampon, tiré au hasard) ou tampon buisson obligatoire.
+        routeGroupe: { max: 3, probContinuer: 0.5 },
+        // Route → Train : tampon aléatoire, avec ou sans (booléen simple,
+        // pas de pourcentage fixé — à caler en jouant, spec 708 §4).
+        probRouteVersTrain: 0.5,
+        probTamponRouteTrain: 0.5,
+        // Piste d'atterrissage : même principe que Route→Train — tampon
+        // aléatoire avec ou sans, pas de type de tampon imposé.
+        probPisteTampon: 0.5,
 
-        // Anti-frustration (CDC 706 §Génération) : deux bandes eau
-        // consécutives, la deuxième est plus clémente (courant plus lent,
-        // nénuphars plus nombreux) pour rester franchissable.
-        eau2eConsecutive: { densite: 1.3, vitesse: 0.85 },
+        // --- Probabilités des lignes dangereuses, par niveau --------------
+        // (niveau − 1) est utilisé : niveau 1 = valeurs de base.
+        probRoute: { base: 0.35, parNiveau: 0.07, max: 0.7 },
+        probEau: { base: 0.2, parNiveau: 0.05, max: 0.45 },
+        probTrain: { base: 0.12, parNiveau: 0.035, max: 0.32 },
+        probPiste: { base: 0.08, parNiveau: 0.03, max: 0.25 },
 
-        // Rails : durée (en secondes) que le train met à traverser l'écran.
-        // Rapide (2-3x plus court que les voitures) et diminue avec la
-        // difficulté.
+        // Probabilité cumulée maximale d'une bande dangereuse (route + eau +
+        // train + piste) : quel que soit le niveau, il reste au moins
+        // (1 − dangerMax) de lignes sûres (respiration obligatoire).
+        dangerMax: 0.85,
+
+        // Répartition des lignes SÛRES (choix libre) : herbe (générique) +
+        // buisson et terre libres — nécessaires pour OUVRIR les chaînes de
+        // tampons (une route ne suit qu'un buisson, un train qu'une terre,
+        // une eau qu'une herbe, spec 708 §4).
+        poidsSains: { herbe: 0.6, buisson: 0.2, terre: 0.2 },
+
+        // --- Train (comportement étape 4 conservé) ------------------------
+        // Durée (en secondes) que le train met à traverser l'écran. Rapide
+        // (2-3x plus court que les voitures) et diminue avec la difficulté.
         railDureeTraversee: { base: 2.2, parNiveau: 0.15, min: 1.2 },
 
-        // Rails : durée du signal (feux + son) avant le passage, en ms.
-        // Constante — c'est la fenêtre pour QUITTER les rails.
+        // Durée du signal (feux + son) avant le passage, en ms. Constante —
+        // c'est la fenêtre pour QUITTER les rails.
         railAvertissementMs: 2000,
 
-        // Rails : attente moyenne (ms) entre deux passages ; diminue avec
-        // la difficulté (trains plus fréquents). Un aléa ±30 % est appliqué
+        // Attente moyenne (ms) entre deux passages ; diminue avec la
+        // difficulté (trains plus fréquents). Un aléa ±30 % est appliqué
         // par LaneGenerator pour éviter des passages métronomiques.
         railAttente: { base: 6500, parNiveau: 400, min: 3500 },
 
-        // Anti-frustration (CDC 706 §Génération) : deux bandes rails
-        // consécutives, la deuxième est plus clémente (signal plus long,
-        // train plus rare et plus lent) pour rester franchissable.
-        rail2eConsecutive: { avertissement: 1.3, attente: 1.3, vitesse: 0.85 },
-
-        // Choix du type de bande : probabilité de route, d'eau et de rails,
-        // qui montent avec la difficulté. Jamais plus de 2 bandes
-        // dangereuses consécutives du même type (cf. LaneGenerator).
-        probRoute: { base: 0.35, parNiveau: 0.07, max: 0.7 },
-        probEau: { base: 0.2, parNiveau: 0.05, max: 0.45 },
-        probRails: { base: 0.12, parNiveau: 0.035, max: 0.32 },
-
-        // Probabilité cumulée maximale d'une bande dangereuse (route + eau +
-        // rails) : quel que soit le niveau, il reste au moins (1 - dangerMax)
-        // de zones sûres (respiration obligatoire, CDC 706 §Génération).
-        dangerMax: 0.85,
-
-        // Bande juste au-dessus du départ : quasi toujours une zone sûre,
-        // pour laisser le joueur prendre ses marques.
-        probZoneSureApresDepart: 0.8,
-
-        // Zone sûre : probabilité que ce soit une vigne plutôt qu'une
-        // prairie, et nombre de décorations (arbres/buissons) sur une
-        // prairie.
+        // --- Herbe (zone sûre) : vigne et décor ---------------------------
+        // Probabilité que ce soit une vigne plutôt qu'une prairie, et nombre
+        // de décorations (arbres/buissons) sur une prairie.
         probVigne: 0.3,
-        decor: { min: 0, max: 3 }
+        decor: { min: 0, max: 3 },
+        // Terre (tampon du train) : quelques buissons épars, plus clairsemés
+        // qu'une prairie (sol nu).
+        decorTerre: { min: 0, max: 2 }
     },
 
     // --- Contrôles (FIX 06/08/2026 — Décision 1, article 704 : 100 %

@@ -339,12 +339,12 @@ class GameScene extends Phaser.Scene {
     /**
      * Conditions de mort (étape 6, CDC 706 §Conditions — Arcade Physics).
      * Appelée à chaque frame quand le joueur est posé (pas en plein bond) :
-     *  - bande route : contact avec un véhicule = mort (overlap du corps
-     *    du personnage avec les corps des véhicules de la bande) ;
-     *  - bande eau : chute à l'eau = mort si aucun nénuphar ne porte le
-     *    joueur ; sinon le joueur dérive avec le nénuphar (courant) et
-     *    meurt s'il est emporté hors de l'écran ;
-     *  - bande rails : présent sur les rails au passage du train = mort
+     *  - bande route/piste : contact avec un véhicule = mort (overlap du
+     *    corps du personnage avec les corps des véhicules de la bande) ;
+     *  - bande eau : chute à l'eau = mort si aucun flottant (plante ou
+     *    bateau, spec 708 §6) ne porte le joueur ; sinon le joueur dérive
+     *    avec le courant et meurt s'il est emporté hors de l'écran ;
+     *  - bande train : présent sur les rails au passage du train = mort
      *    (contrat bande.estMortelAuPoint exposé par LaneGenerator).
      * @param {number} delta ms écoulées depuis la dernière frame (dérive)
      */
@@ -353,9 +353,11 @@ class GameScene extends Phaser.Scene {
         if (!bande) return;
         const T = LaneGenerator.TYPES;
 
-        if (bande.type === T.ROUTE) {
-            // Contact véhicule = mort. Le corps du personnage (hitbox
-            // réduite) overlap les corps des véhicules de la bande.
+        if (bande.type === T.ROUTE || bande.type === T.PISTE) {
+            // Contact véhicule = mort (la piste d'atterrissage est un type
+            // « comportement identique à une route », spec 708 §3). Le
+            // corps du personnage (hitbox réduite) overlap les corps des
+            // véhicules de la bande.
             for (const v of bande.vehicules) {
                 if (this._chevauche(this.perso, v.sprite)) {
                     this.mourir("vehicule");
@@ -363,7 +365,8 @@ class GameScene extends Phaser.Scene {
                 }
             }
         } else if (bande.type === T.EAU) {
-            // Chute à l'eau = mort si aucun nénuphar ne porte le joueur.
+            // Chute à l'eau = mort si aucun flottant (plante OU bateau —
+            // les deux sont des supports, spec 708 §6) ne porte le joueur.
             let support = null;
             for (const f of bande.flottants) {
                 if (this._chevauche(this.perso, f.sprite)) {
@@ -375,9 +378,10 @@ class GameScene extends Phaser.Scene {
                 this.mourir("eau");
                 return;
             }
-            // Porté par le courant : le joueur dérive avec le nénuphar
+            // Porté par le courant : le joueur dérive avec le flottant
             // (mécanique Crossy Road). Emporté hors de l'écran = chute.
-            const dx = support.direction * support.vitesse * (delta / 1000);
+            const cellW = this.scale.width / this.C.lanes.largeurCases;
+            const dx = support.direction * support.vitesseCases * cellW * (delta / 1000);
             const nx = this.perso.x + dx;
             const w = this.scale.width;
             if (nx < 0 || nx > w) {
@@ -386,7 +390,7 @@ class GameScene extends Phaser.Scene {
             }
             this._poserPerso(nx, this.perso.y);
             // Le corps du personnage suit le sprite (monde Arcade).
-        } else if (bande.type === T.RAILS) {
+        } else if (bande.type === T.TRAIN) {
             // Présent sur les rails au passage du train = mort (contrat
             // exposé par LaneGenerator : phase "passage" + emprise du
             // convoi, demi-largeur du personnage incluse).
