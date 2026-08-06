@@ -1,14 +1,17 @@
 /*
  * GameScene — la partie elle-même.
  *
- * ÉTAPE 1 (squelette) : scène vide mais fonctionnelle. Le terrain généré
- * (LaneGenerator) et les obstacles poolés (ObstaclePool) arrivent aux étapes
- * suivantes, avec les contrôles V2 (swipe sur mobile, boutons visibles sur
- * PC — 100 % tap/clic, zéro clavier, article 409).
+ * ÉTAPE 2 : le terrain est là. LaneGenerator génère les bandes horizontales
+ * (zone sûre prairie/vigne et route avec véhicules latéraux), les véhicules
+ * roulent en continu, les bandes sorties en bas sont recyclées en haut
+ * (pooling). Le personnage et les contrôles (swipe / boutons visibles,
+ * 100 % clic-tap, article 409) arrivent à l'étape suivante, la mort (étapes
+ * 4+) remplacera le bouton provisoire ci-dessous.
  *
- * Pour que la chaîne menu → jeu → fin soit testable dès maintenant, un
- * bouton PROVISOIRE « Terminer » termine la partie (score 0 : aucun bond
- * possible sans terrain). Il disparaîtra avec l'arrivée du vrai gameplay.
+ * Le bouton « Terminer (provisoire) » reste nécessaire tant qu'il n'y a pas
+ * de conditions de mort : sans lui, aucune partie ne peut se finir et la
+ * chaîne menu → jeu → fin n'est plus testable. Il est relégué en haut à
+ * droite (petit) pour ne pas masquer le terrain, et disparaîtra à l'étape 4.
  * Aucun contrôle V1 (tap par case) n'est conservé.
  */
 class GameScene extends Phaser.Scene {
@@ -24,28 +27,36 @@ class GameScene extends Phaser.Scene {
 
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
-        // Panneau provisoire : explique où en est le squelette.
-        const panneau = UI.text(this, 0, 0, C.textes.jeuVide, 5, C.couleurs.texte);
+        // --- Terrain généré (étape 2) ---------------------------------------
+        this.lanes = new LaneGenerator(this);
+        this.lanes.genererInitiales(0);
+        UI.layout(this, () => this.lanes.redimensionner());
 
+        // --- Bouton provisoire (retiré quand la mort arrive, étape 4) -------
         const finir = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 10),
+            width: UI.u(this, 24), height: UI.u(this, 8),
             label: C.textes.finirProvisoire,
             color: C.couleurs.bouton,
             textColor: C.couleurs.texteClair,
             onClick: () => this.terminer()
         });
-
         UI.layout(this, (w, h) => {
-            panneau.setPosition(w / 2, h * 0.38)
-                  .setFontSize(Math.round(UI.u(this, 5)) + "px");
-            finir.redimensionner(UI.u(this, 40), UI.u(this, 10))
-                 .setPosition(w / 2, h * 0.55);
+            finir.redimensionner(UI.u(this, 24), UI.u(this, 8))
+                 .setPosition(w - UI.u(this, 13), UI.u(this, 6));
         });
     }
 
     /**
-     * Fin de partie provisoire de l'étape 1 : score 0 tant qu'il n'y a pas
-     * de bonds. Remplacé aux étapes suivantes par les conditions de mort
+     * Fait tourner le monde : les véhicules roulent, les bandes recyclées
+     * sont ré-ensemencées.
+     */
+    update(time, delta) {
+        if (this.lanes) this.lanes.update(time, delta);
+    }
+
+    /**
+     * Fin de partie provisoire des étapes 1-2 : score 0 tant qu'il n'y a
+     * pas de bonds. Remplacé aux étapes suivantes par les conditions de mort
      * (collision véhicule, chute à l'eau, train, menace anti-attente).
      */
     terminer() {

@@ -14,10 +14,11 @@
  * le jeu se comporte donc exactement pareil sur un téléphone en portrait et
  * sur un grand écran de PC.
  *
- * ÉTAPE 1 : squelette structurel. Les scènes sont vides mais fonctionnelles
- * (menu → jeu → fin). La génération des bandes (LaneGenerator) et le pooling
- * des obstacles (ObstaclePool) arrivent aux étapes suivantes, avec leurs
- * réglages dédiés.
+ * ÉTAPE 2 : la scène de jeu affiche le terrain généré par LaneGenerator
+ * (bandes zone_sure prairie/vigne et bandes route avec véhicules latéraux).
+ * Le personnage et les contrôles arrivent à l'étape suivante ; eau et rails
+ * aux étapes d'après. L'ObstaclePool (véhicules/rondins/trains) sera déduit
+ * du pooling déjà en place dans LaneGenerator.
  */
 window.WaggisConfig = {
     key: "waggis",
@@ -35,9 +36,51 @@ window.WaggisConfig = {
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
         // Étape 1 : panneau provisoire de la scène de jeu, affiché en
-        // attendant la génération des bandes (étape 2).
-        jeuVide: "Squelette étape 1 —\nles bandes arrivent à l'étape 2",
+        // attendant la génération des bandes (étape 2). Retiré à l'étape 2 :
+        // le terrain généré remplace le panneau.
         finirProvisoire: "Terminer (provisoire)"
+    },
+
+    // --- Génération des bandes (LaneGenerator) ------------------------------
+    // Étape 2 : bandes zone_sure (prairie/vigne) et route (véhicules
+    // latéraux). Eau et rails arrivent aux étapes suivantes. Toutes les
+    // valeurs sont en PROPORTION de l'écran — jamais en pixels.
+    lanes: {
+        // Hauteur d'une bande, en % de la HAUTEUR d'écran (les bandes sont
+        // empilées verticalement, c'est la hauteur qui compte) : 10 % = dix
+        // bandes visibles environ, comme Crossy Road.
+        hauteurBandePct: 10,
+
+        // Bandes gardées hors écran au-dessus : la génération a toujours
+        // quelques bandes d'avance quand le joueur monte (pooling).
+        margeBandesHaut: 2,
+
+        // Route : durée (en secondes) qu'un véhicule met à traverser
+        // l'écran. Elle diminue avec la difficulté (trafic plus rapide).
+        routeDureeTraversee: { base: 8, parNiveau: 0.6, min: 3.5 },
+
+        // Route : nombre de véhicules par bande (densité du trafic).
+        routeVehicules: { min: 1, max: 6, base: 2, parNiveau: 0.5 },
+
+        // Anti-frustration (CDC 706 §Génération) : deux bandes route
+        // consécutives, la deuxième est plus clémente (moins de véhicules,
+        // véhicules plus lents) pour rester franchissable.
+        route2eConsecutive: { densite: 0.7, vitesse: 0.85 },
+
+        // Choix du type de bande : probabilité de route, qui monte avec la
+        // difficulté (jamais deux bandes dangereuses consécutives
+        // impossibles : jamais plus de 2 routes de suite, cf. LaneGenerator).
+        probRoute: { base: 0.35, parNiveau: 0.07, max: 0.7 },
+
+        // Bande juste au-dessus du départ : quasi toujours une zone sûre,
+        // pour laisser le joueur prendre ses marques.
+        probZoneSureApresDepart: 0.8,
+
+        // Zone sûre : probabilité que ce soit une vigne plutôt qu'une
+        // prairie, et nombre de décorations (arbres/buissons) sur une
+        // prairie.
+        probVigne: 0.3,
+        decor: { min: 0, max: 3 }
     },
 
     // --- Couleurs -----------------------------------------------------------
