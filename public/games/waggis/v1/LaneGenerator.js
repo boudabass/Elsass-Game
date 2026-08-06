@@ -683,9 +683,15 @@ class LaneGenerator {
     // Rails : voie ferrée et train périodique (étape 4)
     // ------------------------------------------------------------------
 
-    /** Texture de la voie (3 variantes, une au hasard). */
+    /**
+     * Texture de la voie (3 variantes, une au hasard).
+     * rails_v3_h = rogrpg_rails_horizontal_v3.png tournée de 90° au
+     * chargement (ses barres métalliques étaient verticales — décision
+     * John 06/08, CDC 706 §Assets — pour que les rails suivent le sens
+     * du train, comme v1/v2 déjà horizontales).
+     */
     _textureRails() {
-        const variantes = ["rails_v1", "rails_v2", "rails_v3"];
+        const variantes = ["rails_v1", "rails_v2", "rails_v3_h"];
         return variantes[Math.floor(Math.random() * variantes.length)];
     }
 

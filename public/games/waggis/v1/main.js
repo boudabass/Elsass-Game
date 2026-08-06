@@ -85,6 +85,31 @@
 
         // Une fois tout chargé : sauvegarde.
         create: async function (scene) {
+            // Rails v3 (rogrpg_rails_horizontal_v3.png) : les barres
+            // métalliques y sont dessinées VERTICALEMENT — incohérent avec
+            // le train qui traverse horizontalement (gauche → droite).
+            // Décision John 06/08 (CDC 706 §Assets) : tourner de 90° au
+            // rendu. Les variantes v1/v2 sont déjà horizontales (vérifié
+            // pixel par pixel le 06/08), seule v3 est tournée ici. La
+            // copie atelier du PNG reste intacte : la rotation est faite
+            // en mémoire au chargement.
+            try {
+                const src = scene.textures.get("rails_v3").getSourceImage();
+                const rot = document.createElement("canvas");
+                rot.width = src.height;
+                rot.height = src.width;
+                const ctx = rot.getContext("2d");
+                ctx.translate(rot.width / 2, rot.height / 2);
+                ctx.rotate(Math.PI / 2);
+                ctx.drawImage(src, -src.width / 2, -src.height / 2);
+                scene.textures.addCanvas("rails_v3_h", rot);
+            } catch (e) {
+                // Repli : la texture d'origine (cas où canvas serait
+                // indisponible) — les rails restent verticaux, mais le
+                // jeu ne casse pas.
+                console.warn("Rotation rails_v3 impossible, original utilisé.", e);
+            }
+
             // Contrat de save : version 1, aucune migration pour l'instant.
             // (Le concept V1 Frogger étant abandonné, la sauvegarde repart
             // sur la même clé avec le même format { parties } — compatible.)
