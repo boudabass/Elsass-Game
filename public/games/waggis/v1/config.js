@@ -175,6 +175,16 @@ window.WaggisConfig = {
         persoHitbox: 0.5
     },
 
+    // --- Sauvegarde (D2-1, spec 708 §7 — contrat { v, t, data }) --------
+    save: {
+        // Version du FORMAT de sauvegarde Waggis (cf. core/save.js).
+        // Incrémenter à chaque changement de format ET écrire la migration
+        // correspondante dans main.js — on ne casse jamais la partie d'un
+        // joueur (règle du socle). v2 = generatedRows (le monde procédural
+        // généré, spec 708 §7) ajouté au format.
+        version: 2
+    },
+
     // --- Couleurs -----------------------------------------------------------
     couleurs: {
         ciel: "#87ceeb",

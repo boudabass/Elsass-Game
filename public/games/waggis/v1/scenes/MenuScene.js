@@ -22,7 +22,15 @@ class MenuScene extends Phaser.Scene {
             label: C.textes.jouer,
             color: C.couleurs.bouton,
             textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(GameScene.KEY)
+            onClick: () => {
+                // D2-1 : une NOUVELLE partie repart d'un monde neuf — le
+                // generatedRows d'une partie précédente (mort → menu) est
+                // oublié. La mort elle-même conserve le monde (spec 708
+                // §8 : on relance le même niveau avec le même
+                // generatedRows) — c'est GameScene qui relit le registry.
+                this.registry.set("generatedRows", null);
+                this.scene.start(GameScene.KEY);
+            }
         });
 
         // Mise en page recalculée à chaque rotation de l'écran

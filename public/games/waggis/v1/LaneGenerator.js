@@ -16,8 +16,8 @@
  *     rester franchissable ;
  *   - il reste toujours une part de zones sûres (respiration), quel que
  *     soit le niveau de difficulté ;
- *   - la bande de départ et celle qui la suit sont des zones sûres (jamais
- *     d'eau en bande 1) ;
+ *   - la bande de départ et celle qui la suivent sont des zones sûres
+ *     (jamais d'eau en bande 1) ;
  *   - la difficulté monte par palier de score (trafic plus dense et plus
  *     rapide, courant plus fort, trains plus fréquents, tous les 10
  *     points) ;
@@ -25,6 +25,21 @@
  *     structurellement par la règle « même type au plus 2 fois de suite » :
  *     une bande eau n'est suivie que d'eau ou de zone_sure, jamais d'un
  *     autre type dangereux (voir _choisirType).
+ *
+ * ⭐ D2-1 (Décisions 2/3/4, articles 704 + 708 §7 — le monde ne se
+ * régénère JAMAIS) : toute ligne générée est une DÉFINITION sérialisable
+ * { index, type, obstacles[], vitesse } stockée dans `generatedRows`
+ * indexé par POSITION, persistée dans la save ({v, t, data}, versionnée —
+ * voir main.js). La génération est LAZY : une ligne n'est créée que quand
+ * le joueur s'en approche (buffer = bandes visibles + margeBandesHaut
+ * d'avance) ; si generatedRows[index] existe déjà, on RELIT la définition
+ * et on rejoue son rendu à l'identique — jamais de régénération (corrige
+ * le bug « ça se réinvente au retour » signalé par John). Rien avant le
+ * début : l'index 0 est la première ligne, le retour en arrière est
+ * possible mais jamais avant l'index 0 (reculer() est borné).
+ * Les règles détaillées de types/tampons/véhicules (7 types, buffers,
+ * densité 75 %, vitesse ±30 %) arrivent aux étapes D2-2/D2-3 — ici, la
+ * structure + le lazy + la persistance uniquement.
  *
  * RAILS (étape 4) : chaque bande rails alterne trois phases (bande.phase) :
  *   - "attente"      : voie libre, les feux de croisement sont visibles
@@ -44,7 +59,7 @@
  *
  * POOLING (ObstaclePool.js, CDC 706 §Performance) : les bandes déjà
  * traversées (sorties en bas de l'écran) ne sont ni détruites ni
- * recréées : elles sont recyclées en haut avec un nouveau type
+ * recréées : elles sont recyclées en haut avec une nouvelle définition
  * (avancer()). Les sprites de décor, de véhicules et de wagons passent
  * par ObstaclePool et changent de texture plutôt que d'être détruits —
  * aucun monde infini n'est gardé en mémoire. Chaque sprite porte un
@@ -61,18 +76,18 @@
  *    (≈0) et le monde couvre toujours l'écran ;
  *  - reculer (joueur vers le bas) : reculer() recycle la bande du haut en
  *    DESSOUS (compensation : decalage += hauteur) puis defilerHaut()
- *    (decalage -= hauteur) — l'inverse exact d'avancer(), monde infini
- *    vers le bas aussi (le terrain derrière le joueur est ré-ensemencé,
- *    comme l'avant, une fois la fenêtre de 12 bandes dépassée).
- * Sans cette compensation, la rotation du pool ferait dériver le monde
- * d'une bande à chaque recyclage (bug révélé par le harnais : plus de
- * bande au-dessus du joueur au 17e bond).
+ *    (decalage -= hauteur) — l'inverse exact d'avancer(). D2-1 : la bande
+ *    recréée en dessous est RELUE depuis generatedRows[index] quand elle
+ *    existe (retour sur nos pas = exactement la même ligne), et reculer()
+ *    est BORNÉ à l'index 0 — rien ne peut exister avant le départ.
  *
  * Rendu : chaque bande est un tileSprite de sol (herbe pour les zones
  * sûres, asphalte + marquage pour les routes, lit de ballast + voie pour
  * les rails), décorée d'arbres/buissons (zone sûre), parcourue de
  * véhicules latéraux (route) ou d'un train périodique (rails). Tout est
  * exprimé en PROPORTION de l'écran (config lanes), comme le reste du jeu.
+ * Depuis D2-1, le rendu est TOUJOURS construit depuis la définition
+ * stockée dans generatedRows (jamais de tirage aléatoire au recyclage).
  *
  * Utilisation (GameScene) :
  *   this.lanes = new LaneGenerator(this);
@@ -81,7 +96,7 @@
  *   // bond avant  : this.lanes.defilerBas(); this.lanes.avancer(score);
  *   //   (quand le joueur franchit le seuil haut, voir GameScene)
  *   // bond arrière : this.lanes.reculer(score); this.lanes.defilerHaut();
- *   //   (à chaque recul — monde infini vers le bas, voir GameScene)
+ *   //   (à chaque recul — relecture generatedRows, borné à l'index 0)
  */
 class LaneGenerator {
     static TYPES = Object.freeze({
@@ -95,8 +110,11 @@ class LaneGenerator {
 
     /**
      * @param {Phaser.Scene} scene la scène de jeu
+     * @param {object|null} [monde] generatedRows existant (reprise après
+     *   mort : même monde, spec 708 §8 — « le joueur relance le même
+     *   niveau avec le même generatedRows ») ou null pour un monde neuf.
      */
-    constructor(scene) {
+    constructor(scene, monde) {
         this.scene = scene;
         this.C = window.WaggisConfig;
         this.bandes = [];        // bandes vivantes, de bas en haut
@@ -107,6 +125,15 @@ class LaneGenerator {
         // obstacles sont activés à la prise, désactivés au rendu.
         this.pool = new ObstaclePool(scene);
         this.niveau = 0;         // palier de difficulté (score / 10)
+
+        // ⭐ D2-1 (spec 708 §7) : le monde généré, indexé par POSITION
+        // (index absolu de ligne, 0 = départ). Chaque entrée est une
+        // DÉFINITION sérialisable { index, type, obstacles[], vitesse }
+        // (+ champs de rendu : sousType, sol, direction, decor, train).
+        // Une ligne n'est créée QU'UNE FOIS (lazy) ; si l'index existe
+        // déjà, on relit — jamais de régénération. Persisté dans la save
+        // ({v, t, data}) — voir main.js (contrat versionné).
+        this.generatedRows = (monde && typeof monde === "object") ? monde : {};
 
         // Compteurs exposés pour la QA (probes window.__q / Arcade.game) :
         // nombre de signaux sonores déclenchés et de passages de train.
@@ -145,7 +172,9 @@ class LaneGenerator {
     /**
      * Construit la séquence initiale : la bande de départ affleure le bas
      * de l'écran, puis les bandes s'empilent jusqu'à couvrir l'écran plus
-     * la marge d'avance au-dessus.
+     * la marge d'avance au-dessus. Chaque ligne passe par _obtenirLigne() :
+     * si elle existe déjà (reprise après mort), elle est RELUE, jamais
+     * régénérée (D2-1, spec 708 §7 — le monde ne se réinvente pas).
      * @param {number} score score courant (difficulté de départ)
      */
     genererInitiales(score) {
@@ -154,23 +183,19 @@ class LaneGenerator {
         const h = this.scene.scale.height;
         const nb = Math.ceil(h / this.hauteur) + this.C.lanes.margeBandesHaut;
 
-        // Bande 0 (départ) : toujours une zone sûre, le joueur y respire.
-        this._ajouterBande(0, h - this.hauteur / 2, LaneGenerator.TYPES.ZONE_SURE, "prairie");
-
-        for (let i = 1; i < nb; i++) {
+        for (let i = 0; i < nb; i++) {
+            const def = this._obtenirLigne(i);
             const y = h - this.hauteur / 2 - i * this.hauteur;
-            const avant = this.bandes[this.bandes.length - 1];
-            const type = this._choisirType(avant, i);
-            const sousType = this._choisirSousType(type);
-            this._ajouterBande(i, y, type, sousType);
+            this._ajouterBande(i, y, def);
         }
     }
 
     /**
      * Un bond avant : le monde a déjà glissé vers le bas (defilerBas(),
      * appelé par la scène quand le joueur franchit le seuil haut) ; la
-     * bande du bas (hors écran) est recyclée en haut avec un nouveau type.
-     * À appeler à chaque bond avant du joueur (étape 5 : contrôles).
+     * bande du bas (hors écran) est recyclée en haut avec la définition
+     * de la ligne suivante. À appeler à chaque bond avant du joueur
+     * (étape 5 : contrôles).
      *
      * COMPENSATION DU DÉCALAGE : la rotation du pool (shift + push) décale
      * chaque bande d'un slot vers le haut du tableau ; redimensionner()
@@ -192,11 +217,12 @@ class LaneGenerator {
         const haut = this.bandes[this.bandes.length - 1];
         const nouvelIndex = haut.index + 1;
 
-        const type = this._choisirType(haut, nouvelIndex);
-        const sousType = this._choisirSousType(type);
+        // D2-1 : relire la définition si la ligne existe déjà (le joueur
+        // est redescendu puis remonte), sinon la générer et la stocker.
+        const def = this._obtenirLigne(nouvelIndex, "haut");
         // y provisoire (0) : redimensionner() replace chaque bande à son
         // slot + decalage — la bande recyclée reprend le slot du haut.
-        this._recyclerBande(bas, 0, type, sousType);
+        this._recyclerBande(bas, 0, def, "haut");
         bas.index = nouvelIndex;
         this.bandes.push(bas);
         this.decalage -= this.hauteur;   // compensation de la rotation
@@ -205,32 +231,44 @@ class LaneGenerator {
     }
 
     /**
-     * Un bond arrière (étape 5) : s'il n'y a plus de bande sous le joueur
-     * (bande du bas du pool), la bande du haut — sortie de l'écran — est
-     * recyclée EN DESSOUS avec un nouveau type. Le monde est ainsi infini
-     * vers le bas aussi (le terrain derrière le joueur est ré-ensemencé,
-     * comme l'avant ; CDC 706 §Contrôles : « reculer » est une direction à
-     * part entière). La scène enchaîne avec defilerHaut() pour faire
-     * entrer la nouvelle bande par le bas sans sortir le joueur de l'écran.
+     * Un bond arrière : s'il n'y a plus de bande sous le joueur (bande du
+     * bas du pool), la bande du haut — sortie de l'écran — est recyclée EN
+     * DESSOUS avec la définition de la ligne précédente. La scène enchaîne
+     * avec defilerHaut() pour faire entrer la nouvelle bande par le bas
+     * sans sortir le joueur de l'écran.
+     *
+     * ⭐ D2-1 (spec 708 §7) : la ligne recréée en dessous est RELUE depuis
+     * generatedRows[index] quand elle existe (retour sur nos pas = la même
+     * ligne, rien n'est réinventé) ; elle n'est générée que si le joueur
+     * ne l'a jamais atteinte (lazy). Et le monde est BORNÉ : reculer()
+     * retourne null si la ligne visée est avant l'index 0 — rien ne peut
+     * exister avant le début (Décision 2, article 704).
      *
      * COMPENSATION DU DÉCALAGE (miroir d'avancer()) : le unshift décale
      * chaque bande d'un slot vers le bas du tableau ; on ajoute une hauteur
      * à `decalage` pour que le monde reste immobile pendant la rotation.
      * @param {number} score score courant (difficulté qui monte)
-     * @returns {object} la bande recyclée (nouvelle bande en bas)
+     * @returns {object|null} la bande recyclée (nouvelle bande en bas), ou
+     *   null si la ligne visée est avant l'index 0 (début du monde)
      */
     reculer(score) {
         this.niveau = Math.floor(score / 10);
 
-        // La nouvelle bande est posée AU-DESSOUS de la plus basse (`bas`) :
-        // c'est elle qui sert de référence aux règles anti-frustration.
+        // La nouvelle bande est posée AU-DESSOUS de la plus basse (`bas`).
         const haut = this.bandes.pop();
         const bas = this.bandes[0];
         const nouvelIndex = bas.index - 1;
 
-        const type = this._choisirType(bas, nouvelIndex, "bas");
-        const sousType = this._choisirSousType(type);
-        this._recyclerBande(haut, 0, type, sousType, "bas");
+        // D2-1 : jamais avant le début — l'index 0 est la première ligne.
+        if (nouvelIndex < 0) {
+            this.bandes.push(haut);   // on remet la bande du haut en place
+            return null;
+        }
+
+        // D2-1 : relire la définition si la ligne existe déjà (retour sur
+        // nos pas), sinon la générer et la stocker (lazy).
+        const def = this._obtenirLigne(nouvelIndex, "bas");
+        this._recyclerBande(haut, 0, def, "bas");
         haut.index = nouvelIndex;
         this.bandes.unshift(haut);
         this.decalage += this.hauteur;   // compensation de la rotation
@@ -380,6 +418,105 @@ class LaneGenerator {
     }
 
     // ------------------------------------------------------------------
+    // ⭐ D2-1 — generatedRows : lecture lazy / génération unique (spec 708 §7)
+    // ------------------------------------------------------------------
+
+    /**
+     * Renvoie la définition de la ligne d'index donné, en la générant SI
+     * ET SEULEMENT SI elle n'existe pas encore. C'est le cœur du monde
+     * stable : si generatedRows[index] existe déjà, on RELIT — jamais de
+     * régénération (corrige le bug « ça se réinvente au retour »).
+     * @param {number} index index absolu de la ligne (0 = départ)
+     * @param {string} [cote] "haut" (défaut) ou "bas" — côté où la ligne
+     *   est posée, transmis aux règles (2e consécutive, peuplement)
+     * @returns {object} la définition { index, type, obstacles[], vitesse, ... }
+     */
+    _obtenirLigne(index, cote) {
+        if (this.generatedRows[index]) return this.generatedRows[index];
+        const def = this._definirLigne(index, cote);
+        this.generatedRows[index] = def;
+        return def;
+    }
+
+    /**
+     * Construit la DÉFINITION complète d'une ligne jamais vue : type
+     * (règles anti-frustration actuelles, D2-2 affinera), sous-type,
+     * texture de sol, sens, vitesse, densité et obstacles (positions en
+     * FRACTION de largeur d'écran — indépendant de la résolution pour la
+     * persistance). La définition est sérialisable (JSON) : c'est elle
+     * qui est stockée dans generatedRows et persistée dans la save.
+     * @param {number} index index absolu de la ligne (0 = départ)
+     * @param {string} [cote] côté où la ligne est posée ("haut"/"bas")
+     * @returns {object} la définition complète de la ligne
+     */
+    _definirLigne(index, cote) {
+        const avant = cote === "bas"
+            ? this.bandes[0]                              // bande la plus basse
+            : this.bandes[this.bandes.length - 1];        // bande la plus haute
+        const type = this._choisirType(avant, index, cote);
+        // La bande de départ (index 0) est toujours une prairie (jamais de
+        // vigne) : comportement historique, gardé pour la stabilité visuelle.
+        let sousType = this._choisirSousType(type);
+        if (index === 0 && type === LaneGenerator.TYPES.ZONE_SURE) sousType = "prairie";
+
+        const def = {
+            index: index,
+            type: type,
+            obstacles: [],   // spec 708 §7 : obstacles de la ligne
+            vitesse: 0,      // spec 708 §7 : vitesse de la ligne (px/s)
+            // Champs de rendu (sérialisables, nécessaires pour rejouer la
+            // ligne à l'identique au retour) :
+            sousType: sousType,
+            direction: null,   // route/eau/rails : -1 (gauche) ou +1 (droite)
+            densite: 0,        // route/eau : nombre d'obstacles
+            sol: null,         // texture du sol (stabilité au retour)
+            solTileX: 0,       // décalage du motif du sol (stabilité)
+            decor: [],         // zone sûre : [{texture, x, offsetY, taille}]
+            train: null        // rails : définition du convoi
+        };
+
+        const w = this.scene.scale.width;
+        if (type === LaneGenerator.TYPES.ROUTE) {
+            def.sol = "route_pleine";
+            def.solTileX = Math.floor(Math.random() * w);
+            this._definirRoute(def, cote);
+        } else if (type === LaneGenerator.TYPES.EAU) {
+            def.sol = this._textureEau();
+            def.solTileX = Math.floor(Math.random() * w);
+            this._definirEau(def, cote);
+        } else if (type === LaneGenerator.TYPES.RAILS) {
+            def.sol = this._textureRails();
+            def.solTileX = Math.floor(Math.random() * 16);
+            this._definirRails(def, cote);
+        } else {
+            def.sol = this._textureHerbe();
+            def.solTileX = Math.floor(Math.random() * w);
+            if (sousType === "vigne") {
+                this._definirVigne(def);
+            } else {
+                this._definirPrairie(def);
+            }
+        }
+        return def;
+    }
+
+    /**
+     * Règle anti-frustration « 2e bande consécutive plus clémente » : la
+     * bande en cours de placement est-elle la 2e consécutive du type donné ?
+     * Voir _consecutives pour le sens du comptage.
+     * @param {string} [cote] "haut" (défaut) ou "bas" — voir _consecutives
+     */
+    _est2eConsecutive(cote, type) {
+        const b = this.bandes;
+        if (cote === "bas") {
+            return b.length >= 1 && b[0].type === type &&
+                (b.length < 2 || b[1].type !== type);
+        }
+        return b.length >= 1 && b[b.length - 1].type === type &&
+            (b.length < 2 || b[b.length - 2].type !== type);
+    }
+
+    // ------------------------------------------------------------------
     // Règles anti-frustration (CDC 706 §Génération)
     // ------------------------------------------------------------------
 
@@ -495,23 +632,6 @@ class LaneGenerator {
         return n;
     }
 
-    /**
-     * La bande en cours de placement est-elle la 2e consécutive du type
-     * donné ? (Anti-frustration, CDC 706 §Génération : la 2e bande
-     * dangereuse consécutive est plus clémente.) La bande voisine du côté
-     * où elle est posée doit être du type, et celle d'encore avant non.
-     * @param {string} [cote] "haut" (défaut) ou "bas" — voir _consecutives
-     */
-    _est2eConsecutive(cote, type) {
-        const b = this.bandes;
-        if (cote === "bas") {
-            return b.length >= 1 && b[0].type === type &&
-                (b.length < 2 || b[1].type !== type);
-        }
-        return b.length >= 1 && b[b.length - 1].type === type &&
-            (b.length < 2 || b[b.length - 2].type !== type);
-    }
-
     /** Sous-type d'une bande (vigne ou prairie pour une zone sûre). */
     _choisirSousType(type) {
         if (type !== LaneGenerator.TYPES.ZONE_SURE) return null;
@@ -520,19 +640,39 @@ class LaneGenerator {
     }
 
     // ------------------------------------------------------------------
-    // Construction / recyclage des bandes
+    // Construction / recyclage des bandes (rendu depuis la définition)
     // ------------------------------------------------------------------
 
-    /** Crée une bande neuve (index, y, type) avec son rendu complet. */
-    _ajouterBande(index, y, type, sousType) {
+    /**
+     * Crée une bande neuve (index, y) et la rend depuis sa définition.
+     * @param {number} index index absolu de la ligne
+     * @param {number} y ordonnée initiale (px)
+     * @param {object} def définition de la ligne (generatedRows[index])
+     */
+    _ajouterBande(index, y, def) {
+        const bande = this._creerBande(index, def);
+        bande.y = y;
+        this._rendreBande(bande, def);
+        this.bandes.push(bande);
+        return bande;
+    }
+
+    /**
+     * Crée la structure de bande VIDE (sans rendu) à partir de la
+     * définition : type, sous-type, sens, vitesse, densité + conteneurs
+     * de sprites + contrat de collision rails.
+     * @param {number} index index absolu de la ligne
+     * @param {object} def définition de la ligne
+     */
+    _creerBande(index, def) {
         const bande = {
             index: index,
-            type: type,
-            sousType: sousType,
-            y: y,
-            direction: null,   // route/eau/rails : -1 (gauche) ou +1 (droite)
-            vitesse: 0,        // route/eau : px/s commun à tous les obstacles
-            densite: 0,        // route/eau : nombre d'obstacles
+            type: def.type,
+            sousType: def.sousType,
+            y: 0,
+            direction: def.direction,   // route/eau/rails : -1 ou +1
+            vitesse: def.vitesse,       // route/eau : px/s commun
+            densite: def.densite,       // route/eau : nombre d'obstacles
             sol: null,         // tileSprite de fond
             marquage: null,    // route : ligne pointillée centrale
             ballast: null,     // rails : lit de gravier sous la voie
@@ -557,20 +697,23 @@ class LaneGenerator {
                     bande.train.demiLargeur + (demiLargeur || 0);
             }
         };
-        this._rendreBande(bande);
-        this.bandes.push(bande);
         return bande;
     }
 
     /**
-     * Recycle une bande : vide ses sprites (rendus au pool), lui donne un
-     * nouveau type et la re-rend à sa nouvelle position.
+     * Recycle une bande : vide ses sprites (rendus au pool), lui réapplique
+     * sa définition (type, sens, vitesse, obstacles) et la re-rend. Depuis
+     * D2-1, la définition vient de generatedRows[index] (relue ou fraîche) :
+     * le recyclage ne tire PLUS jamais de nouveau type au hasard.
+     * @param {object} bande la bande vivante à recycler
+     * @param {number} nouveauY ordonnée provisoire (redimensionner() fixera)
+     * @param {object} def définition de la ligne (generatedRows[index])
      * @param {string} [cote] côté où la bande est posée ("haut" défaut /
      *   "bas") — transmis au rendu pour les règles « 2e consécutive
      *   clémente » (la bande de référence n'est pas la même en haut et en
      *   bas du pool).
      */
-    _recyclerBande(bande, nouveauY, type, sousType, cote) {
+    _recyclerBande(bande, nouveauY, def, cote) {
         for (const d of bande.decor) this.pool.rendre(d.sprite);
         for (const v of bande.vehicules) this.pool.rendre(v.sprite);
         for (const f of bande.flottants) this.pool.rendre(f.sprite);
@@ -583,23 +726,31 @@ class LaneGenerator {
         bande.train = null;
         bande.phase = null;
         bande.cycleTemps = 0;
-        bande.type = type;
-        bande.sousType = sousType;
+        bande.type = def.type;
+        bande.sousType = def.sousType;
+        bande.direction = def.direction;
+        bande.vitesse = def.vitesse;
+        bande.densite = def.densite;
         bande.y = nouveauY;
-        this._rendreBande(bande, cote);
+        this._rendreBande(bande, def, cote);
     }
 
     /**
-     * Rendu complet d'une bande selon son type (sol + décor/véhicules/train).
+     * Rendu complet d'une bande depuis sa DÉFINITION (D2-1) : sol, décor,
+     * véhicules ou train. Toutes les positions viennent de la définition
+     * (fractions × taille d'écran) — le rendu est donc rejouable à
+     * l'identique au retour, et indépendant de la résolution.
+     * @param {object} bande la bande vivante (structure _creerBande)
+     * @param {object} def définition de la ligne (generatedRows[index])
      * @param {string} [cote] côté où la bande est posée ("haut" défaut /
      *   "bas") — voir _recyclerBande.
      */
-    _rendreBande(bande, cote) {
+    _rendreBande(bande, def, cote) {
         const w = this.scene.scale.width;
 
         if (bande.type === LaneGenerator.TYPES.ROUTE) {
             this._masquerVestigesRails(bande);
-            this._rendreSol(bande, "route_pleine");
+            this._rendreSol(bande, def.sol, def.solTileX);
             // Marquage central : ligne pointillée évoquant le milieu de
             // chaussée (une bande route = une voie par sens).
             if (bande.marquage) {
@@ -610,39 +761,33 @@ class LaneGenerator {
                     .setOrigin(0, 0.5)
                     .setDepth(LaneGenerator.DEPTH.marquage);
             }
-            this._peuplerRoute(bande, cote);
+            this._rendreRoute(bande, def, cote);
         } else if (bande.type === LaneGenerator.TYPES.EAU) {
             // Bande recyclée qui n'est plus une route : le marquage fantôme
             // doit disparaître (il resterait visible au milieu de la rivière).
             if (bande.marquage) bande.marquage.setVisible(false);
             this._masquerVestigesRails(bande);
-            this._rendreSol(bande, this._textureEau());
-            this._peuplerEau(bande, cote);
+            this._rendreSol(bande, def.sol, def.solTileX);
+            this._rendreEau(bande, def, cote);
         } else if (bande.type === LaneGenerator.TYPES.RAILS) {
             if (bande.marquage) bande.marquage.setVisible(false);
             // Lit de ballast sous la voie : la texture rails est ajourée
             // (ballast + traverses), le fond opaque est dessiné en dessous.
             this._rendreBallast(bande);
-            this._rendreSol(bande, this._textureRails());
+            this._rendreSol(bande, def.sol, def.solTileX);
             // Une seule voie par bande : le motif 16x16 est mis à l'échelle
             // de la hauteur de bande (sinon il se tuilerait plusieurs fois
-            // verticalement), et décalé d'un motif au hasard pour varier.
+            // verticalement), et décalé du tilePositionX de la définition.
             bande.sol.setTileScale(this.hauteur / 16, this.hauteur / 16);
-            bande.sol.tilePositionX = Math.floor(Math.random() * 16);
             // Train D'ABORD (il fixe bande.direction), puis les feux :
             // _positionnerSignal place les feux du côté d'où arrive le train.
-            this._initialiserTrain(bande, cote);
+            this._initialiserTrain(bande, def, cote);
             this._creerSignal(bande);
         } else {
             if (bande.marquage) bande.marquage.setVisible(false);
             this._masquerVestigesRails(bande);
-            const texture = this._textureHerbe();
-            this._rendreSol(bande, texture);
-            if (bande.sousType === "vigne") {
-                this._peuplerVigne(bande);
-            } else {
-                this._peuplerPrairie(bande);
-            }
+            this._rendreSol(bande, def.sol, def.solTileX);
+            this._rendreZoneSure(bande, def);
         }
     }
 
@@ -656,7 +801,7 @@ class LaneGenerator {
     }
 
     /** Pose (ou change) le tileSprite de sol de la bande. */
-    _rendreSol(bande, texture) {
+    _rendreSol(bande, texture, tileX) {
         const w = this.scene.scale.width;
         if (!bande.sol) {
             bande.sol = this.scene.add
@@ -669,8 +814,10 @@ class LaneGenerator {
             // mis le tileScale à la taille de sa voie, cf. _rendreBande).
             bande.sol.setTileScale(1, 1);
         }
-        // Décalage du motif : deux bandes côte à côte ne sont pas identiques.
-        bande.sol.tilePositionX = Math.floor(Math.random() * w);
+        // Décalage du motif stocké dans la définition (D2-1) : deux bandes
+        // côte à côte ne sont pas identiques, et au retour la ligne rejoue
+        // exactement le même rendu.
+        bande.sol.tilePositionX = (typeof tileX === "number") ? tileX : 0;
     }
 
     /** Texture d'herbe de la zone sûre (3 variantes, une au hasard). */
@@ -684,10 +831,12 @@ class LaneGenerator {
     // ------------------------------------------------------------------
 
     /**
-     * Remplit une bande route de véhicules : même vitesse pour toute la
-     * bande (les véhicules ne se doublent pas), espacement régulier.
+     * Définit une bande route : sens, vitesse commune, densité et liste
+     * des obstacles (positions en FRACTION de largeur d'écran). Rien n'est
+     * rendu ici — la définition est stockée dans generatedRows puis rendue
+     * par _rendreRoute (et rejouée à l'identique au retour, D2-1).
      */
-    _peuplerRoute(bande, cote) {
+    _definirRoute(def, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
@@ -708,30 +857,44 @@ class LaneGenerator {
         let vitesse = w / duree;
         if (est2eRoute) vitesse *= C.route2eConsecutive.vitesse;
 
-        bande.direction = Math.random() < 0.5 ? 1 : -1;
-        bande.vitesse = vitesse;
-        bande.densite = densite;
+        def.direction = Math.random() < 0.5 ? 1 : -1;
+        def.vitesse = vitesse;
+        def.densite = densite;
 
-        const pas = w / densite;
+        // Positions en FRACTION de largeur (pas = 1/densite, phase
+        // aléatoire) : indépendant de la résolution, rejouable au retour.
+        const pas = 1 / densite;
         const phase = Math.random() * pas;   // décalage global du trafic
-        const taille = this.hauteur * 0.9;   // véhicule carré, presque la bande
+        const coteFrac = 0.9;                // véhicule carré, presque la bande
 
         for (let i = 0; i < densite; i++) {
+            def.obstacles.push({
+                texture: this._textureVehicule(def.direction),
+                x: phase + pas * (i + 0.5),
+                cote: coteFrac
+            });
+        }
+    }
+
+    /** Rendu des véhicules d'une bande route depuis sa définition. */
+    _rendreRoute(bande, def, cote) {
+        const w = this.scene.scale.width;
+        for (const o of def.obstacles) {
             const sprite = this.pool.prendre(
-                this._textureVehicule(bande.direction),
+                o.texture,
                 LaneGenerator.DEPTH.vehicule
             );
             // Corps Arcade ACTIVÉ : le véhicule participe aux collisions
             // (contact = mort, étape 6).
-            this.pool.activer(sprite, taille);
+            this.pool.activer(sprite, this.hauteur * o.cote);
             const v = {
                 sprite: sprite,
-                vitesse: vitesse,
-                direction: bande.direction,
-                cote: taille,
-                demiLargeur: taille / 2
+                vitesse: def.vitesse,
+                direction: def.direction,
+                cote: this.hauteur * o.cote,
+                demiLargeur: (this.hauteur * o.cote) / 2
             };
-            sprite.setPosition(phase + pas * (i + 0.5), bande.y);
+            sprite.setPosition(o.x * w, bande.y);
             bande.vehicules.push(v);
         }
     }
@@ -755,12 +918,11 @@ class LaneGenerator {
     }
 
     /**
-     * Remplit une bande eau de nénuphars dérivants : même courant pour
-     * toute la bande (les nénuphars ne se doublent pas), espacement
-     * régulier. Le joueur devra sauter de nénuphar en nénuphar (étape
-     * collisions) ; ici on génère et on anime la dérive.
+     * Définit une bande eau : sens du courant, vitesse, densité de
+     * nénuphars et liste des flottants (fractions). Stockée dans
+     * generatedRows puis rendue par _rendreEau (rejouable au retour).
      */
-    _peuplerEau(bande, cote) {
+    _definirEau(def, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
@@ -785,31 +947,44 @@ class LaneGenerator {
         let vitesse = w / duree;
         if (est2eEau) vitesse *= C.eau2eConsecutive.vitesse;
 
-        bande.direction = Math.random() < 0.5 ? 1 : -1;
-        bande.vitesse = vitesse;
-        bande.densite = densite;
+        def.direction = Math.random() < 0.5 ? 1 : -1;
+        def.vitesse = vitesse;
+        def.densite = densite;
 
-        const pas = w / densite;
+        // Positions en FRACTION de largeur (indépendant de la résolution).
+        const pas = 1 / densite;
         const phase = Math.random() * pas;   // décalage global du courant
-        const taille = this.hauteur * 0.8;   // nénuphar un peu plus petit qu'un véhicule
+        const coteFrac = 0.8;   // nénuphar un peu plus petit qu'un véhicule
 
         for (let i = 0; i < densite; i++) {
+            def.obstacles.push({
+                texture: this._textureNenuphar(),
+                x: phase + pas * (i + 0.5),
+                cote: coteFrac
+            });
+        }
+    }
+
+    /** Rendu des nénuphars d'une bande eau depuis sa définition. */
+    _rendreEau(bande, def, cote) {
+        const w = this.scene.scale.width;
+        for (const o of def.obstacles) {
             const sprite = this.pool.prendre(
-                this._textureNenuphar(),
+                o.texture,
                 LaneGenerator.DEPTH.flottant
             );
             // Corps Arcade ACTIVÉ : un nénuphar est un support solide —
             // le joueur qui le chevauche n'est PAS tombé à l'eau (le
             // « sol » de la bande eau, étape 6).
-            this.pool.activer(sprite, taille);
+            this.pool.activer(sprite, this.hauteur * o.cote);
             const f = {
                 sprite: sprite,
-                vitesse: vitesse,
-                direction: bande.direction,
-                cote: taille,
-                demiLargeur: taille / 2
+                vitesse: def.vitesse,
+                direction: def.direction,
+                cote: this.hauteur * o.cote,
+                demiLargeur: (this.hauteur * o.cote) / 2
             };
-            sprite.setPosition(phase + pas * (i + 0.5), bande.y);
+            sprite.setPosition(o.x * w, bande.y);
             bande.flottants.push(f);
         }
     }
@@ -905,53 +1080,39 @@ class LaneGenerator {
     }
 
     /**
-     * Prépare le cycle du train d'une bande rails : phase "attente",
-     * durées (attente aléatoire, signal fixe), sens de circulation, convoi
-     * de wagonnets (placeholder, cf. en-tête) caché hors de l'écran.
+     * Prépare le cycle du train d'une bande rails depuis la DÉFINITION
+     * (D2-1) : direction, durées et textures du convoi sont stockées dans
+     * generatedRows — au retour sur une ligne déjà vue, le même train
+     * repart exactement du même cycle (rien n'est réinventé). Phase
+     * "attente", convoi caché hors de l'écran.
      */
-    _initialiserTrain(bande, cote) {
+    _initialiserTrain(bande, def, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
-        // 2e rails consécutive = la bande voisine (du côté où la nouvelle
-        // bande est posée) est une rails et celle d'encore avant n'en est
-        // pas une (celle-ci serait la 2e d'affilée) → plus clémente
-        // (signal plus long, train plus rare et plus lent).
-        const est2eRails = this._est2eConsecutive(cote, LaneGenerator.TYPES.RAILS);
-        bande.est2eRails = est2eRails;
+        bande.est2eRails = def.est2eRails || false;
+        bande.direction = def.direction;
 
-        bande.direction = Math.random() < 0.5 ? 1 : -1;
+        // Durée de traversée : stockée dans la définition (stabilité au
+        // retour) ; l'attente avant le signal est re-tirée à chaque cycle
+        // (comportement vivant), mais la durée de signal est fixe.
+        bande.avertissementDuree = def.avertissementDuree || C.railAvertissementMs;
+        bande.attenteDuree = this._dureeAttente(bande.est2eRails);
 
-        // Durée de traversée : rapide, diminue avec la difficulté, allégée
-        // sur une 2e rails (train plus lent, plus de temps pour réagir).
-        let duree = C.railDureeTraversee.base -
-            this.niveau * C.railDureeTraversee.parNiveau;
-        duree = Math.max(C.railDureeTraversee.min, duree);
-        if (est2eRails) duree /= C.rail2eConsecutive.vitesse;
-
-        // Signal avant passage : constante, plus long sur une 2e rails.
-        bande.avertissementDuree = C.railAvertissementMs;
-        if (est2eRails) {
-            bande.avertissementDuree *= C.rail2eConsecutive.avertissement;
-        }
-        bande.attenteDuree = this._dureeAttente(est2eRails);
-
-        const taille = this.hauteur * 0.9;
-        const nb = 3;  // 1 « loco » (wagonnet charbon) + 2 wagons
+        const taille = this.hauteur * def.train.cote;
+        const nb = def.train.nb;
         const train = {
             direction: bande.direction,
-            vitesse: w / duree,
-            dureeTraversee: duree,
+            vitesse: w / def.train.dureeTraversee,
+            dureeTraversee: def.train.dureeTraversee,
             cote: taille,
             nb: nb,
             demiLargeur: (nb * taille) / 2,
             x: 0,
             sprites: []
         };
-        const textures = [this._textureLoco()];
-        for (let i = 1; i < nb; i++) textures.push(this._textureWagon());
         for (let i = 0; i < nb; i++) {
-            const sprite = this.pool.prendre(textures[i], LaneGenerator.DEPTH.train);
+            const sprite = this.pool.prendre(def.train.textures[i], LaneGenerator.DEPTH.train);
             // Corps Arcade ACTIVÉ : le train tue au contact (étape 6 —
             // la détection passe par bande.estMortelAuPoint, le corps
             // reste cohérent pour le debug &debug=1).
@@ -993,6 +1154,52 @@ class LaneGenerator {
             "wagonnet_vide", "wagonnet_terre", "wagonnet_pierres", "wagonnet_or"
         ];
         return textures[Math.floor(Math.random() * textures.length)];
+    }
+
+    /**
+     * Définit une bande rails : sens de circulation, durée de traversée
+     * (stockée), signal et convoi (textures des wagons) — le tout en
+     * fractions, sérialisable et rejouable à l'identique au retour (D2-1).
+     * L'état du cycle (attente/avertissement/passage) reste un comportement
+     * vivant re-tiré à chaque rendu, comme les positions des véhicules.
+     */
+    _definirRails(def, cote) {
+        const C = this.C.lanes;
+
+        // 2e rails consécutive = la bande voisine (du côté où la nouvelle
+        // bande est posée) est une rails et celle d'encore avant n'en est
+        // pas une (celle-ci serait la 2e d'affilée) → plus clémente
+        // (signal plus long, train plus rare et plus lent).
+        const est2eRails = this._est2eConsecutive(cote, LaneGenerator.TYPES.RAILS);
+        def.est2eRails = est2eRails;
+        def.direction = Math.random() < 0.5 ? 1 : -1;
+
+        // Durée de traversée : rapide, diminue avec la difficulté, allégée
+        // sur une 2e rails (train plus lent, plus de temps pour réagir).
+        let duree = C.railDureeTraversee.base -
+            this.niveau * C.railDureeTraversee.parNiveau;
+        duree = Math.max(C.railDureeTraversee.min, duree);
+        if (est2eRails) duree /= C.rail2eConsecutive.vitesse;
+        def.dureeTraversee = duree;
+
+        // Signal avant passage : constante, plus long sur une 2e rails.
+        def.avertissementDuree = C.railAvertissementMs;
+        if (est2eRails) {
+            def.avertissementDuree *= C.rail2eConsecutive.avertissement;
+        }
+
+        // Convoi : 1 « loco » (wagonnet charbon) + 2 wagons (placeholder,
+        // cf. en-tête), textures stockées pour rejouer le même train.
+        const nb = 3;
+        const textures = [this._textureLoco()];
+        for (let i = 1; i < nb; i++) textures.push(this._textureWagon());
+        def.train = {
+            direction: def.direction,
+            dureeTraversee: duree,
+            cote: 0.9,          // fraction de la hauteur de bande
+            nb: nb,
+            textures: textures
+        };
     }
 
     /**
@@ -1076,42 +1283,61 @@ class LaneGenerator {
     // Zone sûre : prairie et vigne
     // ------------------------------------------------------------------
 
-    /** Prairie : herbe + quelques arbres/buissons épars. */
-    _peuplerPrairie(bande) {
+    /** Définition d'une prairie : herbe + quelques arbres/buissons épars. */
+    _definirPrairie(def) {
         const C = this.C.lanes;
-        const w = this.scene.scale.width;
         const nb = C.decor.min + Math.floor(Math.random() * (C.decor.max - C.decor.min + 1));
         for (let i = 0; i < nb; i++) {
-            this._poserDecor(bande, Math.random() * w);
+            def.decor.push(this._definirDecor(Math.random(), false));
         }
     }
 
-    /** Vigne : rangées verticales régulières de buissons (vignoble alsacien). */
-    _peuplerVigne(bande) {
+    /** Définition d'une vigne : rangées verticales régulières de buissons. */
+    _definirVigne(def) {
         const w = this.scene.scale.width;
         const rangs = 3;
         for (let i = 0; i < rangs; i++) {
-            const x = w * ((i + 0.5) / rangs) + (Math.random() - 0.5) * this.hauteur;
-            this._poserDecor(bande, x, true);
+            // x en fraction de largeur : rangée régulière + aléa d'une
+            // demi-hauteur de bande (comme l'ancien rendu en pixels).
+            const x = (i + 0.5) / rangs + (Math.random() - 0.5) * (this.hauteur / w);
+            def.decor.push(this._definirDecor(x, true));
         }
     }
 
-    /** Pose un décor (arbre ou buisson) sur la bande, à l'abscisse x. */
-    _poserDecor(bande, x, buissonForce) {
+    /**
+     * Définition d'un décor (arbre ou buisson) : texture, position x en
+     * FRACTION de largeur, offset vertical et taille en FRACTION de la
+     * hauteur de bande — sérialisable, rejouable à l'identique au retour.
+     * @param {number} x position en fraction de largeur d'écran (0..1)
+     * @param {boolean} buissonForce buisson imposé (rangée de vigne)
+     */
+    _definirDecor(x, buissonForce) {
         const textures = buissonForce
             ? ["buisson_vert"]
             : ["buisson_vert", "arbre_vert", "arbre_vert_v2", "arbre_vert_v3",
                "arbre_vert_v4", "arbre_orange", "arbre_orange_v2", "arbre_orange_v3"];
         const texture = textures[Math.floor(Math.random() * textures.length)];
-        // Décor : sprite du pool, corps RESTE inerte (jamais activé) —
-        // les arbres ne tuent pas et ne bloquent pas (top-down, pas de
-        // couverture).
-        const sprite = this.pool.prendre(texture, LaneGenerator.DEPTH.decor);
-        const taille = this.hauteur * (buissonForce ? 0.55 : (0.7 + Math.random() * 0.3));
-        this.pool.taille(sprite, taille);
-        const offsetY = 0.5 + (Math.random() - 0.5) * 0.5; // centre ± 25 % de la bande
-        sprite.setPosition(x, bande.y + (offsetY - 0.5) * this.hauteur);
-        bande.decor.push({ sprite: sprite, offsetY: offsetY, taille: taille });
+        return {
+            texture: texture,
+            x: x,
+            offsetY: 0.5 + (Math.random() - 0.5) * 0.5, // centre ± 25 % de la bande
+            taille: buissonForce ? 0.55 : (0.7 + Math.random() * 0.3)
+        };
+    }
+
+    /** Rendu du décor d'une zone sûre depuis sa définition. */
+    _rendreZoneSure(bande, def) {
+        const w = this.scene.scale.width;
+        for (const d of def.decor) {
+            // Décor : sprite du pool, corps RESTE inerte (jamais activé) —
+            // les arbres ne tuent pas et ne bloquent pas (top-down, pas de
+            // couverture).
+            const sprite = this.pool.prendre(d.texture, LaneGenerator.DEPTH.decor);
+            const taille = this.hauteur * d.taille;
+            this.pool.taille(sprite, taille);
+            sprite.setPosition(d.x * w, bande.y + (d.offsetY - 0.5) * this.hauteur);
+            bande.decor.push({ sprite: sprite, offsetY: d.offsetY, taille: taille });
+        }
     }
 
     // ------------------------------------------------------------------

@@ -56,9 +56,17 @@ class GameScene extends Phaser.Scene {
         this.enBond = false;     // un bond en cours : entrées ignorées
         this._finEnCours = false;
 
-        // --- Terrain généré (étapes 2-4) -----------------------------------
-        this.lanes = new LaneGenerator(this);
+        // --- Terrain généré (étapes 2-4, D2-1 : monde stable) ------------
+        // ⭐ D2-1 (spec 708 §8) : à la mort, le joueur relance le MÊME
+        // niveau avec le MÊME generatedRows (rien n'est réinventé). Le
+        // monde de la session est conservé dans le registry (partagé
+        // entre les scènes) ; une nouvelle partie depuis le menu le
+        // remet à zéro (voir MenuScene).
+        this.lanes = new LaneGenerator(this, this.registry.get("generatedRows") || null);
         this.lanes.genererInitiales(0);
+        // Le monde généré reste accessible aux prochaines scènes (mort →
+        // rejouer) : c'est lui qui sera persisté dans la save (v2, D2-1).
+        this.registry.set("generatedRows", this.lanes.generatedRows);
         UI.layout(this, () => this.lanes.redimensionner());
 
         // --- Personnage (placeholder p8city, cf. en-tête) ------------------
@@ -200,17 +208,36 @@ class GameScene extends Phaser.Scene {
     /**
      * Bond vers la bande au-dessous (Décision 1, article 704) : le perso
      * descend d'une case, UNIQUEMENT vers une case qui existe déjà (celle
-     * qu'on a quittée en avançant). Aucune génération au recul — le monde
-     * ne glisse pas : la case visée est déjà visible à l'écran. Au départ
+     * qu'on a quittée en avançant). Le score ne recule jamais.
+     *
+     * ⭐ D2-1 (Décisions 2/3, spec 708 §7) : quand le joueur est sur la
+     * bande la plus basse du pool, descendre encore fait glisser le monde
+     * vers le haut (reculer() + defilerHaut()) : la bande recréée en
+     * dessous est RELUE depuis generatedRows (retour sur nos pas = la même
+     * ligne, jamais régénérée — le monde ne se réinvente pas), et le recul
+     * est BORNÉ à l'index 0 : reculer() retourne null avant le début (rien
+     * ne peut exister avant le point de départ, Décision 2). Au départ
      * (première ligne) aucune case n'existe sous le perso : aucun bond, et
-     * cliquer en dessous est physiquement impossible (article 704 — aucun
-     * cas particulier à gérer). Le score ne recule jamais.
+     * cliquer en dessous est physiquement impossible (article 704).
      */
     bondArriere() {
         if (this.enBond || this._finEnCours) return;
         const bandes = this.lanes.bandes;
         const idx = bandes.indexOf(this.bandeJoueur);
-        if (idx <= 0) return; // aucune case existante en dessous
+        if (idx <= 0) {
+            // Plus de bande sous le joueur dans le pool : le monde doit
+            // glisser pour révéler la ligne du dessous (relue, jamais
+            // régénérée). reculer() retourne null si on est à l'index 0.
+            const bandeEnDessous = this.lanes.reculer(this.score);
+            if (!bandeEnDessous) return; // début du monde : rien en dessous
+            this.lanes.defilerHaut();
+            this.bandeJoueur = bandeEnDessous;
+            this.progression = Math.max(0, this.progression - 1);
+            const yCible = this.bandeJoueur.y;
+            this._jouerSonBond();
+            this._sauterVers(this.perso.x, yCible, null);
+            return;
+        }
         this.bandeJoueur = bandes[idx - 1];
         this.progression = Math.max(0, this.progression - 1);
 

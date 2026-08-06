@@ -6,6 +6,15 @@
  * de Waggis dans l'atelier, vérifié 06/08, cf. GameScene) et le son du
  * bond (snd_jump_a de l'atelier, décision John 06/08 : réutiliser les MP3)
  * sont chargés en plus des textures des étapes 2-4.
+ *
+ * D2-1 (Décisions 2/3/4, spec 708 §7) : le contrat de save (cf.
+ * core/save.js) passe en VERSION 2. Le format v1 ({ parties }) est
+ * conservé et migré : data.generatedRows (le monde procédural généré,
+ * indexé par position — chaque ligne = { index, type, obstacles[],
+ * vitesse }) est ajouté. Le monde ne se régénère jamais : il est
+ * persisté versionné dans la save ({v, t, data}) et relu tel quel au
+ * retour en arrière. L'écriture à la victoire du niveau (spec 708 §9)
+ * sera câblée à l'étape D2-3 (fin de niveau).
  */
 (function () {
     "use strict";
@@ -126,18 +135,35 @@
                 console.warn("Rotation rails_v3 impossible, original utilisé.", e);
             }
 
-            // Contrat de save : version 1, aucune migration pour l'instant.
-            // (Le concept V1 Frogger étant abandonné, la sauvegarde repart
-            // sur la même clé avec le même format { parties } — compatible.)
+            // Contrat de save : version 2 (D2-1, spec 708 §7). Le format v1 ne
+            // contenait que { parties }. La migration 1→2 ajoute generatedRows
+            // (le monde procédural généré : { index, type, obstacles[], vitesse }
+            // indexé par position) — le monde ne se régénère jamais, il est
+            // persisté versionné dans la save ({v, t, data}). Les sauvegardes
+            // v1 existantes sont migrées, jamais perdues. (La règle « la save
+            // n'intervient qu'à la victoire du niveau » — spec 708 §9 — sera
+            // câblée avec la fin de niveau, étape D2-3.)
             Arcade.Save.configure({
                 key: C.key,
-                version: 1,
-                migrations: {},
+                version: C.save.version,
+                migrations: {
+                    // v1 → v2 : on reprend les données existantes et on ajoute
+                    // le monde généré (vide par défaut : aucune partie en
+                    // cours à la migration).
+                    1: function (data) {
+                        return Object.assign({}, data, { generatedRows: {} });
+                    }
+                },
                 gather: function () {
-                    return { parties: scene.registry.get("parties") || 0 };
+                    return {
+                        parties: scene.registry.get("parties") || 0,
+                        generatedRows: scene.registry.get("generatedRows") || {}
+                    };
                 },
                 apply: function (data) {
                     scene.registry.set("parties", (data && data.parties) || 0);
+                    const gr = (data && data.generatedRows) || {};
+                    scene.registry.set("generatedRows", gr);
                 }
             });
 
