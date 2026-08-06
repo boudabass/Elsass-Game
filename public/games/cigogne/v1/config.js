@@ -9,6 +9,14 @@ window.CigogneConfig = {
     key: "cigogne",
     titre: "Cigogne",
 
+    // --- Textes (libellés français) -----------------------------------------
+    // {score} est un emplacement : la valeur du score est insérée au moment
+    // de l'affichage (voir MenuScene / OverScene).
+    textes: {
+        meilleurScore: "Meilleur score : {score}",
+        nouveauRecord: "Nouveau record !"
+    },
+
     // --- Vol ---------------------------------------------------------------
     // Gravité exprimée en hauteurs d'écran par seconde au carré.
     gravitePar_h: 3.2,
@@ -50,6 +58,9 @@ window.CigogneConfig = {
         terre: 0x8b6b4a,
         texte: "#141210",
         texteClair: "#ffffff",
-        bouton: "#E31B23"
+        bouton: "#E31B23",
+        // Encadré du record sur l'écran de fin : orange, texte noir à
+        // l'intérieur (lisible sur le fond bleu ciel).
+        encadreRecord: "#F2B93D"
     }
 };
