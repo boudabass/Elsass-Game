@@ -44,9 +44,9 @@ window.WaggisConfig = {
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
     // Étape 2 : bandes zone_sure (prairie/vigne) et route (véhicules
-    // latéraux). Étape 3 : bandes eau (nénuphars qui dérivent). Rails à
-    // l'étape suivante. Toutes les valeurs sont en PROPORTION de l'écran —
-    // jamais en pixels.
+    // latéraux). Étape 3 : bandes eau (nénuphars qui dérivent). Étape 4 :
+    // bandes rails (voie ferrée, train rapide prévenu par signal). Toutes
+    // les valeurs sont en PROPORTION de l'écran — jamais en pixels.
     lanes: {
         // Hauteur d'une bande, en % de la HAUTEUR d'écran (les bandes sont
         // empilées verticalement, c'est la hauteur qui compte) : 10 % = dix
@@ -82,15 +82,35 @@ window.WaggisConfig = {
         // nénuphars plus nombreux) pour rester franchissable.
         eau2eConsecutive: { densite: 1.3, vitesse: 0.85 },
 
-        // Choix du type de bande : probabilité de route et d'eau, qui
-        // montent avec la difficulté. Jamais plus de 2 bandes dangereuses
-        // consécutives du même type (cf. LaneGenerator).
+        // Rails : durée (en secondes) que le train met à traverser l'écran.
+        // Rapide (2-3x plus court que les voitures) et diminue avec la
+        // difficulté.
+        railDureeTraversee: { base: 2.2, parNiveau: 0.15, min: 1.2 },
+
+        // Rails : durée du signal (feux + son) avant le passage, en ms.
+        // Constante — c'est la fenêtre pour QUITTER les rails.
+        railAvertissementMs: 2000,
+
+        // Rails : attente moyenne (ms) entre deux passages ; diminue avec
+        // la difficulté (trains plus fréquents). Un aléa ±30 % est appliqué
+        // par LaneGenerator pour éviter des passages métronomiques.
+        railAttente: { base: 6500, parNiveau: 400, min: 3500 },
+
+        // Anti-frustration (CDC 706 §Génération) : deux bandes rails
+        // consécutives, la deuxième est plus clémente (signal plus long,
+        // train plus rare et plus lent) pour rester franchissable.
+        rail2eConsecutive: { avertissement: 1.3, attente: 1.3, vitesse: 0.85 },
+
+        // Choix du type de bande : probabilité de route, d'eau et de rails,
+        // qui montent avec la difficulté. Jamais plus de 2 bandes
+        // dangereuses consécutives du même type (cf. LaneGenerator).
         probRoute: { base: 0.35, parNiveau: 0.07, max: 0.7 },
         probEau: { base: 0.2, parNiveau: 0.05, max: 0.45 },
+        probRails: { base: 0.12, parNiveau: 0.035, max: 0.32 },
 
-        // Probabilité cumulée maximale d'une bande dangereuse (route + eau) :
-        // quel que soit le niveau, il reste au moins (1 - dangerMax) de
-        // zones sûres (respiration obligatoire, CDC 706 §Génération).
+        // Probabilité cumulée maximale d'une bande dangereuse (route + eau +
+        // rails) : quel que soit le niveau, il reste au moins (1 - dangerMax)
+        // de zones sûres (respiration obligatoire, CDC 706 §Génération).
         dangerMax: 0.85,
 
         // Bande juste au-dessus du départ : quasi toujours une zone sûre,
@@ -112,6 +132,12 @@ window.WaggisConfig = {
         bouton: "#E31B23",
         // Encadré du record sur l'écran de fin : orange, texte noir à
         // l'intérieur (lisible sur le fond bleu ciel).
-        encadreRecord: "#F2B93D"
+        encadreRecord: "#F2B93D",
+        // Bande rails : lit de ballast (gravier) sous la voie — la texture
+        // rogrpg_rails est ajourée, le fond opaque est dessiné en dessous.
+        ballast: "#5c5750",
+        // Feux de croisement des bandes rails (cercles, signal visuel avant
+        // le passage du train).
+        feuSignal: "#ff2222"
     }
 };

@@ -5,33 +5,54 @@
  * Le monde est découpé en bandes horizontales de hauteur fixe, empilées
  * vers le haut au fur et à mesure que le joueur avance. Chaque bande est
  * tirée aléatoirement parmi les types (étape 2 : `zone_sure` prairie/vigne
- * et `route` ; étape 3 : `eau` ; rails à l'étape suivante), avec des règles
- * anti-frustration (CDC 706 §Génération) :
+ * et `route` ; étape 3 : `eau` ; étape 4 : `rails` — voie ferrée avec un
+ * train rapide périodique), avec des règles anti-frustration
+ * (CDC 706 §Génération) :
  *   - jamais plus de 2 bandes dangereuses consécutives du même type
- *     (route ou eau) ;
+ *     (route, eau ou rails) ;
  *   - la 2e bande dangereuse consécutive est plus clémente (route : moins
  *     de véhicules et plus lents ; eau : courant plus lent et plus de
- *     nénuphars) pour rester franchissable ;
+ *     nénuphars ; rails : signal plus long et train plus rare/lent) pour
+ *     rester franchissable ;
  *   - il reste toujours une part de zones sûres (respiration), quel que
  *     soit le niveau de difficulté ;
  *   - la bande de départ et celle qui la suit sont des zones sûres (jamais
  *     d'eau en bande 1) ;
  *   - la difficulté monte par palier de score (trafic plus dense et plus
- *     rapide, courant plus fort, tous les 10 points).
- *   - RÈGLE PRÉVUE étape suivante : jamais de rails juste après une bande
- *     d'eau (CDC 706) — à ajouter dans _choisirType quand le type rails
- *     existera.
+ *     rapide, courant plus fort, trains plus fréquents, tous les 10
+ *     points) ;
+ *   - CDC 706 : « pas de rails juste après une bande d'eau » — garanti
+ *     structurellement par la règle « même type au plus 2 fois de suite » :
+ *     une bande eau n'est suivie que d'eau ou de zone_sure, jamais d'un
+ *     autre type dangereux (voir _choisirType).
+ *
+ * RAILS (étape 4) : chaque bande rails alterne trois phases (bande.phase) :
+ *   - "attente"      : voie libre, les feux de croisement sont visibles
+ *                      (rouge sombre, fixes) ;
+ *   - "avertissement": signal AVANT le passage — les feux clignotent en
+ *                      rouge vif et un son (snd_error de l'atelier,
+ *                      décision John 06/08) retentit ; le train n'est pas
+ *                      encore sur l'écran, c'est la fenêtre pour QUITTER
+ *                      les rails ;
+ *   - "passage"      : le train (convoi de wagonnets rogrpg, placeholder
+ *                      faute de sprite de locomotive dans l'atelier —
+ *                      signalé, CDC 706 §Assets) traverse l'écran à
+ *                      grande vitesse ; tout point de la bande recouvert
+ *                      par le train à cet instant = mort (contrat exposé
+ *                      via bande.estMortelAuPoint(x, demiLargeur) pour
+ *                      l'étape collisions).
  *
  * POOLING : les bandes déjà traversées (sorties en bas de l'écran) ne sont
  * ni détruites ni recréées : elles sont recyclées en haut avec un nouveau
- * type (avancer()). Les sprites de décor et de véhicules passent par un
- * pool interne et changent de texture plutôt que d'être détruits — aucun
- * monde infini n'est gardé en mémoire.
+ * type (avancer()). Les sprites de décor, de véhicules et de wagons
+ * passent par un pool interne et changent de texture plutôt que d'être
+ * détruits — aucun monde infini n'est gardé en mémoire.
  *
  * Rendu : chaque bande est un tileSprite de sol (herbe pour les zones
- * sûres, asphalte + marquage pour les routes), décorée d'arbres/buissons
- * (zone sûre) ou parcourue de véhicules latéraux (route). Tout est exprimé
- * en PROPORTION de l'écran (config lanes), comme le reste du jeu.
+ * sûres, asphalte + marquage pour les routes, lit de ballast + voie pour
+ * les rails), décorée d'arbres/buissons (zone sûre), parcourue de
+ * véhicules latéraux (route) ou d'un train périodique (rails). Tout est
+ * exprimé en PROPORTION de l'écran (config lanes), comme le reste du jeu.
  *
  * Utilisation (GameScene) :
  *   this.lanes = new LaneGenerator(this);
@@ -43,8 +64,8 @@ class LaneGenerator {
     static TYPES = Object.freeze({
         ZONE_SURE: "zone_sure",
         ROUTE: "route",
-        EAU: "eau"
-        // rails : étape suivante (même contrat : un type, un rendu).
+        EAU: "eau",
+        RAILS: "rails"
     });
 
     static SOUS_TYPES_ZONE_SURE = Object.freeze(["prairie", "vigne"]);
@@ -56,8 +77,16 @@ class LaneGenerator {
         this.scene = scene;
         this.C = window.WaggisConfig;
         this.bandes = [];        // bandes vivantes, de bas en haut
-        this.poolSprites = [];   // sprites décor/véhicule recyclés
+        this.poolSprites = [];   // sprites décor/véhicule/wagon recyclés
         this.niveau = 0;         // palier de difficulté (score / 10)
+
+        // Compteurs exposés pour la QA (probes window.__q / Arcade.game) :
+        // nombre de signaux sonores déclenchés et de passages de train.
+        this.compteurs = { avertissements: 0, passages: 0 };
+        // Horodatage (scene.time.now) jusqu'auquel un signal sonore est en
+        // cours : un seul train peut « sonner » à la fois (pas de
+        // cacophonie si deux bandes rails avertissent en même temps).
+        this._sonSignalFin = null;
 
         this.hauteur = 0;        // recalculée par redimensionner()
         this.redimensionner();
@@ -65,11 +94,14 @@ class LaneGenerator {
 
     /** Profondeurs de rendu (le joueur arrivera au-dessus, ~10). */
     static DEPTH = Object.freeze({
+        ballast: 0,      // lit de gravier sous la voie (texture rails ajourée)
         sol: 1,
         marquage: 2,
         decor: 3,
+        signal: 4,       // feux de croisement des bandes rails
         vehicule: 5,
-        flottant: 5
+        flottant: 5,
+        train: 5
     });
 
     // ------------------------------------------------------------------
@@ -124,19 +156,26 @@ class LaneGenerator {
     }
 
     /**
-     * Fait avancer les obstacles latéraux : véhicules (route) et nénuphars
-     * (eau), recyclés quand ils sortent de l'écran à gauche ou à droite.
-     * À appeler depuis update() de la scène.
+     * Fait avancer les obstacles latéraux : véhicules (route), nénuphars
+     * (eau) et trains (rails), recyclés quand ils sortent de l'écran à
+     * gauche ou à droite. À appeler depuis update() de la scène.
      */
     update(time, delta) {
         const w = this.scene.scale.width;
         const marge = this.hauteur; // marge de sortie latérale
+
+        // Fin de la fenêtre de son du signal (un seul à la fois).
+        if (this._sonSignalFin !== null && time >= this._sonSignalFin) {
+            this._sonSignalFin = null;
+        }
 
         for (const bande of this.bandes) {
             if (bande.type === LaneGenerator.TYPES.ROUTE) {
                 this._deriver(bande.vehicules, w, marge, delta);
             } else if (bande.type === LaneGenerator.TYPES.EAU) {
                 this._deriver(bande.flottants, w, marge, delta);
+            } else if (bande.type === LaneGenerator.TYPES.RAILS) {
+                this._mettreAJourRails(bande, w, marge, delta);
             }
         }
     }
@@ -173,10 +212,31 @@ class LaneGenerator {
         this.bandes.forEach((bande, i) => {
             bande.y = h - this.hauteur / 2 - i * this.hauteur;
             bande.sol.setSize(w, this.hauteur).setPosition(0, bande.y - this.hauteur / 2);
+            if (bande.ballast) {
+                bande.ballast
+                    .setSize(w, this.hauteur)
+                    .setPosition(0, bande.y - this.hauteur / 2);
+            }
             if (bande.marquage) {
                 bande.marquage
                     .setSize(w, this.hauteur * 0.22)
                     .setPosition(0, bande.y);
+            }
+            if (bande.type === LaneGenerator.TYPES.RAILS) {
+                // Une seule voie par bande : le motif 16x16 est mis à
+                // l'échelle de la hauteur de bande (sinon il se tuilerait
+                // plusieurs fois verticalement).
+                bande.sol.setTileScale(this.hauteur / 16, this.hauteur / 16);
+                if (bande.signal) this._positionnerSignal(bande);
+                if (bande.train) {
+                    bande.train.vitesse = w / bande.train.dureeTraversee;
+                    bande.train.cote = this.hauteur * 0.9;
+                    bande.train.demiLargeur = bande.train.nb * bande.train.cote / 2;
+                    for (const s of bande.train.sprites) {
+                        s.y = bande.y;
+                        s.setDisplaySize(bande.train.cote, bande.train.cote);
+                    }
+                }
             }
             for (const v of bande.vehicules) {
                 v.sprite.y = bande.y;
@@ -220,14 +280,18 @@ class LaneGenerator {
      * Tire le type de la prochaine bande, posée AU-DESSUS de `avant`.
      *
      * Règles anti-frustration étendues (CDC 706 §Génération) :
-     *  - départ et bande 1 : zone sûre (jamais d'eau si tôt) ;
+     *  - départ et bande 1 : zone sûre (jamais d'eau ni de rails si tôt) ;
      *  - jamais plus de 2 bandes dangereuses consécutives DU MÊME type
-     *    (route ou eau) : après deux routes ou deux eaux, zone sûre ;
+     *    (route, eau ou rails) : après deux routes, deux eaux ou deux
+     *    rails, zone sûre ;
      *  - une 2e bande du même type reste possible mais nettement moins
      *    probable qu'une zone sûre (respiration) ;
-     *  - part de zones sûres garantie (dangerMax plafonne route + eau) ;
-     *  - RÈGLE PRÉVUE étape suivante : quand le type rails existera,
-     *    interdire ici « rails juste après une bande d'eau » (CDC 706).
+     *  - part de zones sûres garantie (dangerMax plafonne route + eau +
+     *    rails) ;
+     *  - « pas de rails juste après une bande d'eau » (CDC 706) : garanti
+     *    structurellement — après une eau, seules eau ou zone_sure suivent
+     *    (règle « même type au plus 2 fois » ci-dessus), jamais un autre
+     *    type dangereux.
      *
      * @param {object} avant bande déjà en place (au-dessous de la nouvelle)
      * @param {number} index index absolu de la nouvelle bande (0 = départ)
@@ -250,10 +314,14 @@ class LaneGenerator {
             C.probEau.max,
             C.probEau.base + this.niveau * C.probEau.parNiveau
         );
+        const pRails = Math.min(
+            C.probRails.max,
+            C.probRails.base + this.niveau * C.probRails.parNiveau
+        );
 
-        // Bande 1 non zone sûre : route uniquement, jamais d'eau (le joueur
-        // vient de commencer, pas de rivière si tôt).
-        let pDangereux = Math.min(C.dangerMax, pRoute + pEau);
+        // Bande 1 non zone sûre : route uniquement, jamais d'eau ni de
+        // rails (le joueur vient de commencer, pas de danger si tôt).
+        let pDangereux = Math.min(C.dangerMax, pRoute + pEau + pRails);
         if (index === 1) pDangereux = pRoute;
 
         // Nombre de bandes dangereuses consécutives DU MÊME type finissant
@@ -269,10 +337,17 @@ class LaneGenerator {
              i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.EAU; i--) {
             eauxConsecutives++;
         }
+        let railsConsecutives = 0;
+        for (let i = this.bandes.length - 1;
+             i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.RAILS; i--) {
+            railsConsecutives++;
+        }
 
         // Jamais plus de 2 bandes dangereuses consécutives du même type :
-        // après deux routes ou deux eaux, une zone sûre est obligatoire.
-        if (routesConsecutives >= 2 || eauxConsecutives >= 2) {
+        // après deux routes, deux eaux ou deux rails, une zone sûre est
+        // obligatoire.
+        if (routesConsecutives >= 2 || eauxConsecutives >= 2 ||
+            railsConsecutives >= 2) {
             return LaneGenerator.TYPES.ZONE_SURE;
         }
 
@@ -286,15 +361,21 @@ class LaneGenerator {
             if (Math.random() < pDangereux * 0.35) return LaneGenerator.TYPES.EAU;
             return LaneGenerator.TYPES.ZONE_SURE;
         }
+        if (railsConsecutives === 1) {
+            if (Math.random() < pDangereux * 0.35) return LaneGenerator.TYPES.RAILS;
+            return LaneGenerator.TYPES.ZONE_SURE;
+        }
 
         // Aucune bande du même type au-dessus : tirage normal, réparti
-        // route / eau proportionnellement à leurs probabilités.
+        // route / eau / rails proportionnellement à leurs probabilités.
         if (Math.random() >= pDangereux) return LaneGenerator.TYPES.ZONE_SURE;
-        // Bande 1 : jamais d'eau (départ en douceur) — route ou zone sûre.
+        // Bande 1 : jamais d'eau ni de rails (départ en douceur) — route
+        // ou zone sûre.
         if (index === 1) return LaneGenerator.TYPES.ROUTE;
-        return Math.random() < pRoute / (pRoute + pEau)
-            ? LaneGenerator.TYPES.ROUTE
-            : LaneGenerator.TYPES.EAU;
+        const tirage = Math.random() * (pRoute + pEau + pRails);
+        if (tirage < pRoute) return LaneGenerator.TYPES.ROUTE;
+        if (tirage < pRoute + pEau) return LaneGenerator.TYPES.EAU;
+        return LaneGenerator.TYPES.RAILS;
     }
 
     /** Sous-type d'une bande (vigne ou prairie pour une zone sûre). */
@@ -315,14 +396,32 @@ class LaneGenerator {
             type: type,
             sousType: sousType,
             y: y,
-            direction: null,   // route/eau : -1 (gauche) ou +1 (droite)
+            direction: null,   // route/eau/rails : -1 (gauche) ou +1 (droite)
             vitesse: 0,        // route/eau : px/s commun à tous les obstacles
             densite: 0,        // route/eau : nombre d'obstacles
             sol: null,         // tileSprite de fond
             marquage: null,    // route : ligne pointillée centrale
+            ballast: null,     // rails : lit de gravier sous la voie
+            signal: null,      // rails : [feuHaut, feuBas] (feux de croisement)
+            signalTemps: 0,    // rails : accumulateur du clignotement (ms)
+            signalAllume: false,
+            phase: null,       // rails : "attente" | "avertissement" | "passage"
+            cycleTemps: 0,     // rails : temps écoulé dans la phase (ms)
+            attenteDuree: 0,   // rails : durée d'attente avant le signal (ms)
+            avertissementDuree: 0, // rails : durée du signal avant passage (ms)
+            train: null,       // rails : convoi {direction, vitesse, x, cote,
+                               //   nb, demiLargeur, dureeTraversee, sprites[]}
             decor: [],         // zone sûre : [{sprite, offsetY, taille}]
             vehicules: [],     // route : [{sprite, vitesse, direction, cote, demiLargeur}]
-            flottants: []      // eau : [{sprite, vitesse, direction, cote, demiLargeur}]
+            flottants: [],     // eau : [{sprite, vitesse, direction, cote, demiLargeur}]
+            // Contrat exposé pour l'étape collisions : un point de la bande
+            // (x, demiLargeur) est-il fauché par le train à cet instant ?
+            estMortelAuPoint: function (x, demiLargeur) {
+                if (bande.type !== LaneGenerator.TYPES.RAILS) return false;
+                if (!bande.train || bande.phase !== "passage") return false;
+                return Math.abs(x - bande.train.x) <
+                    bande.train.demiLargeur + (demiLargeur || 0);
+            }
         };
         this._rendreBande(bande);
         this.bandes.push(bande);
@@ -337,20 +436,27 @@ class LaneGenerator {
         for (const d of bande.decor) this._rendreSprite(d.sprite);
         for (const v of bande.vehicules) this._rendreSprite(v.sprite);
         for (const f of bande.flottants) this._rendreSprite(f.sprite);
+        for (const s of (bande.train ? bande.train.sprites : [])) {
+            this._rendreSprite(s);
+        }
         bande.decor = [];
         bande.vehicules = [];
         bande.flottants = [];
+        bande.train = null;
+        bande.phase = null;
+        bande.cycleTemps = 0;
         bande.type = type;
         bande.sousType = sousType;
         bande.y = nouveauY;
         this._rendreBande(bande);
     }
 
-    /** Rendu complet d'une bande selon son type (sol + décor/véhicules/flottants). */
+    /** Rendu complet d'une bande selon son type (sol + décor/véhicules/train). */
     _rendreBande(bande) {
         const w = this.scene.scale.width;
 
         if (bande.type === LaneGenerator.TYPES.ROUTE) {
+            this._masquerVestigesRails(bande);
             this._rendreSol(bande, "route_pleine");
             // Marquage central : ligne pointillée évoquant le milieu de
             // chaussée (une bande route = une voie par sens).
@@ -367,10 +473,27 @@ class LaneGenerator {
             // Bande recyclée qui n'est plus une route : le marquage fantôme
             // doit disparaître (il resterait visible au milieu de la rivière).
             if (bande.marquage) bande.marquage.setVisible(false);
+            this._masquerVestigesRails(bande);
             this._rendreSol(bande, this._textureEau());
             this._peuplerEau(bande);
+        } else if (bande.type === LaneGenerator.TYPES.RAILS) {
+            if (bande.marquage) bande.marquage.setVisible(false);
+            // Lit de ballast sous la voie : la texture rails est ajourée
+            // (ballast + traverses), le fond opaque est dessiné en dessous.
+            this._rendreBallast(bande);
+            this._rendreSol(bande, this._textureRails());
+            // Une seule voie par bande : le motif 16x16 est mis à l'échelle
+            // de la hauteur de bande (sinon il se tuilerait plusieurs fois
+            // verticalement), et décalé d'un motif au hasard pour varier.
+            bande.sol.setTileScale(this.hauteur / 16, this.hauteur / 16);
+            bande.sol.tilePositionX = Math.floor(Math.random() * 16);
+            // Train D'ABORD (il fixe bande.direction), puis les feux :
+            // _positionnerSignal place les feux du côté d'où arrive le train.
+            this._initialiserTrain(bande);
+            this._creerSignal(bande);
         } else {
             if (bande.marquage) bande.marquage.setVisible(false);
+            this._masquerVestigesRails(bande);
             const texture = this._textureHerbe();
             this._rendreSol(bande, texture);
             if (bande.sousType === "vigne") {
@@ -379,6 +502,15 @@ class LaneGenerator {
                 this._peuplerPrairie(bande);
             }
         }
+    }
+
+    /** Masque les objets propres aux rails (feux, ballast) sur une bande recyclée. */
+    _masquerVestigesRails(bande) {
+        if (bande.signal) {
+            bande.signal[0].setVisible(false);
+            bande.signal[1].setVisible(false);
+        }
+        if (bande.ballast) bande.ballast.setVisible(false);
     }
 
     /** Pose (ou change) le tileSprite de sol de la bande. */
@@ -391,6 +523,9 @@ class LaneGenerator {
                 .setDepth(LaneGenerator.DEPTH.sol);
         } else {
             bande.sol.setTexture(texture).setSize(w, this.hauteur);
+            // Bande recyclée : revenir à l'échelle 1 (une bande rails avait
+            // mis le tileScale à la taille de sa voie, cf. _rendreBande).
+            bande.sol.setTileScale(1, 1);
         }
         // Décalage du motif : deux bandes côte à côte ne sont pas identiques.
         bande.sol.tilePositionX = Math.floor(Math.random() * w);
@@ -542,6 +677,251 @@ class LaneGenerator {
     _textureNenuphar() {
         const textures = ["nenuphar_simple", "nenuphar_double", "nenuphar_fleur"];
         return textures[Math.floor(Math.random() * textures.length)];
+    }
+
+    // ------------------------------------------------------------------
+    // Rails : voie ferrée et train périodique (étape 4)
+    // ------------------------------------------------------------------
+
+    /** Texture de la voie (3 variantes, une au hasard). */
+    _textureRails() {
+        const variantes = ["rails_v1", "rails_v2", "rails_v3"];
+        return variantes[Math.floor(Math.random() * variantes.length)];
+    }
+
+    /** Lit de ballast opaque sous la voie (la texture rails est ajourée). */
+    _rendreBallast(bande) {
+        const w = this.scene.scale.width;
+        if (!bande.ballast) {
+            bande.ballast = this.scene.add
+                .rectangle(0, bande.y - this.hauteur / 2, w, this.hauteur,
+                    this.C.couleurs.ballast)
+                .setOrigin(0, 0)
+                .setDepth(LaneGenerator.DEPTH.ballast);
+        }
+        bande.ballast
+            .setVisible(true)
+            .setSize(w, this.hauteur)
+            .setPosition(0, bande.y - this.hauteur / 2);
+    }
+
+    /**
+     * Feux de croisement de la bande : deux cercles rouges empilés, posés
+     * du côté d'où arrive le train. Au repos ils sont visibles en rouge
+     * sombre (le passage existe) ; pendant l'avertissement et le passage
+     * ils clignotent en alternance (cf. _clignoterSignal).
+     */
+    _creerSignal(bande) {
+        if (!bande.signal) {
+            const feu = () => this.scene.add
+                .circle(0, 0, this.hauteur * 0.15, this.C.couleurs.feuSignal)
+                .setDepth(LaneGenerator.DEPTH.signal);
+            bande.signal = [feu(), feu()];
+        }
+        bande.signalTemps = 0;
+        bande.signalAllume = false;
+        this._positionnerSignal(bande);
+        // Au repos : les deux feux visibles en rouge sombre (fixes).
+        bande.signal[0].setVisible(true);
+        bande.signal[1].setVisible(true);
+    }
+
+    /** Repositionne les feux (création, recyclage, redimensionnement). */
+    _positionnerSignal(bande) {
+        const w = this.scene.scale.width;
+        const rayon = this.hauteur * 0.15;
+        const ecart = this.hauteur * 0.24;
+        const x = bande.direction > 0 ? w * 0.05 : w * 0.95;
+        bande.signal[0].setRadius(rayon).setPosition(x, bande.y - ecart);
+        bande.signal[1].setRadius(rayon).setPosition(x, bande.y + ecart);
+    }
+
+    /**
+     * Clignotement des feux. `actif` = phase d'avertissement/passage :
+     * les feux s'allument en alternance (~5,5 Hz). Au repos (attente) :
+     * les deux feux reviennent fixes et visibles.
+     */
+    _clignoterSignal(bande, delta, actif) {
+        bande.signalTemps += delta;
+        if (bande.signalTemps < 180) return;
+        bande.signalTemps -= 180;
+        if (!actif) {
+            // Repos : les deux feux visibles (rouge sombre, fixes) —
+            // le passage existe, mais aucun train n'arrive.
+            bande.signal[0].setVisible(true);
+            bande.signal[1].setVisible(true);
+            return;
+        }
+        bande.signalAllume = !bande.signalAllume;
+        bande.signal[0].setVisible(bande.signalAllume);
+        bande.signal[1].setVisible(!bande.signalAllume);
+    }
+
+    /**
+     * Prépare le cycle du train d'une bande rails : phase "attente",
+     * durées (attente aléatoire, signal fixe), sens de circulation, convoi
+     * de wagonnets (placeholder, cf. en-tête) caché hors de l'écran.
+     */
+    _initialiserTrain(bande) {
+        const C = this.C.lanes;
+        const w = this.scene.scale.width;
+
+        // 2e rails consécutive = la bande du dessous est une rails et celle
+        // d'encore avant n'en est pas une (celle-ci serait la 2e d'affilée).
+        const est2eRails =
+            this.bandes.length >= 1 &&
+            this.bandes[this.bandes.length - 1].type === LaneGenerator.TYPES.RAILS &&
+            (this.bandes.length < 2 ||
+             this.bandes[this.bandes.length - 2].type !== LaneGenerator.TYPES.RAILS);
+        bande.est2eRails = est2eRails;
+
+        bande.direction = Math.random() < 0.5 ? 1 : -1;
+
+        // Durée de traversée : rapide, diminue avec la difficulté, allégée
+        // sur une 2e rails (train plus lent, plus de temps pour réagir).
+        let duree = C.railDureeTraversee.base -
+            this.niveau * C.railDureeTraversee.parNiveau;
+        duree = Math.max(C.railDureeTraversee.min, duree);
+        if (est2eRails) duree /= C.rail2eConsecutive.vitesse;
+
+        // Signal avant passage : constante, plus long sur une 2e rails.
+        bande.avertissementDuree = C.railAvertissementMs;
+        if (est2eRails) {
+            bande.avertissementDuree *= C.rail2eConsecutive.avertissement;
+        }
+        bande.attenteDuree = this._dureeAttente(est2eRails);
+
+        const cote = this.hauteur * 0.9;
+        const nb = 3;  // 1 « loco » (wagonnet charbon) + 2 wagons
+        const train = {
+            direction: bande.direction,
+            vitesse: w / duree,
+            dureeTraversee: duree,
+            cote: cote,
+            nb: nb,
+            demiLargeur: (nb * cote) / 2,
+            x: 0,
+            sprites: []
+        };
+        const textures = [this._textureLoco()];
+        for (let i = 1; i < nb; i++) textures.push(this._textureWagon());
+        for (let i = 0; i < nb; i++) {
+            const sprite = this._prendreSprite(textures[i], LaneGenerator.DEPTH.train);
+            sprite.setDisplaySize(cote, cote);
+            // Positionné hors écran du côté d'où il arrivera, masqué.
+            sprite.setPosition(
+                (i - (nb - 1) / 2) * cote + (bande.direction > 0 ? -w : w),
+                bande.y
+            );
+            sprite.setVisible(false);
+            train.sprites.push(sprite);
+        }
+        bande.train = train;
+        bande.phase = "attente";
+        bande.cycleTemps = 0;
+    }
+
+    /**
+     * Durée d'attente (ms) avant le prochain signal : diminue avec la
+     * difficulté (trains plus fréquents), aléa ±30 % pour que les passages
+     * ne soient pas métronomiques.
+     */
+    _dureeAttente(est2eRails) {
+        const C = this.C.lanes;
+        let duree = C.railAttente.base - this.niveau * C.railAttente.parNiveau;
+        duree = Math.max(C.railAttente.min, duree);
+        if (est2eRails) duree *= C.rail2eConsecutive.attente;
+        return duree * (0.7 + Math.random() * 0.6);
+    }
+
+    /** « Locomotive » du convoi : wagonnet charbon (placeholder, cf. en-tête). */
+    _textureLoco() {
+        return "wagonnet_charbon";
+    }
+
+    /** Texture d'un wagon du convoi (cargaisons rogrpg variées). */
+    _textureWagon() {
+        const textures = [
+            "wagonnet_vide", "wagonnet_terre", "wagonnet_pierres", "wagonnet_or"
+        ];
+        return textures[Math.floor(Math.random() * textures.length)];
+    }
+
+    /**
+     * Fait tourner le cycle du train d'une bande rails (appelé depuis
+     * update()) : attente → avertissement (signal sonore + feux qui
+     * clignotent) → passage (le convoi traverse à grande vitesse) →
+     * attente.
+     */
+    _mettreAJourRails(bande, w, marge, delta) {
+        bande.cycleTemps += delta;
+
+        if (bande.phase === "attente") {
+            this._clignoterSignal(bande, delta, false);
+            if (bande.cycleTemps >= bande.attenteDuree) {
+                bande.phase = "avertissement";
+                bande.cycleTemps = 0;
+                this.compteurs.avertissements++;
+                this._jouerSignalSonore();
+            }
+        } else if (bande.phase === "avertissement") {
+            this._clignoterSignal(bande, delta, true);
+            if (bande.cycleTemps >= bande.avertissementDuree) {
+                bande.phase = "passage";
+                bande.cycleTemps = 0;
+                this.compteurs.passages++;
+                this._demarrerPassage(bande, w, marge);
+            }
+        } else {  // "passage"
+            this._clignoterSignal(bande, delta, true);
+            const t = bande.train;
+            t.x += t.direction * t.vitesse * (delta / 1000);
+            for (let i = 0; i < t.sprites.length; i++) {
+                t.sprites[i].x = t.x + (i - (t.nb - 1) / 2) * t.cote;
+            }
+            // Convoi entièrement sorti de l'autre côté : retour à l'attente.
+            const sorti = t.direction > 0
+                ? t.x - t.demiLargeur > w + marge
+                : t.x + t.demiLargeur < -marge;
+            if (sorti) {
+                for (const s of t.sprites) s.setVisible(false);
+                bande.phase = "attente";
+                bande.cycleTemps = 0;
+                bande.attenteDuree = this._dureeAttente(bande.est2eRails);
+            }
+        }
+    }
+
+    /** Place le convoi juste hors de l'écran, côté d'où il arrive. */
+    _demarrerPassage(bande, w, marge) {
+        const t = bande.train;
+        t.x = t.direction > 0 ? -t.demiLargeur - marge : w + t.demiLargeur + marge;
+        for (let i = 0; i < t.sprites.length; i++) {
+            t.sprites[i].x = t.x + (i - (t.nb - 1) / 2) * t.cote;
+            t.sprites[i].y = bande.y;
+            t.sprites[i].setVisible(true);
+        }
+    }
+
+    /**
+     * Signal sonore du train : snd_error (MP3 de l'atelier, décision John
+     * 06/08 — pas de sons dédiés), 3 bips rapprochés. Un seul signal sonore
+     * à la fois sur tout le terrain (pas de cacophonie si deux bandes
+     * avertissent en même temps) ; si l'audio n'est pas encore déverrouillée
+     * (pas de geste utilisateur), le signal visuel reste seul.
+     */
+    _jouerSignalSonore() {
+        if (this._sonSignalFin !== null) return;  // un signal sonore en cours
+        const scene = this.scene;
+        if (!scene.sound || scene.sound.locked) return;  // audio verrouillée
+        this._sonSignalFin = scene.time.now + 900;       // ~3 bips espacés
+        try {
+            const jouer = () => scene.sound.play("snd_error", { volume: 0.4 });
+            jouer();
+            scene.time.addEvent({ delay: 280, repeat: 2, callback: jouer });
+        } catch (e) {
+            this._sonSignalFin = null;
+        }
     }
 
     // ------------------------------------------------------------------

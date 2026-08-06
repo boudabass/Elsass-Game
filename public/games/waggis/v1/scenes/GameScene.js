@@ -1,19 +1,22 @@
 /*
  * GameScene — la partie elle-même.
  *
- * ÉTAPE 3 : le terrain est là. LaneGenerator génère les bandes horizontales
- * (zone sûre prairie/vigne, route avec véhicules latéraux, eau avec
- * nénuphars qui dérivent), les véhicules roulent et les nénuphars dérivent
- * en continu, les bandes sorties en bas sont recyclées en haut (pooling).
- * Le personnage et les contrôles (swipe / boutons visibles, 100 % clic-tap,
- * article 409) arrivent à l'étape suivante, la mort (étapes 4+ : collisions
- * véhicule, chute à l'eau, rails) remplacera le bouton provisoire ci-dessous.
+ * ÉTAPE 4 : le terrain est complet côté génération. LaneGenerator génère
+ * les bandes horizontales (zone sûre prairie/vigne, route avec véhicules
+ * latéraux, eau avec nénuphars qui dérivent, rails avec un train rapide
+ * prévenu par un signal sonore/visuel avant chaque passage) ; véhicules,
+ * nénuphars et trains bougent en continu, les bandes sorties en bas sont
+ * recyclées en haut (pooling). Le personnage et les contrôles (swipe /
+ * boutons visibles, 100 % clic-tap, article 409) arrivent à l'étape
+ * suivante, la mort (étape collisions : véhicule, chute à l'eau, train via
+ * bande.estMortelAuPoint, menace anti-attente) remplacera le bouton
+ * provisoire ci-dessous.
  *
  * Le bouton « Terminer (provisoire) » reste nécessaire tant qu'il n'y a pas
  * de conditions de mort : sans lui, aucune partie ne peut se finir et la
  * chaîne menu → jeu → fin n'est plus testable. Il est relégué en haut à
- * droite (petit) pour ne pas masquer le terrain, et disparaîtra à l'étape 4.
- * Aucun contrôle V1 (tap par case) n'est conservé.
+ * droite (petit) pour ne pas masquer le terrain, et disparaîtra à l'étape
+ * collisions. Aucun contrôle V1 (tap par case) n'est conservé.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
