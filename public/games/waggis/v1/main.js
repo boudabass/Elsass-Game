@@ -2,9 +2,9 @@
  * main.js — point de départ de Waggis V2.
  * Décrit ce qu'il faut charger, puis laisse le socle démarrer le jeu.
  *
- * ÉTAPE 2 : les textures du terrain (sols herbe/route, véhicules, décor)
- * sont chargées pour LaneGenerator. Le personnage arrivera à l'étape
- * suivante avec ses propres assets.
+ * ÉTAPE 3 : les textures du terrain (sols herbe/route/eau, véhicules,
+ * nénuphars rogrpg, décor) sont chargées pour LaneGenerator. Le personnage
+ * arrivera à l'étape suivante avec ses propres assets.
  */
 (function () {
     "use strict";
@@ -17,7 +17,7 @@
         scenes: [MenuScene, GameScene, OverScene],
         firstScene: MenuScene.KEY,
 
-        // Chargement : sols, véhicules et décor des bandes générées.
+        // Chargement : sols, véhicules, flottants et décor des bandes générées.
         preload: function (scene) {
             // Sols des bandes (zone sûre herbe / route asphalte + marquage).
             scene.load.image("herbe", "assets/sol/p8city_herbe.png");
@@ -25,6 +25,19 @@
             scene.load.image("herbe_fleurs_vertes", "assets/sol/p8city_herbe_fleurs_vertes.png");
             scene.load.image("route_pleine", "assets/sol/p8city_route_pleine.png");
             scene.load.image("route_ligne", "assets/sol/p8city_route_ligne_v2.png");
+
+            // Eau des bandes eau (4 variantes de texture, tuilées).
+            scene.load.image("eau", "assets/eau/p8city_eau.png");
+            scene.load.image("eau_v2", "assets/eau/p8city_eau_v2.png");
+            scene.load.image("eau_v3", "assets/eau/p8city_eau_v3.png");
+            scene.load.image("eau_v4", "assets/eau/p8city_eau_v4.png");
+
+            // Flottants des bandes eau : nénuphars rogrpg (simple, double,
+            // fleur). Note atelier : aucun rondin dans le catalogue actuel
+            // (vérifié 06/08), les nénuphars font les flottants.
+            scene.load.image("nenuphar_simple", "assets/eau/rogrpg_nenuphar_simple.png");
+            scene.load.image("nenuphar_double", "assets/eau/rogrpg_nenuphar_double.png");
+            scene.load.image("nenuphar_fleur", "assets/eau/rogrpg_nenuphar_fleur.png");
 
             // Véhicules des bandes route (vue de dessus, sens de circulation).
             scene.load.image("voiture_rouge_droite", "assets/vehicule/p8city_voiture_rouge_dessus_droite.png");

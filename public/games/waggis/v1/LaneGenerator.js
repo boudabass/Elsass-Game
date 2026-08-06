@@ -5,14 +5,22 @@
  * Le monde est découpé en bandes horizontales de hauteur fixe, empilées
  * vers le haut au fur et à mesure que le joueur avance. Chaque bande est
  * tirée aléatoirement parmi les types (étape 2 : `zone_sure` prairie/vigne
- * et `route` ; eau et rails arrivent aux étapes suivantes), avec des règles
+ * et `route` ; étape 3 : `eau` ; rails à l'étape suivante), avec des règles
  * anti-frustration (CDC 706 §Génération) :
- *   - jamais plus de 2 bandes route consécutives ;
- *   - la 2e bande route consécutive est plus clémente (moins de véhicules,
- *     véhicules plus lents) pour rester franchissable ;
- *   - la bande de départ et celle qui la suit sont des zones sûres ;
+ *   - jamais plus de 2 bandes dangereuses consécutives du même type
+ *     (route ou eau) ;
+ *   - la 2e bande dangereuse consécutive est plus clémente (route : moins
+ *     de véhicules et plus lents ; eau : courant plus lent et plus de
+ *     nénuphars) pour rester franchissable ;
+ *   - il reste toujours une part de zones sûres (respiration), quel que
+ *     soit le niveau de difficulté ;
+ *   - la bande de départ et celle qui la suit sont des zones sûres (jamais
+ *     d'eau en bande 1) ;
  *   - la difficulté monte par palier de score (trafic plus dense et plus
- *     rapide tous les 10 points).
+ *     rapide, courant plus fort, tous les 10 points).
+ *   - RÈGLE PRÉVUE étape suivante : jamais de rails juste après une bande
+ *     d'eau (CDC 706) — à ajouter dans _choisirType quand le type rails
+ *     existera.
  *
  * POOLING : les bandes déjà traversées (sorties en bas de l'écran) ne sont
  * ni détruites ni recréées : elles sont recyclées en haut avec un nouveau
@@ -34,8 +42,9 @@
 class LaneGenerator {
     static TYPES = Object.freeze({
         ZONE_SURE: "zone_sure",
-        ROUTE: "route"
-        // eau / rails : étapes suivantes (même contrat : un type, un rendu).
+        ROUTE: "route",
+        EAU: "eau"
+        // rails : étape suivante (même contrat : un type, un rendu).
     });
 
     static SOUS_TYPES_ZONE_SURE = Object.freeze(["prairie", "vigne"]);
@@ -59,7 +68,8 @@ class LaneGenerator {
         sol: 1,
         marquage: 2,
         decor: 3,
-        vehicule: 5
+        vehicule: 5,
+        flottant: 5
     });
 
     // ------------------------------------------------------------------
@@ -114,22 +124,31 @@ class LaneGenerator {
     }
 
     /**
-     * Fait avancer les véhicules (et les recycle quand ils sortent de
-     * l'écran à gauche ou à droite). À appeler depuis update() de la scène.
+     * Fait avancer les obstacles latéraux : véhicules (route) et nénuphars
+     * (eau), recyclés quand ils sortent de l'écran à gauche ou à droite.
+     * À appeler depuis update() de la scène.
      */
     update(time, delta) {
         const w = this.scene.scale.width;
         const marge = this.hauteur; // marge de sortie latérale
 
         for (const bande of this.bandes) {
-            if (bande.type !== LaneGenerator.TYPES.ROUTE) continue;
-            for (const v of bande.vehicules) {
-                v.sprite.x += v.vitesse * (delta / 1000);
-                if (v.direction > 0 && v.sprite.x - v.demiLargeur > w + marge) {
-                    v.sprite.x = -v.demiLargeur - marge;   // ressort à gauche
-                } else if (v.direction < 0 && v.sprite.x + v.demiLargeur < -marge) {
-                    v.sprite.x = w + v.demiLargeur + marge; // ressort à droite
-                }
+            if (bande.type === LaneGenerator.TYPES.ROUTE) {
+                this._deriver(bande.vehicules, w, marge, delta);
+            } else if (bande.type === LaneGenerator.TYPES.EAU) {
+                this._deriver(bande.flottants, w, marge, delta);
+            }
+        }
+    }
+
+    /** Fait dériver une liste d'obstacles latéraux (recyclage aux bords). */
+    _deriver(obstacles, w, marge, delta) {
+        for (const o of obstacles) {
+            o.sprite.x += o.vitesse * (delta / 1000);
+            if (o.direction > 0 && o.sprite.x - o.demiLargeur > w + marge) {
+                o.sprite.x = -o.demiLargeur - marge;   // ressort à gauche
+            } else if (o.direction < 0 && o.sprite.x + o.demiLargeur < -marge) {
+                o.sprite.x = w + o.demiLargeur + marge; // ressort à droite
             }
         }
     }
@@ -156,6 +175,10 @@ class LaneGenerator {
             for (const v of bande.vehicules) {
                 v.sprite.y = bande.y;
                 v.sprite.setDisplaySize(v.cote, v.cote);
+            }
+            for (const f of bande.flottants) {
+                f.sprite.y = bande.y;
+                f.sprite.setDisplaySize(f.cote, f.cote);
             }
             for (const d of bande.decor) {
                 d.sprite.y = bande.y + (d.offsetY - 0.5) * this.hauteur;
@@ -189,9 +212,19 @@ class LaneGenerator {
 
     /**
      * Tire le type de la prochaine bande, posée AU-DESSUS de `avant`.
+     *
+     * Règles anti-frustration étendues (CDC 706 §Génération) :
+     *  - départ et bande 1 : zone sûre (jamais d'eau si tôt) ;
+     *  - jamais plus de 2 bandes dangereuses consécutives DU MÊME type
+     *    (route ou eau) : après deux routes ou deux eaux, zone sûre ;
+     *  - une 2e bande du même type reste possible mais nettement moins
+     *    probable qu'une zone sûre (respiration) ;
+     *  - part de zones sûres garantie (dangerMax plafonne route + eau) ;
+     *  - RÈGLE PRÉVUE étape suivante : quand le type rails existera,
+     *    interdire ici « rails juste après une bande d'eau » (CDC 706).
+     *
      * @param {object} avant bande déjà en place (au-dessous de la nouvelle)
      * @param {number} index index absolu de la nouvelle bande (0 = départ)
-     * @param {number} score score courant
      * @returns {string} un type de LaneGenerator.TYPES
      */
     _choisirType(avant, index) {
@@ -207,28 +240,55 @@ class LaneGenerator {
             C.probRoute.max,
             C.probRoute.base + this.niveau * C.probRoute.parNiveau
         );
+        const pEau = Math.min(
+            C.probEau.max,
+            C.probEau.base + this.niveau * C.probEau.parNiveau
+        );
 
-        // Nombre de routes consécutives finissant à `avant`, calculé sur
-        // les bandes vivantes (robuste au recyclage de la bande du bas).
+        // Bande 1 non zone sûre : route uniquement, jamais d'eau (le joueur
+        // vient de commencer, pas de rivière si tôt).
+        let pDangereux = Math.min(C.dangerMax, pRoute + pEau);
+        if (index === 1) pDangereux = pRoute;
+
+        // Nombre de bandes dangereuses consécutives DU MÊME type finissant
+        // à `avant`, calculé sur les bandes vivantes (robuste au recyclage
+        // de la bande du bas).
         let routesConsecutives = 0;
         for (let i = this.bandes.length - 1;
              i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.ROUTE; i--) {
             routesConsecutives++;
         }
+        let eauxConsecutives = 0;
+        for (let i = this.bandes.length - 1;
+             i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.EAU; i--) {
+            eauxConsecutives++;
+        }
 
-        // Jamais plus de 2 bandes dangereuses consécutives : après deux
-        // routes, une zone sûre est obligatoire.
-        if (routesConsecutives >= 2) return LaneGenerator.TYPES.ZONE_SURE;
-        if (routesConsecutives === 1) {
-            // Une 2e route d'affilée reste possible mais nettement moins
-            // probable qu'une zone sûre (respiration).
-            if (Math.random() < pRoute * 0.35) return LaneGenerator.TYPES.ROUTE;
+        // Jamais plus de 2 bandes dangereuses consécutives du même type :
+        // après deux routes ou deux eaux, une zone sûre est obligatoire.
+        if (routesConsecutives >= 2 || eauxConsecutives >= 2) {
             return LaneGenerator.TYPES.ZONE_SURE;
         }
 
-        return Math.random() < pRoute
+        // Une 2e du même type d'affilée reste possible mais nettement moins
+        // probable qu'une zone sûre (respiration).
+        if (routesConsecutives === 1) {
+            if (Math.random() < pDangereux * 0.35) return LaneGenerator.TYPES.ROUTE;
+            return LaneGenerator.TYPES.ZONE_SURE;
+        }
+        if (eauxConsecutives === 1) {
+            if (Math.random() < pDangereux * 0.35) return LaneGenerator.TYPES.EAU;
+            return LaneGenerator.TYPES.ZONE_SURE;
+        }
+
+        // Aucune bande du même type au-dessus : tirage normal, réparti
+        // route / eau proportionnellement à leurs probabilités.
+        if (Math.random() >= pDangereux) return LaneGenerator.TYPES.ZONE_SURE;
+        // Bande 1 : jamais d'eau (départ en douceur) — route ou zone sûre.
+        if (index === 1) return LaneGenerator.TYPES.ROUTE;
+        return Math.random() < pRoute / (pRoute + pEau)
             ? LaneGenerator.TYPES.ROUTE
-            : LaneGenerator.TYPES.ZONE_SURE;
+            : LaneGenerator.TYPES.EAU;
     }
 
     /** Sous-type d'une bande (vigne ou prairie pour une zone sûre). */
@@ -249,13 +309,14 @@ class LaneGenerator {
             type: type,
             sousType: sousType,
             y: y,
-            direction: null,   // route : -1 (gauche) ou +1 (droite)
-            vitesse: 0,        // route : px/s commun à tous les véhicules
-            densite: 0,        // route : nombre de véhicules
+            direction: null,   // route/eau : -1 (gauche) ou +1 (droite)
+            vitesse: 0,        // route/eau : px/s commun à tous les obstacles
+            densite: 0,        // route/eau : nombre d'obstacles
             sol: null,         // tileSprite de fond
             marquage: null,    // route : ligne pointillée centrale
             decor: [],         // zone sûre : [{sprite, offsetY, taille}]
-            vehicules: []      // route : [{sprite, vitesse, direction, cote, demiLargeur}]
+            vehicules: [],     // route : [{sprite, vitesse, direction, cote, demiLargeur}]
+            flottants: []      // eau : [{sprite, vitesse, direction, cote, demiLargeur}]
         };
         this._rendreBande(bande);
         this.bandes.push(bande);
@@ -269,15 +330,17 @@ class LaneGenerator {
     _recyclerBande(bande, nouveauY, type, sousType) {
         for (const d of bande.decor) this._rendreSprite(d.sprite);
         for (const v of bande.vehicules) this._rendreSprite(v.sprite);
+        for (const f of bande.flottants) this._rendreSprite(f.sprite);
         bande.decor = [];
         bande.vehicules = [];
+        bande.flottants = [];
         bande.type = type;
         bande.sousType = sousType;
         bande.y = nouveauY;
         this._rendreBande(bande);
     }
 
-    /** Rendu complet d'une bande selon son type (sol + décor/véhicules). */
+    /** Rendu complet d'une bande selon son type (sol + décor/véhicules/flottants). */
     _rendreBande(bande) {
         const w = this.scene.scale.width;
 
@@ -286,7 +349,7 @@ class LaneGenerator {
             // Marquage central : ligne pointillée évoquant le milieu de
             // chaussée (une bande route = une voie par sens).
             if (bande.marquage) {
-                bande.marquage.setPosition(0, bande.y);   // bande recyclée
+                bande.marquage.setPosition(0, bande.y).setVisible(true); // bande recyclée
             } else {
                 bande.marquage = this.scene.add
                     .tileSprite(0, bande.y, w, this.hauteur * 0.22, "route_ligne")
@@ -294,7 +357,14 @@ class LaneGenerator {
                     .setDepth(LaneGenerator.DEPTH.marquage);
             }
             this._peuplerRoute(bande);
+        } else if (bande.type === LaneGenerator.TYPES.EAU) {
+            // Bande recyclée qui n'est plus une route : le marquage fantôme
+            // doit disparaître (il resterait visible au milieu de la rivière).
+            if (bande.marquage) bande.marquage.setVisible(false);
+            this._rendreSol(bande, this._textureEau());
+            this._peuplerEau(bande);
         } else {
+            if (bande.marquage) bande.marquage.setVisible(false);
             const texture = this._textureHerbe();
             this._rendreSol(bande, texture);
             if (bande.sousType === "vigne") {
@@ -390,6 +460,82 @@ class LaneGenerator {
         const couleur = couleurs[Math.floor(Math.random() * couleurs.length)];
         const sens = direction > 0 ? "droite" : "gauche";
         return "voiture_" + couleur + "_" + sens;
+    }
+
+    // ------------------------------------------------------------------
+    // Eau : nénuphars qui dérivent
+    // ------------------------------------------------------------------
+
+    /** Texture d'eau de la bande (4 variantes, une au hasard). */
+    _textureEau() {
+        const variantes = ["eau", "eau_v2", "eau_v3", "eau_v4"];
+        return variantes[Math.floor(Math.random() * variantes.length)];
+    }
+
+    /**
+     * Remplit une bande eau de nénuphars dérivants : même courant pour
+     * toute la bande (les nénuphars ne se doublent pas), espacement
+     * régulier. Le joueur devra sauter de nénuphar en nénuphar (étape
+     * collisions) ; ici on génère et on anime la dérive.
+     */
+    _peuplerEau(bande) {
+        const C = this.C.lanes;
+        const w = this.scene.scale.width;
+
+        // 2e bande eau consécutive = la bande du dessous est une eau et
+        // celle d'encore avant n'en est pas une (celle-ci serait la 2e
+        // d'affilée).
+        const est2eEau =
+            this.bandes.length >= 1 &&
+            this.bandes[this.bandes.length - 1].type === LaneGenerator.TYPES.EAU &&
+            (this.bandes.length < 2 ||
+             this.bandes[this.bandes.length - 2].type !== LaneGenerator.TYPES.EAU);
+
+        // Densité de nénuphars : base + paliers, plafonnée, augmentée sur
+        // une 2e eau (plus de prise pour traverser).
+        let densite = C.eauFlottants.base + this.niveau * C.eauFlottants.parNiveau;
+        densite = Math.max(C.eauFlottants.min, Math.min(C.eauFlottants.max, densite));
+        if (est2eEau) {
+            densite = Math.min(C.eauFlottants.max, Math.round(densite * C.eau2eConsecutive.densite));
+        }
+        densite = Math.round(densite);
+
+        // Courant : durée de traversée qui diminue avec la difficulté.
+        let duree = C.eauDureeTraversee.base - this.niveau * C.eauDureeTraversee.parNiveau;
+        duree = Math.max(C.eauDureeTraversee.min, duree);
+        let vitesse = w / duree;
+        if (est2eEau) vitesse *= C.eau2eConsecutive.vitesse;
+
+        bande.direction = Math.random() < 0.5 ? 1 : -1;
+        bande.vitesse = vitesse;
+        bande.densite = densite;
+
+        const pas = w / densite;
+        const phase = Math.random() * pas;   // décalage global du courant
+        const cote = this.hauteur * 0.8;     // nénuphar un peu plus petit qu'un véhicule
+
+        for (let i = 0; i < densite; i++) {
+            const sprite = this._prendreSprite(
+                this._textureNenuphar(),
+                LaneGenerator.DEPTH.flottant
+            );
+            sprite.setDisplaySize(cote, cote);
+            const f = {
+                sprite: sprite,
+                vitesse: vitesse,
+                direction: bande.direction,
+                cote: cote,
+                demiLargeur: cote / 2
+            };
+            sprite.setPosition(phase + pas * (i + 0.5), bande.y);
+            bande.flottants.push(f);
+        }
+    }
+
+    /** Texture d'un nénuphar flottant (rogrpg : simple, double, fleur). */
+    _textureNenuphar() {
+        const textures = ["nenuphar_simple", "nenuphar_double", "nenuphar_fleur"];
+        return textures[Math.floor(Math.random() * textures.length)];
     }
 
     // ------------------------------------------------------------------

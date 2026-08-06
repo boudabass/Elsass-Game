@@ -14,11 +14,12 @@
  * le jeu se comporte donc exactement pareil sur un téléphone en portrait et
  * sur un grand écran de PC.
  *
- * ÉTAPE 2 : la scène de jeu affiche le terrain généré par LaneGenerator
- * (bandes zone_sure prairie/vigne et bandes route avec véhicules latéraux).
- * Le personnage et les contrôles arrivent à l'étape suivante ; eau et rails
- * aux étapes d'après. L'ObstaclePool (véhicules/rondins/trains) sera déduit
- * du pooling déjà en place dans LaneGenerator.
+ * ÉTAPE 3 : le terrain généré par LaneGenerator comprend en plus les bandes
+ * eau (cours d'eau avec nénuphars rogrpg qui dérivent — le joueur devra
+ * rester dessus, la chute à l'eau = mort sera branchée à l'étape collisions).
+ * Les rails arrivent à l'étape suivante. Le personnage et les contrôles
+ * (100 % clic/tap, article 409) aussi. L'ObstaclePool (véhicules/rondins/
+ * trains) sera déduit du pooling déjà en place dans LaneGenerator.
  */
 window.WaggisConfig = {
     key: "waggis",
@@ -43,8 +44,9 @@ window.WaggisConfig = {
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
     // Étape 2 : bandes zone_sure (prairie/vigne) et route (véhicules
-    // latéraux). Eau et rails arrivent aux étapes suivantes. Toutes les
-    // valeurs sont en PROPORTION de l'écran — jamais en pixels.
+    // latéraux). Étape 3 : bandes eau (nénuphars qui dérivent). Rails à
+    // l'étape suivante. Toutes les valeurs sont en PROPORTION de l'écran —
+    // jamais en pixels.
     lanes: {
         // Hauteur d'une bande, en % de la HAUTEUR d'écran (les bandes sont
         // empilées verticalement, c'est la hauteur qui compte) : 10 % = dix
@@ -67,10 +69,29 @@ window.WaggisConfig = {
         // véhicules plus lents) pour rester franchissable.
         route2eConsecutive: { densite: 0.7, vitesse: 0.85 },
 
-        // Choix du type de bande : probabilité de route, qui monte avec la
-        // difficulté (jamais deux bandes dangereuses consécutives
-        // impossibles : jamais plus de 2 routes de suite, cf. LaneGenerator).
+        // Eau : durée (en secondes) qu'un nénuphar met à traverser l'écran
+        // (le courant). Elle diminue avec la difficulté (dérive plus rapide).
+        eauDureeTraversee: { base: 9, parNiveau: 0.5, min: 4 },
+
+        // Eau : nombre de nénuphars par bande (densité de prise — plus il y
+        // en a, plus la traversée est facile).
+        eauFlottants: { min: 2, max: 6, base: 3, parNiveau: 0.4 },
+
+        // Anti-frustration (CDC 706 §Génération) : deux bandes eau
+        // consécutives, la deuxième est plus clémente (courant plus lent,
+        // nénuphars plus nombreux) pour rester franchissable.
+        eau2eConsecutive: { densite: 1.3, vitesse: 0.85 },
+
+        // Choix du type de bande : probabilité de route et d'eau, qui
+        // montent avec la difficulté. Jamais plus de 2 bandes dangereuses
+        // consécutives du même type (cf. LaneGenerator).
         probRoute: { base: 0.35, parNiveau: 0.07, max: 0.7 },
+        probEau: { base: 0.2, parNiveau: 0.05, max: 0.45 },
+
+        // Probabilité cumulée maximale d'une bande dangereuse (route + eau) :
+        // quel que soit le niveau, il reste au moins (1 - dangerMax) de
+        // zones sûres (respiration obligatoire, CDC 706 §Génération).
+        dangerMax: 0.85,
 
         // Bande juste au-dessus du départ : quasi toujours une zone sûre,
         // pour laisser le joueur prendre ses marques.

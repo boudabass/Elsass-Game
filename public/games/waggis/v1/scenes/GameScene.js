@@ -1,12 +1,13 @@
 /*
  * GameScene — la partie elle-même.
  *
- * ÉTAPE 2 : le terrain est là. LaneGenerator génère les bandes horizontales
- * (zone sûre prairie/vigne et route avec véhicules latéraux), les véhicules
- * roulent en continu, les bandes sorties en bas sont recyclées en haut
- * (pooling). Le personnage et les contrôles (swipe / boutons visibles,
- * 100 % clic-tap, article 409) arrivent à l'étape suivante, la mort (étapes
- * 4+) remplacera le bouton provisoire ci-dessous.
+ * ÉTAPE 3 : le terrain est là. LaneGenerator génère les bandes horizontales
+ * (zone sûre prairie/vigne, route avec véhicules latéraux, eau avec
+ * nénuphars qui dérivent), les véhicules roulent et les nénuphars dérivent
+ * en continu, les bandes sorties en bas sont recyclées en haut (pooling).
+ * Le personnage et les contrôles (swipe / boutons visibles, 100 % clic-tap,
+ * article 409) arrivent à l'étape suivante, la mort (étapes 4+ : collisions
+ * véhicule, chute à l'eau, rails) remplacera le bouton provisoire ci-dessous.
  *
  * Le bouton « Terminer (provisoire) » reste nécessaire tant qu'il n'y a pas
  * de conditions de mort : sans lui, aucune partie ne peut se finir et la
