@@ -1,9 +1,15 @@
 /*
  * GameScene — la partie elle-même.
  *
- * ÉTAPE 1 (ébauche) : le personnage remonte l'écran d'un pas à chaque tap.
- * La route et la rivière sont visibles mais vides ; les véhicules, les
- * flottants et les vies arrivent aux étapes suivantes.
+ * ÉTAPE 1 (squelette) : scène vide mais fonctionnelle. Le terrain généré
+ * (LaneGenerator) et les obstacles poolés (ObstaclePool) arrivent aux étapes
+ * suivantes, avec les contrôles V2 (swipe sur mobile, boutons visibles sur
+ * PC — 100 % tap/clic, zéro clavier, article 409).
+ *
+ * Pour que la chaîne menu → jeu → fin soit testable dès maintenant, un
+ * bouton PROVISOIRE « Terminer » termine la partie (score 0 : aucun bond
+ * possible sans terrain). Il disparaîtra avec l'arrivée du vrai gameplay.
+ * Aucun contrôle V1 (tap par case) n'est conservé.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -15,85 +21,37 @@ class GameScene extends Phaser.Scene {
     create() {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
-        const w = this.scale.width;
-        const h = this.scale.height;
 
-        this.termine = false;
-        this.consigneVisible = true;
-        this.tweenPas = null;
+        this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
-        // Terrain : berge départ, route, rivière, berge arrivée.
-        this.decor = new WaggisDecor(this);
-        this.decor.creerFond();
+        // Panneau provisoire : explique où en est le squelette.
+        const panneau = UI.text(this, 0, 0, C.textes.jeuVide, 5, C.couleurs.texte);
 
-        // --- Le personnage (piéton qui remonte l'écran) --------------------
-        // Départ au centre de la berge basse.
-        const departY = h * (1 - C.bergeDepPct / 200);
-        this.perso = this.add.sprite(w * (C.positionXPct / 100), departY, "pieton_1");
-        this.perso.setDepth(20);
-        this.perso.play("marcher");
+        const finir = UI.button(this, {
+            width: UI.u(this, 40), height: UI.u(this, 10),
+            label: C.textes.finirProvisoire,
+            color: C.couleurs.bouton,
+            textColor: C.couleurs.texteClair,
+            onClick: () => this.terminer()
+        });
 
-        // --- Interface -------------------------------------------------------
-        // Consigne placée sur la bande de route (fond clair, texte lisible).
-        this.consigne = UI.text(
-            this, w / 2, h * 0.74, C.textes.consigne, 5, C.couleurs.texte
-        ).setDepth(30);
-
-        UI.tapAnywhere(this, () => this.avancer());
-
-        // --- Réglages dépendant de la taille de l'écran ----------------------
-        UI.layout(this, (lw, lh) => {
-            this.perso.setX(lw * (C.positionXPct / 100));
-            const taille = UI.u(this, C.taillePersoPct);
-            this.perso.setDisplaySize(taille, taille);
-            if (this.consigne) this.consigne.setPosition(lw / 2, lh * 0.74);
+        UI.layout(this, (w, h) => {
+            panneau.setPosition(w / 2, h * 0.38)
+                  .setFontSize(Math.round(UI.u(this, 5)) + "px");
+            finir.redimensionner(UI.u(this, 40), UI.u(this, 10))
+                 .setPosition(w / 2, h * 0.55);
         });
     }
 
-    /** Un tap = un pas vers le haut (l'ébauche de l'étape 1). */
-    avancer() {
-        if (this.termine) return;
-        const C = window.WaggisConfig;
-
-        // La consigne disparaît au premier appui, comme chez Cigogne.
-        if (this.consigneVisible) {
-            this.consigneVisible = false;
-            if (this.consigne) {
-                this.consigne.destroy();
-                this.consigne = null;
-            }
-        }
-
-        const pas = this.scale.height * (C.pasPct / 100);
-        const arrivee = this.decor.arriveeY();
-
-        // On ne dépasse jamais le centre de la berge d'arrivée. Si un
-        // déplacement est déjà en cours (tap rapide), on le termine d'abord
-        // pour repartir de la position courante sans empiler les tweens.
-        if (this.tweenPas) this.tweenPas.stop();
-        const cible = Math.max(arrivee, this.perso.y - pas);
-
-        this.tweenPas = this.tweens.add({
-            targets: this.perso,
-            y: cible,
-            duration: 150,
-            ease: "Sine.easeInOut",
-            onComplete: () => {
-                this.tweenPas = null;
-                if (this.perso.y <= arrivee + 0.5) this.arriver();
-            }
-        });
-    }
-
-    /** Le personnage a atteint la berge d'arrivée. */
-    arriver() {
-        if (this.termine) return;
-        this.termine = true;
-
-        this.perso.stop();
+    /**
+     * Fin de partie provisoire de l'étape 1 : score 0 tant qu'il n'y a pas
+     * de bonds. Remplacé aux étapes suivantes par les conditions de mort
+     * (collision véhicule, chute à l'eau, train, menace anti-attente).
+     */
+    terminer() {
         this.cameras.main.fadeOut(300, 0, 0, 0);
         this.cameras.main.once("camerafadeoutcomplete", () => {
-            this.scene.start(OverScene.KEY);
+            this.scene.start(OverScene.KEY, { score: 0 });
         });
     }
 }

@@ -1,6 +1,11 @@
 /*
- * main.js — point de départ de Waggis.
+ * main.js — point de départ de Waggis V2.
  * Décrit ce qu'il faut charger, puis laisse le socle démarrer le jeu.
+ *
+ * ÉTAPE 1 : squelette. Aucun asset n'est encore chargé (le style visuel est
+ * en cours de décision, cf. PRD article 705) : les scènes sont vides mais
+ * fonctionnelles. Les sprites (Waggis, véhicules, flottants, train) seront
+ * ajoutés avec les étapes suivantes.
  */
 (function () {
     "use strict";
@@ -13,37 +18,17 @@
         scenes: [MenuScene, GameScene, OverScene],
         firstScene: MenuScene.KEY,
 
-        // Chargement : les sprites copiés dans assets/ (atelier partagé).
+        // Chargement : rien à télécharger pour le squelette.
         preload: function (scene) {
-            // Personnage : les 3 frames de marche du piéton (sprites séparés)
-            scene.load.image("pieton_1", "assets/perso/p8city_pieton_rouge_1.png");
-            scene.load.image("pieton_2", "assets/perso/p8city_pieton_rouge_2.png");
-            scene.load.image("pieton_3", "assets/perso/p8city_pieton_rouge_3.png");
-
-            // Décor : route (pavés) + rivière + berges
-            scene.load.image("route", "assets/sol/p8city_pave.png");
-            scene.load.image("eau", "assets/eau/p8city_eau.png");
-            scene.load.image("arbre", "assets/decor/p8city_arbre_vert.png");
-            scene.load.image("buisson", "assets/decor/p8city_buisson_vert.png");
-
-            WaggisDecor.genererTextures(scene);
+            // Les assets viendront aux étapes suivantes (LaneGenerator,
+            // ObstaclePool, personnage).
         },
 
-        // Une fois tout chargé : animation de marche + sauvegarde.
+        // Une fois tout chargé : sauvegarde.
         create: async function (scene) {
-            // Les 3 frames sont des images séparées : l'animation les enchaîne.
-            scene.anims.create({
-                key: "marcher",
-                frames: [
-                    { key: "pieton_1", frame: 0 },
-                    { key: "pieton_2", frame: 0 },
-                    { key: "pieton_3", frame: 0 }
-                ],
-                frameRate: 6,
-                repeat: -1
-            });
-
             // Contrat de save : version 1, aucune migration pour l'instant.
+            // (Le concept V1 Frogger étant abandonné, la sauvegarde repart
+            // sur la même clé avec le même format { parties } — compatible.)
             Arcade.Save.configure({
                 key: C.key,
                 version: 1,
