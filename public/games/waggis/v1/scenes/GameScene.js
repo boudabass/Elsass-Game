@@ -150,7 +150,13 @@ class GameScene extends Phaser.Scene {
     _tailleHitboxPerso() {
         if (!this.perso || !this.perso.body) return;
         const c = this.perso.displayWidth * this.C.collisions.persoHitbox;
-        this.perso.body.setSize(c, c);
+        // setSize dimensionne en pixels de TEXTURE SOURCE, puis le corps
+        // est multiplié par le scale du sprite (corps écran = source ×
+        // scale). On divise donc par le scale pour que le corps ÉCRAN soit
+        // exactement la fraction demandée (fix NC-1, QA e6a571d).
+        const sx = Math.abs(this.perso.scaleX) || 1;
+        const sy = Math.abs(this.perso.scaleY) || 1;
+        this.perso.body.setSize(c / sx, c / sy);
     }
 
     /**

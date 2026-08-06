@@ -100,8 +100,24 @@ class ObstaclePool {
     taille(sprite, taille) {
         sprite.setDisplaySize(taille, taille);
         if (sprite.body && sprite.body.enable) {
-            sprite.body.setSize(taille, taille);
+            this._setTailleCorps(sprite, taille);
         }
+    }
+
+    /**
+     * Dimensionne le corps Arcade d'un sprite déjà dimensionné (scale
+     * appliqué) pour qu'il fasse EXACTEMENT `taille` pixels à l'écran.
+     * setSize dimensionne en pixels de TEXTURE SOURCE puis Phaser
+     * multiplie par le scale du sprite (corps écran = source × scale) :
+     * on divise la taille demandée par le scale réel du sprite — le
+     * facteur exact que Phaser réapplique (fix NC-1, QA e6a571d).
+     * @param {Phaser.GameObjects.Sprite} sprite
+     * @param {number} taille côté carré voulu à l'écran (px)
+     */
+    _setTailleCorps(sprite, taille) {
+        const sx = Math.abs(sprite.scaleX) || 1;
+        const sy = Math.abs(sprite.scaleY) || 1;
+        sprite.body.setSize(taille / sx, taille / sy);
     }
 
     /**
@@ -115,7 +131,7 @@ class ObstaclePool {
         sprite.setDisplaySize(taille, taille);
         if (sprite.body) {
             sprite.body.enable = true;
-            sprite.body.setSize(taille, taille);
+            this._setTailleCorps(sprite, taille);
             sprite.body.setAllowGravity(false);
             sprite.body.setImmovable(true);
         }
