@@ -3,18 +3,21 @@
  *
  * ÉTAPE 5 : le personnage et les contrôles arrivent (100 % clic/tap,
  * article 409 — AUCUN clavier, le socle boot.js désactive keyboard et
- * gamepad) :
- *  - 1 action = 1 bond d'une case, 4 directions (haut/bas/gauche/droite),
- *    pas de déplacement continu — les entrées sont ignorées pendant le bond ;
- *  - swipe (mobile, et clic-glissé PC) : haut = avancer, bas/gauche/droite
- *    = reculer/latéral (CDC 706 §Contrôles) ;
- *  - pavé directionnel VISIBLE à l'écran (équivalent PC obligatoire du
- *    clavier — « tout élément interactif doit être visible », article 409 ;
- *    le CDC préfère les boutons visibles au geste invisible).
- * Le monde glisse pour suivre le joueur (LaneGenerator.defilerBas/Haut +
- * avancer/reculer, pooling) : le joueur reste dans la même zone de l'écran
- * en avançant à l'infini. Le score = nombre de bonds vers l'avant réussis,
+ * gamepad) : 1 action = 1 bond d'une case, 4 directions, pas de
+ * déplacement continu — les entrées sont ignorées pendant le bond.
+ * Le monde glisse pour suivre le joueur (LaneGenerator.defilerBas +
+ * avancer, pooling) : le joueur reste dans la même zone de l'écran en
+ * avançant à l'infini. Le score = nombre de bonds vers l'avant réussis,
  * il ne recule jamais (il suit la position la plus avancée, CDC 706).
+ *
+ * FIX 06/08/2026 (Décision 1, article 704 — validée John) : AUCUN
+ * contrôleur affiché à l'écran — le pavé directionnel et le swipe sont
+ * supprimés. Le perso se déplace uniquement par clic/tap AUTOUR de lui,
+ * 1 case par clic, dans la direction du clic par rapport au perso :
+ * au-dessus → monte, gauche/droite → latéral, en dessous → descend vers
+ * une case qui existe déjà (celle qu'on a quittée en avançant). Le recul
+ * ne génère plus de terrain (reculer()/defilerHaut() ne sont plus
+ * appelés — Décisions 2/3 génération procédurale, hors périmètre).
  *
  * ÉTAPE 6 — collisions (Arcade Physics, décision actée) et conditions de
  * mort (CDC 706 §Conditions) :
@@ -52,7 +55,6 @@ class GameScene extends Phaser.Scene {
         this.progression = 0;    // position courante (bandes depuis le départ)
         this.enBond = false;     // un bond en cours : entrées ignorées
         this._finEnCours = false;
-        this._zonesBoutons = []; // zones interactives « bouton » (pas de swipe)
 
         // --- Terrain généré (étapes 2-4) -----------------------------------
         this.lanes = new LaneGenerator(this);
@@ -100,28 +102,17 @@ class GameScene extends Phaser.Scene {
         this.texteScore.setDepth(40);
         this._afficherScore();
 
-        // --- Pavé directionnel (équivalent PC obligatoire, article 409) ----
-        this._creerPaveDirectionnel();
-
-        // --- Swipe / clic-glissé (mobile + PC, CDC 706 §Contrôles) ---------
-        // Un geste qui COMMENCE sur un bouton n'est pas un swipe : il
-        // déclenche le bouton (bond immédiat au pointerdown, réactivité
-        // tactile) — jamais les deux pour la même action.
-        this.input.on("pointerdown", (p) => {
-            this._geste = null;
-            const cibles = (this.input.hitTestPointer && this.input.hitTestPointer(p)) || [];
-            for (const c of cibles) {
-                if (this._zonesBoutons.indexOf(c) !== -1) return; // bouton
-            }
-            this._geste = { x: p.x, y: p.y };
-        });
+        // --- Contrôles (FIX 06/08 — Décision 1, article 704) --------------
+        // AUCUN contrôleur à l'écran : le perso se déplace uniquement par
+        // clic/tap AUTOUR de lui, 1 case par clic, dans la direction du
+        // clic par rapport au perso (au-dessus → monte, gauche/droite →
+        // latéral, en dessous → descend vers une case qui existe déjà).
+        // Un clic sur le perso lui-même (zone morte) ne déclenche rien.
         this.input.on("pointerup", (p) => {
-            if (!this._geste) return;
-            const dx = p.x - this._geste.x;
-            const dy = p.y - this._geste.y;
-            this._geste = null;
-            const seuil = UI.u(this, C.controles.seuilSwipePct);
-            if (Math.abs(dx) < seuil && Math.abs(dy) < seuil) return; // tap sans direction
+            const dx = p.x - this.perso.x;
+            const dy = p.y - this.perso.y;
+            const zone = this.perso.displayWidth * C.controles.zoneMorteClic;
+            if (Math.abs(dx) < zone && Math.abs(dy) < zone) return; // sur le perso
             if (Math.abs(dy) >= Math.abs(dx)) {
                 if (dy < 0) this.bondAvant(); else this.bondArriere();
             } else {
@@ -206,20 +197,20 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    /** Bond vers la bande au-dessous : ne fait jamais reculer le score. */
+    /**
+     * Bond vers la bande au-dessous (Décision 1, article 704) : le perso
+     * descend d'une case, UNIQUEMENT vers une case qui existe déjà (celle
+     * qu'on a quittée en avançant). Aucune génération au recul — le monde
+     * ne glisse pas : la case visée est déjà visible à l'écran. Au départ
+     * (première ligne) aucune case n'existe sous le perso : aucun bond, et
+     * cliquer en dessous est physiquement impossible (article 704 — aucun
+     * cas particulier à gérer). Le score ne recule jamais.
+     */
     bondArriere() {
         if (this.enBond || this._finEnCours) return;
-        // Chaque recul fait glisser le monde vers le haut : la bande du
-        // haut (hors écran) est recyclée EN DESSOUS avec un nouveau type
-        // (monde infini vers le bas, terrain ré-ensemencé), puis le monde
-        // remonte d'une bande — le joueur reste à la même hauteur d'écran,
-        // comme en avant (l'inverse exact d'avancer()). Le décalage reste
-        // invariant : la compensation de reculer() (+hauteur) et
-        // defilerHaut() (−hauteur) s'annulent, le monde couvre l'écran.
-        this.lanes.reculer(this.score);
-        this.lanes.defilerHaut();
         const bandes = this.lanes.bandes;
-        const idx = bandes.indexOf(this.bandeJoueur);   // +1 après le unshift
+        const idx = bandes.indexOf(this.bandeJoueur);
+        if (idx <= 0) return; // aucune case existante en dessous
         this.bandeJoueur = bandes[idx - 1];
         this.progression = Math.max(0, this.progression - 1);
 
@@ -248,13 +239,6 @@ class GameScene extends Phaser.Scene {
         this._sauterVers(xCible, this.perso.y, null);
     }
 
-    /** Expédie un bond dans la direction demandée (boutons du pavé). */
-    bond(direction) {
-        if (direction === "haut") this.bondAvant();
-        else if (direction === "bas") this.bondArriere();
-        else if (direction === "gauche") this.bondGauche();
-        else this.bondDroite();
-    }
 
     /**
      * Anime un bond : la position de base glisse de l'ancienne case à la
@@ -324,48 +308,6 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    /**
-     * Pavé directionnel (4 boutons VISIBLES, article 409) : la croix
-     * classique ▲ / ◀ ▶ / ▼, en bas à droite. Chaque bouton déclenche son
-     * bond au POINTERDOWN (réponse immédiate au toucher) ; le pointerup du
-     * bouton ne fait rien (un geste commencé sur un bouton n'est jamais un
-     * swipe, cf. create()).
-     */
-    _creerPaveDirectionnel() {
-        const C = this.C;
-        const UI = Arcade.UI;
-        const taille = () => UI.u(this, C.controles.boutonTaille);
-        const ecart = () => UI.u(this, C.controles.boutonEcart);
-
-        const fabriquer = (fleche, direction) => {
-            const bouton = UI.button(this, {
-                width: taille(), height: taille(),
-                label: fleche,
-                color: C.couleurs.bouton,
-                textColor: C.couleurs.texteClair,
-                onClick: () => {} // bond déclenché au pointerdown (réactivité)
-            });
-            bouton.zone.on("pointerdown", () => this.bond(direction));
-            this._zonesBoutons.push(bouton.zone);
-            return bouton;
-        };
-
-        this.btnHaut = fabriquer(C.textes.flecheHaut, "haut");
-        this.btnBas = fabriquer(C.textes.flecheBas, "bas");
-        this.btnGauche = fabriquer(C.textes.flecheGauche, "gauche");
-        this.btnDroite = fabriquer(C.textes.flecheDroite, "droite");
-
-        UI.layout(this, (w, h) => {
-            const t = taille();
-            const e = ecart();
-            const cx = w * (C.controles.paveX / 100);
-            const cy = h * (C.controles.paveY / 100);
-            this.btnHaut.redimensionner(t, t).setPosition(cx, cy - e);
-            this.btnBas.redimensionner(t, t).setPosition(cx, cy + e);
-            this.btnGauche.redimensionner(t, t).setPosition(cx - e, cy);
-            this.btnDroite.redimensionner(t, t).setPosition(cx + e, cy);
-        });
-    }
 
     /**
      * Conditions de mort (étape 6, CDC 706 §Conditions — Arcade Physics).

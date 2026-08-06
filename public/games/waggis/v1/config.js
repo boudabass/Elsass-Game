@@ -14,12 +14,14 @@
  * le jeu se comporte donc exactement pareil sur un téléphone en portrait et
  * sur un grand écran de PC.
  *
- * ÉTAPE 5 : le personnage et les contrôles arrivent (100 % clic/tap,
- * article 409 — aucun clavier) : swipe mobile (haut = avancer, bas/gauche/
- * droite = reculer/latéral) et pavé directionnel VISIBLE à l'écran pour le
- * PC (équivalent obligatoire du clavier, CDC 706 §Contrôles — tout élément
- * interactif est visible). 1 action = 1 bond d'une case, le monde défile et
- * recycle ses bandes pour une avancée infinie.
+ * FIX 06/08/2026 (Décision 1, article 704 — validée John) : AUCUN
+ * contrôleur affiché à l'écran — le pavé directionnel et le swipe sont
+ * supprimés. Le perso se déplace uniquement par clic/tap AUTOUR de lui,
+ * 1 case par clic, dans la direction du clic par rapport au perso
+ * (au-dessus → monte, gauche/droite → latéral, en dessous → descend vers
+ * une case qui existe déjà). 100 % clic/tap, article 409 — aucun clavier.
+ * 1 action = 1 bond d'une case, le monde défile et recycle ses bandes
+ * pour une avancée infinie.
  *
  * ÉTAPE 6 : les collisions (Arcade Physics, décision actée) et les
  * conditions de mort du CDC 706 §Conditions arrivent : contact véhicule =
@@ -44,12 +46,6 @@ window.WaggisConfig = {
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
 
-        // Étape 5 : pavé directionnel (PC — équivalent obligatoire du
-        // clavier, article 409). Flèches Unicode, lisibles partout.
-        flecheHaut: "▲",
-        flecheBas: "▼",
-        flecheGauche: "◀",
-        flecheDroite: "▶",
         // Score affiché pendant la partie (en haut au centre).
         scoreEnCours: "Score : {score}"
     },
@@ -136,18 +132,18 @@ window.WaggisConfig = {
         decor: { min: 0, max: 3 }
     },
 
-    // --- Contrôles (étape 5, CDC 706 §Contrôles — 100 % clic/tap, article
-    // 409, AUCUN clavier) ----------------------------------------------------
-    // 1 action = 1 bond d'une case, pas de déplacement continu. Les deux
-    // entrées coexistent sur tous les appareils :
-    //  - swipe (mobile) : haut = avancer, bas/gauche/droite = reculer/latéral ;
-    //  - pavé directionnel VISIBLE à l'écran (PC — équivalent obligatoire
-    //    du clavier ; « tout élément interactif doit être visible », article
-    //    409 — préféré au clic-glissé par le CDC).
+    // --- Contrôles (FIX 06/08/2026 — Décision 1, article 704 : 100 %
+    // clic/tap, article 409, AUCUN clavier) -------------------------------
+    // AUCUN contrôleur affiché à l'écran : le perso se déplace par
+    // clic/tap AUTOUR de lui, 1 case par clic, dans la direction du clic
+    // par rapport au perso (au-dessus → monte, gauche/droite → latéral,
+    // en dessous → descend vers une case qui existe déjà). Un clic sur le
+    // perso lui-même (zone morte) ne déclenche rien.
     controles: {
-        // Distance minimale du geste (en % du plus petit côté) pour être un
-        // swipe : en dessous, c'est un tap sans direction (aucun bond).
-        seuilSwipePct: 3,
+        // Zone morte autour du perso, en fraction de SA TAILLE affichée :
+        // un clic/tap dans ce carré (sur le perso) n'a pas de direction et
+        // ne déclenche aucun bond (article 704 — « autour du perso »).
+        zoneMorteClic: 0.5,
 
         // Durée d'un bond (ms). Les entrées sont ignorées pendant le bond :
         // 1 action = 1 bond.
@@ -167,15 +163,6 @@ window.WaggisConfig = {
         // Personnage : taille en fraction de la hauteur d'une bande.
         persoTaille: 0.75,
 
-        // Pavé directionnel : taille des boutons et écart centre-à-centre
-        // en % du plus petit côté (u), position du centre du pavé en % de
-        // la largeur / hauteur de l'écran. (82 % : le pavé reste entière-
-        // ment à l'écran sur mobile portrait ET desktop — le bouton ▼ ne
-        // dépasse pas en bas, le ▶ pas à droite, cf. tests.)
-        boutonTaille: 10,
-        boutonEcart: 12,
-        paveX: 82,
-        paveY: 82
     },
 
     // --- Collisions (étape 6, CDC 706 §Conditions — Arcade Physics) ------
