@@ -124,11 +124,11 @@ class LaneGenerator {
         for (const bande of this.bandes) {
             if (bande.type !== LaneGenerator.TYPES.ROUTE) continue;
             for (const v of bande.vehicules) {
-                v.x += v.vitesse * (delta / 1000);
-                if (v.direction > 0 && v.x - v.demiLargeur > w + marge) {
-                    v.x = -v.demiLargeur - marge;          // ressort à gauche
-                } else if (v.direction < 0 && v.x + v.demiLargeur < -marge) {
-                    v.x = w + v.demiLargeur + marge;       // ressort à droite
+                v.sprite.x += v.vitesse * (delta / 1000);
+                if (v.direction > 0 && v.sprite.x - v.demiLargeur > w + marge) {
+                    v.sprite.x = -v.demiLargeur - marge;   // ressort à gauche
+                } else if (v.direction < 0 && v.sprite.x + v.demiLargeur < -marge) {
+                    v.sprite.x = w + v.demiLargeur + marge; // ressort à droite
                 }
             }
         }
@@ -154,8 +154,8 @@ class LaneGenerator {
                     .setPosition(0, bande.y);
             }
             for (const v of bande.vehicules) {
-                v.y = bande.y;
-                v.setDisplaySize(v.cote, v.cote);
+                v.sprite.y = bande.y;
+                v.sprite.setDisplaySize(v.cote, v.cote);
             }
             for (const d of bande.decor) {
                 d.sprite.y = bande.y + (d.offsetY - 0.5) * this.hauteur;
