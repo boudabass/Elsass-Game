@@ -924,7 +924,7 @@ class LaneGenerator {
         try {
             const jouer = () => scene.sound.play("snd_error", { volume: 0.4 });
             jouer();
-            scene.time.addEvent({ delay: 280, repeat: 2, callback: jouer });
+            scene.time.addEvent({ delay: 280, repeat: 1, callback: jouer });
         } catch (e) {
             this._sonSignalFin = null;
         }

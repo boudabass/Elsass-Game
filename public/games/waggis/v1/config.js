@@ -137,7 +137,9 @@ window.WaggisConfig = {
         // rogrpg_rails est ajourée, le fond opaque est dessiné en dessous.
         ballast: "#5c5750",
         // Feux de croisement des bandes rails (cercles, signal visuel avant
-        // le passage du train).
-        feuSignal: "#ff2222"
+        // le passage du train). Couleur NUMÉRIQUE obligatoire : le renderer
+        // WebGL ne convertit pas les chaînes CSS pour les Graphics — une
+        // chaîne '#ff2222' rend les cercles en noir (QA 06/08).
+        feuSignal: 0xff2222
     }
 };
