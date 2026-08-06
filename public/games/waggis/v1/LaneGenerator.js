@@ -48,6 +48,22 @@
  * passent par un pool interne et changent de texture plutôt que d'être
  * détruits — aucun monde infini n'est gardé en mémoire.
  *
+ * DÉFILEMENT (étape 5, contrôles) : le joueur reste dans la même zone de
+ * l'écran ; c'est le MONDE qui glisse. `decalage` (px) décale toutes les
+ * bandes (redimensionner() applique : y = base(slot) + decalage) :
+ *  - avancer (joueur vers le haut) : defilerBas() (decalage += hauteur)
+ *    puis avancer() recycle la bande du bas en haut ; la rotation du pool
+ *    est compensée (decalage -= hauteur) — le décalage reste invariant
+ *    (≈0) et le monde couvre toujours l'écran ;
+ *  - reculer (joueur vers le bas) : reculer() recycle la bande du haut en
+ *    DESSOUS (compensation : decalage += hauteur) puis defilerHaut()
+ *    (decalage -= hauteur) — l'inverse exact d'avancer(), monde infini
+ *    vers le bas aussi (le terrain derrière le joueur est ré-ensemencé,
+ *    comme l'avant, une fois la fenêtre de 12 bandes dépassée).
+ * Sans cette compensation, la rotation du pool ferait dériver le monde
+ * d'une bande à chaque recyclage (bug révélé par le harnais : plus de
+ * bande au-dessus du joueur au 17e bond).
+ *
  * Rendu : chaque bande est un tileSprite de sol (herbe pour les zones
  * sûres, asphalte + marquage pour les routes, lit de ballast + voie pour
  * les rails), décorée d'arbres/buissons (zone sûre), parcourue de
@@ -58,7 +74,10 @@
  *   this.lanes = new LaneGenerator(this);
  *   this.lanes.genererInitiales(score);
  *   // dans update() : this.lanes.update(time, delta);
- *   // à chaque bond avant : this.lanes.avancer(score);
+ *   // bond avant  : this.lanes.defilerBas(); this.lanes.avancer(score);
+ *   //   (quand le joueur franchit le seuil haut, voir GameScene)
+ *   // bond arrière : this.lanes.reculer(score); this.lanes.defilerHaut();
+ *   //   (à chaque recul — monde infini vers le bas, voir GameScene)
  */
 class LaneGenerator {
     static TYPES = Object.freeze({
@@ -87,6 +106,12 @@ class LaneGenerator {
         // cours : un seul train peut « sonner » à la fois (pas de
         // cacophonie si deux bandes rails avertissent en même temps).
         this._sonSignalFin = null;
+
+        // Décalage de défilement du monde (px) : toutes les bandes sont
+        // rendues à y = base(slot) + decalage (voir redimensionner()).
+        // Il augmente quand le joueur avance (le monde glisse vers le bas)
+        // et diminue quand il recule. Étape 5 — contrôles.
+        this.decalage = 0;
 
         this.hauteur = 0;        // recalculée par redimensionner()
         this.redimensionner();
@@ -133,9 +158,19 @@ class LaneGenerator {
     }
 
     /**
-     * Un bond avant : la bande du bas (déjà traversée, hors écran) est
-     * recyclée en haut avec un nouveau type. À appeler quand le joueur
-     * atteint une nouvelle bande (étape 3 : contrôles).
+     * Un bond avant : le monde a déjà glissé vers le bas (defilerBas(),
+     * appelé par la scène quand le joueur franchit le seuil haut) ; la
+     * bande du bas (hors écran) est recyclée en haut avec un nouveau type.
+     * À appeler à chaque bond avant du joueur (étape 5 : contrôles).
+     *
+     * COMPENSATION DU DÉCALAGE : la rotation du pool (shift + push) décale
+     * chaque bande d'un slot vers le haut du tableau ; redimensionner()
+     * positionne par slot, donc sans compensation le monde dériverait d'une
+     * bande vers le bas à CHAQUE recyclage (le joueur grimperait le pool et
+     * se retrouverait sans bande au-dessus — bug révélé par le harnais,
+     * bond 17). On soustrait donc une hauteur à `decalage` : le défilement
+     * visible (defilerBas) et la rotation se compensent, et `decalage`
+     * reste invariant (≈0) — le monde couvre toujours l'écran.
      * @param {number} score score courant (difficulté qui monte)
      * @returns {object} la bande recyclée (nouvelle bande en haut)
      */
@@ -146,13 +181,72 @@ class LaneGenerator {
         // c'est elle qui sert de référence aux règles anti-frustration.
         const bas = this.bandes.shift();
         const haut = this.bandes[this.bandes.length - 1];
-        const nouveauY = haut.y + this.hauteur;
+        const nouvelIndex = haut.index + 1;
 
-        const type = this._choisirType(haut, haut.index + 1);
+        const type = this._choisirType(haut, nouvelIndex);
         const sousType = this._choisirSousType(type);
-        this._recyclerBande(bas, nouveauY, type, sousType);
+        // y provisoire (0) : redimensionner() replace chaque bande à son
+        // slot + decalage — la bande recyclée reprend le slot du haut.
+        this._recyclerBande(bas, 0, type, sousType);
+        bas.index = nouvelIndex;
         this.bandes.push(bas);
+        this.decalage -= this.hauteur;   // compensation de la rotation
+        this.redimensionner();
         return bas;
+    }
+
+    /**
+     * Un bond arrière (étape 5) : s'il n'y a plus de bande sous le joueur
+     * (bande du bas du pool), la bande du haut — sortie de l'écran — est
+     * recyclée EN DESSOUS avec un nouveau type. Le monde est ainsi infini
+     * vers le bas aussi (le terrain derrière le joueur est ré-ensemencé,
+     * comme l'avant ; CDC 706 §Contrôles : « reculer » est une direction à
+     * part entière). La scène enchaîne avec defilerHaut() pour faire
+     * entrer la nouvelle bande par le bas sans sortir le joueur de l'écran.
+     *
+     * COMPENSATION DU DÉCALAGE (miroir d'avancer()) : le unshift décale
+     * chaque bande d'un slot vers le bas du tableau ; on ajoute une hauteur
+     * à `decalage` pour que le monde reste immobile pendant la rotation.
+     * @param {number} score score courant (difficulté qui monte)
+     * @returns {object} la bande recyclée (nouvelle bande en bas)
+     */
+    reculer(score) {
+        this.niveau = Math.floor(score / 10);
+
+        // La nouvelle bande est posée AU-DESSOUS de la plus basse (`bas`) :
+        // c'est elle qui sert de référence aux règles anti-frustration.
+        const haut = this.bandes.pop();
+        const bas = this.bandes[0];
+        const nouvelIndex = bas.index - 1;
+
+        const type = this._choisirType(bas, nouvelIndex, "bas");
+        const sousType = this._choisirSousType(type);
+        this._recyclerBande(haut, 0, type, sousType, "bas");
+        haut.index = nouvelIndex;
+        this.bandes.unshift(haut);
+        this.decalage += this.hauteur;   // compensation de la rotation
+        this.redimensionner();
+        return haut;
+    }
+
+    /**
+     * Fait glisser le monde d'une bande vers le bas (le joueur avance) :
+     * chaque bande descend d'une hauteur ; la bande du bas sort de l'écran
+     * (elle sera recyclée en haut par avancer()).
+     */
+    defilerBas() {
+        this.decalage += this.hauteur;
+        this.redimensionner();
+    }
+
+    /**
+     * Fait glisser le monde d'une bande vers le haut (le joueur recule) :
+     * chaque bande monte d'une hauteur ; la bande du haut sort de l'écran
+     * (elle reste dans le pool, prête à revenir).
+     */
+    defilerHaut() {
+        this.decalage -= this.hauteur;
+        this.redimensionner();
     }
 
     /**
@@ -210,7 +304,9 @@ class LaneGenerator {
         this.hauteur = h * (C.lanes.hauteurBandePct / 100);
 
         this.bandes.forEach((bande, i) => {
-            bande.y = h - this.hauteur / 2 - i * this.hauteur;
+            // Position de la bande : slot de base (bande 0 en bas de
+            // l'écran) + décalage de défilement du monde (étape 5).
+            bande.y = h - this.hauteur / 2 - i * this.hauteur + this.decalage;
             bande.sol.setSize(w, this.hauteur).setPosition(0, bande.y - this.hauteur / 2);
             if (bande.ballast) {
                 bande.ballast
@@ -295,10 +391,14 @@ class LaneGenerator {
      *
      * @param {object} avant bande déjà en place (au-dessous de la nouvelle)
      * @param {number} index index absolu de la nouvelle bande (0 = départ)
+     * @param {string} [cote] "haut" (défaut : bande posée au-dessus de
+     *   toutes, avancer) ou "bas" (bande posée en dessous de toutes,
+     *   reculer) — détermine le côté où compter les bandes consécutives
      * @returns {string} un type de LaneGenerator.TYPES
      */
-    _choisirType(avant, index) {
+    _choisirType(avant, index, cote) {
         const C = this.C.lanes;
+        cote = cote || "haut";
 
         // Le départ et la bande suivante : toujours (ou presque) zone sûre.
         if (index === 0) return LaneGenerator.TYPES.ZONE_SURE;
@@ -324,24 +424,13 @@ class LaneGenerator {
         let pDangereux = Math.min(C.dangerMax, pRoute + pEau + pRails);
         if (index === 1) pDangereux = pRoute;
 
-        // Nombre de bandes dangereuses consécutives DU MÊME type finissant
-        // à `avant`, calculé sur les bandes vivantes (robuste au recyclage
-        // de la bande du bas).
-        let routesConsecutives = 0;
-        for (let i = this.bandes.length - 1;
-             i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.ROUTE; i--) {
-            routesConsecutives++;
-        }
-        let eauxConsecutives = 0;
-        for (let i = this.bandes.length - 1;
-             i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.EAU; i--) {
-            eauxConsecutives++;
-        }
-        let railsConsecutives = 0;
-        for (let i = this.bandes.length - 1;
-             i >= 0 && this.bandes[i].type === LaneGenerator.TYPES.RAILS; i--) {
-            railsConsecutives++;
-        }
+        // Nombre de bandes dangereuses consécutives DU MÊME type à côté de
+        // la nouvelle bande, calculé sur les bandes vivantes (robuste au
+        // recyclage). `cote` = côté où la bande est posée : "haut" (défaut,
+        // au-dessus de toutes) ou "bas" (reculer() : en dessous de toutes).
+        const routesConsecutives = this._consecutives(cote, LaneGenerator.TYPES.ROUTE);
+        const eauxConsecutives = this._consecutives(cote, LaneGenerator.TYPES.EAU);
+        const railsConsecutives = this._consecutives(cote, LaneGenerator.TYPES.RAILS);
 
         // Jamais plus de 2 bandes dangereuses consécutives du même type :
         // après deux routes, deux eaux ou deux rails, une zone sûre est
@@ -376,6 +465,40 @@ class LaneGenerator {
         if (tirage < pRoute) return LaneGenerator.TYPES.ROUTE;
         if (tirage < pRoute + pEau) return LaneGenerator.TYPES.EAU;
         return LaneGenerator.TYPES.RAILS;
+    }
+
+    /**
+     * Nombre de bandes consécutives du type donné à côté de la nouvelle
+     * bande. `cote` = côté où elle sera posée : "haut" → on compte depuis
+     * le sommet du pool (bandes déjà en place au-dessous d'elle) ; "bas" →
+     * on compte depuis le bas du pool (bandes déjà en place au-dessus).
+     */
+    _consecutives(cote, type) {
+        const b = this.bandes;
+        let n = 0;
+        if (cote === "bas") {
+            for (let i = 0; i < b.length && b[i].type === type; i++) n++;
+        } else {
+            for (let i = b.length - 1; i >= 0 && b[i].type === type; i--) n++;
+        }
+        return n;
+    }
+
+    /**
+     * La bande en cours de placement est-elle la 2e consécutive du type
+     * donné ? (Anti-frustration, CDC 706 §Génération : la 2e bande
+     * dangereuse consécutive est plus clémente.) La bande voisine du côté
+     * où elle est posée doit être du type, et celle d'encore avant non.
+     * @param {string} [cote] "haut" (défaut) ou "bas" — voir _consecutives
+     */
+    _est2eConsecutive(cote, type) {
+        const b = this.bandes;
+        if (cote === "bas") {
+            return b.length >= 1 && b[0].type === type &&
+                (b.length < 2 || b[1].type !== type);
+        }
+        return b.length >= 1 && b[b.length - 1].type === type &&
+            (b.length < 2 || b[b.length - 2].type !== type);
     }
 
     /** Sous-type d'une bande (vigne ou prairie pour une zone sûre). */
@@ -431,8 +554,12 @@ class LaneGenerator {
     /**
      * Recycle une bande : vide ses sprites (rendus au pool), lui donne un
      * nouveau type et la re-rend à sa nouvelle position.
+     * @param {string} [cote] côté où la bande est posée ("haut" défaut /
+     *   "bas") — transmis au rendu pour les règles « 2e consécutive
+     *   clémente » (la bande de référence n'est pas la même en haut et en
+     *   bas du pool).
      */
-    _recyclerBande(bande, nouveauY, type, sousType) {
+    _recyclerBande(bande, nouveauY, type, sousType, cote) {
         for (const d of bande.decor) this._rendreSprite(d.sprite);
         for (const v of bande.vehicules) this._rendreSprite(v.sprite);
         for (const f of bande.flottants) this._rendreSprite(f.sprite);
@@ -448,11 +575,15 @@ class LaneGenerator {
         bande.type = type;
         bande.sousType = sousType;
         bande.y = nouveauY;
-        this._rendreBande(bande);
+        this._rendreBande(bande, cote);
     }
 
-    /** Rendu complet d'une bande selon son type (sol + décor/véhicules/train). */
-    _rendreBande(bande) {
+    /**
+     * Rendu complet d'une bande selon son type (sol + décor/véhicules/train).
+     * @param {string} [cote] côté où la bande est posée ("haut" défaut /
+     *   "bas") — voir _recyclerBande.
+     */
+    _rendreBande(bande, cote) {
         const w = this.scene.scale.width;
 
         if (bande.type === LaneGenerator.TYPES.ROUTE) {
@@ -468,14 +599,14 @@ class LaneGenerator {
                     .setOrigin(0, 0.5)
                     .setDepth(LaneGenerator.DEPTH.marquage);
             }
-            this._peuplerRoute(bande);
+            this._peuplerRoute(bande, cote);
         } else if (bande.type === LaneGenerator.TYPES.EAU) {
             // Bande recyclée qui n'est plus une route : le marquage fantôme
             // doit disparaître (il resterait visible au milieu de la rivière).
             if (bande.marquage) bande.marquage.setVisible(false);
             this._masquerVestigesRails(bande);
             this._rendreSol(bande, this._textureEau());
-            this._peuplerEau(bande);
+            this._peuplerEau(bande, cote);
         } else if (bande.type === LaneGenerator.TYPES.RAILS) {
             if (bande.marquage) bande.marquage.setVisible(false);
             // Lit de ballast sous la voie : la texture rails est ajourée
@@ -489,7 +620,7 @@ class LaneGenerator {
             bande.sol.tilePositionX = Math.floor(Math.random() * 16);
             // Train D'ABORD (il fixe bande.direction), puis les feux :
             // _positionnerSignal place les feux du côté d'où arrive le train.
-            this._initialiserTrain(bande);
+            this._initialiserTrain(bande, cote);
             this._creerSignal(bande);
         } else {
             if (bande.marquage) bande.marquage.setVisible(false);
@@ -545,17 +676,14 @@ class LaneGenerator {
      * Remplit une bande route de véhicules : même vitesse pour toute la
      * bande (les véhicules ne se doublent pas), espacement régulier.
      */
-    _peuplerRoute(bande) {
+    _peuplerRoute(bande, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
-        // 2e route consécutive = la bande du dessous est une route et celle
-        // d'encore avant n'en est pas une (celle-ci serait la 2e d'affilée).
-        const est2eRoute =
-            this.bandes.length >= 1 &&
-            this.bandes[this.bandes.length - 1].type === LaneGenerator.TYPES.ROUTE &&
-            (this.bandes.length < 2 ||
-             this.bandes[this.bandes.length - 2].type !== LaneGenerator.TYPES.ROUTE);
+        // 2e route consécutive = la bande voisine (du côté où la nouvelle
+        // bande est posée) est une route et celle d'encore avant n'en est
+        // pas une (celle-ci serait la 2e d'affilée) → plus clémente.
+        const est2eRoute = this._est2eConsecutive(cote, LaneGenerator.TYPES.ROUTE);
 
         // Densité : base + paliers, plafonnée, allégée sur une 2e route.
         let densite = C.routeVehicules.base + this.niveau * C.routeVehicules.parNiveau;
@@ -575,20 +703,20 @@ class LaneGenerator {
 
         const pas = w / densite;
         const phase = Math.random() * pas;   // décalage global du trafic
-        const cote = this.hauteur * 0.9;     // véhicule carré, presque la bande
+        const taille = this.hauteur * 0.9;   // véhicule carré, presque la bande
 
         for (let i = 0; i < densite; i++) {
             const sprite = this._prendreSprite(
                 this._textureVehicule(bande.direction),
                 LaneGenerator.DEPTH.vehicule
             );
-            sprite.setDisplaySize(cote, cote);
+            sprite.setDisplaySize(taille, taille);
             const v = {
                 sprite: sprite,
                 vitesse: vitesse,
                 direction: bande.direction,
-                cote: cote,
-                demiLargeur: cote / 2
+                cote: taille,
+                demiLargeur: taille / 2
             };
             sprite.setPosition(phase + pas * (i + 0.5), bande.y);
             bande.vehicules.push(v);
@@ -619,18 +747,15 @@ class LaneGenerator {
      * régulier. Le joueur devra sauter de nénuphar en nénuphar (étape
      * collisions) ; ici on génère et on anime la dérive.
      */
-    _peuplerEau(bande) {
+    _peuplerEau(bande, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
-        // 2e bande eau consécutive = la bande du dessous est une eau et
-        // celle d'encore avant n'en est pas une (celle-ci serait la 2e
-        // d'affilée).
-        const est2eEau =
-            this.bandes.length >= 1 &&
-            this.bandes[this.bandes.length - 1].type === LaneGenerator.TYPES.EAU &&
-            (this.bandes.length < 2 ||
-             this.bandes[this.bandes.length - 2].type !== LaneGenerator.TYPES.EAU);
+        // 2e bande eau consécutive = la bande voisine (du côté où la
+        // nouvelle bande est posée) est une eau et celle d'encore avant
+        // n'en est pas une (celle-ci serait la 2e d'affilée) → plus
+        // clémente (plus de nénuphars, courant plus lent).
+        const est2eEau = this._est2eConsecutive(cote, LaneGenerator.TYPES.EAU);
 
         // Densité de nénuphars : base + paliers, plafonnée, augmentée sur
         // une 2e eau (plus de prise pour traverser).
@@ -653,20 +778,20 @@ class LaneGenerator {
 
         const pas = w / densite;
         const phase = Math.random() * pas;   // décalage global du courant
-        const cote = this.hauteur * 0.8;     // nénuphar un peu plus petit qu'un véhicule
+        const taille = this.hauteur * 0.8;   // nénuphar un peu plus petit qu'un véhicule
 
         for (let i = 0; i < densite; i++) {
             const sprite = this._prendreSprite(
                 this._textureNenuphar(),
                 LaneGenerator.DEPTH.flottant
             );
-            sprite.setDisplaySize(cote, cote);
+            sprite.setDisplaySize(taille, taille);
             const f = {
                 sprite: sprite,
                 vitesse: vitesse,
                 direction: bande.direction,
-                cote: cote,
-                demiLargeur: cote / 2
+                cote: taille,
+                demiLargeur: taille / 2
             };
             sprite.setPosition(phase + pas * (i + 0.5), bande.y);
             bande.flottants.push(f);
@@ -768,17 +893,15 @@ class LaneGenerator {
      * durées (attente aléatoire, signal fixe), sens de circulation, convoi
      * de wagonnets (placeholder, cf. en-tête) caché hors de l'écran.
      */
-    _initialiserTrain(bande) {
+    _initialiserTrain(bande, cote) {
         const C = this.C.lanes;
         const w = this.scene.scale.width;
 
-        // 2e rails consécutive = la bande du dessous est une rails et celle
-        // d'encore avant n'en est pas une (celle-ci serait la 2e d'affilée).
-        const est2eRails =
-            this.bandes.length >= 1 &&
-            this.bandes[this.bandes.length - 1].type === LaneGenerator.TYPES.RAILS &&
-            (this.bandes.length < 2 ||
-             this.bandes[this.bandes.length - 2].type !== LaneGenerator.TYPES.RAILS);
+        // 2e rails consécutive = la bande voisine (du côté où la nouvelle
+        // bande est posée) est une rails et celle d'encore avant n'en est
+        // pas une (celle-ci serait la 2e d'affilée) → plus clémente
+        // (signal plus long, train plus rare et plus lent).
+        const est2eRails = this._est2eConsecutive(cote, LaneGenerator.TYPES.RAILS);
         bande.est2eRails = est2eRails;
 
         bande.direction = Math.random() < 0.5 ? 1 : -1;
@@ -797,15 +920,15 @@ class LaneGenerator {
         }
         bande.attenteDuree = this._dureeAttente(est2eRails);
 
-        const cote = this.hauteur * 0.9;
+        const taille = this.hauteur * 0.9;
         const nb = 3;  // 1 « loco » (wagonnet charbon) + 2 wagons
         const train = {
             direction: bande.direction,
             vitesse: w / duree,
             dureeTraversee: duree,
-            cote: cote,
+            cote: taille,
             nb: nb,
-            demiLargeur: (nb * cote) / 2,
+            demiLargeur: (nb * taille) / 2,
             x: 0,
             sprites: []
         };
@@ -813,10 +936,10 @@ class LaneGenerator {
         for (let i = 1; i < nb; i++) textures.push(this._textureWagon());
         for (let i = 0; i < nb; i++) {
             const sprite = this._prendreSprite(textures[i], LaneGenerator.DEPTH.train);
-            sprite.setDisplaySize(cote, cote);
+            sprite.setDisplaySize(taille, taille);
             // Positionné hors écran du côté d'où il arrivera, masqué.
             sprite.setPosition(
-                (i - (nb - 1) / 2) * cote + (bande.direction > 0 ? -w : w),
+                (i - (nb - 1) / 2) * taille + (bande.direction > 0 ? -w : w),
                 bande.y
             );
             sprite.setVisible(false);

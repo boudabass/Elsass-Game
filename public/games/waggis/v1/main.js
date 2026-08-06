@@ -2,10 +2,10 @@
  * main.js — point de départ de Waggis V2.
  * Décrit ce qu'il faut charger, puis laisse le socle démarrer le jeu.
  *
- * ÉTAPE 4 : les textures des bandes rails (voies rogrpg, train = convoi de
- * wagonnets — placeholder faute de sprite de locomotive, cf. ci-dessous) et
- * le son du signal (snd_error de l'atelier) sont chargés. Le personnage
- * arrivera à l'étape suivante avec ses propres assets.
+ * ÉTAPE 5 : le personnage (piéton p8city rouge, placeholder — aucun sprite
+ * de Waggis dans l'atelier, vérifié 06/08, cf. GameScene) et le son du
+ * bond (snd_jump_a de l'atelier, décision John 06/08 : réutiliser les MP3)
+ * sont chargés en plus des textures des étapes 2-4.
  */
 (function () {
     "use strict";
@@ -63,6 +63,16 @@
             // Signal sonore du train : snd_error_a réutilisé (décision John
             // 06/08 — pas de sons dédiés, réutiliser les 40 MP3 de l'atelier).
             scene.load.audio("snd_error", "assets/son/snd_error_a.mp3");
+
+            // Son du bond du personnage (étape 5) : snd_jump_a de l'atelier.
+            scene.load.audio("snd_jump", "assets/son/snd_jump_a.mp3");
+
+            // Personnage (étape 5) : piéton p8city rouge, 3 frames de marche.
+            // Placeholder — aucun sprite de Waggis dans l'atelier (vérifié
+            // 06/08) ; POINT OUVERT ASSETS à remplacer par le vrai Waggis.
+            scene.load.image("pieton_rouge_1", "assets/perso/p8city_pieton_rouge_1.png");
+            scene.load.image("pieton_rouge_2", "assets/perso/p8city_pieton_rouge_2.png");
+            scene.load.image("pieton_rouge_3", "assets/perso/p8city_pieton_rouge_3.png");
 
             // Véhicules des bandes route (vue de dessus, sens de circulation).
             scene.load.image("voiture_rouge_droite", "assets/vehicule/p8city_voiture_rouge_dessus_droite.png");

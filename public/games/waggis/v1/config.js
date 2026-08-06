@@ -14,12 +14,13 @@
  * le jeu se comporte donc exactement pareil sur un téléphone en portrait et
  * sur un grand écran de PC.
  *
- * ÉTAPE 3 : le terrain généré par LaneGenerator comprend en plus les bandes
- * eau (cours d'eau avec nénuphars rogrpg qui dérivent — le joueur devra
- * rester dessus, la chute à l'eau = mort sera branchée à l'étape collisions).
- * Les rails arrivent à l'étape suivante. Le personnage et les contrôles
- * (100 % clic/tap, article 409) aussi. L'ObstaclePool (véhicules/rondins/
- * trains) sera déduit du pooling déjà en place dans LaneGenerator.
+ * ÉTAPE 5 : le personnage et les contrôles arrivent (100 % clic/tap,
+ * article 409 — aucun clavier) : swipe mobile (haut = avancer, bas/gauche/
+ * droite = reculer/latéral) et pavé directionnel VISIBLE à l'écran pour le
+ * PC (équivalent obligatoire du clavier, CDC 706 §Contrôles — tout élément
+ * interactif est visible). 1 action = 1 bond d'une case, le monde défile et
+ * recycle ses bandes pour une avancée infinie. Les collisions et la mort
+ * restent à l'étape suivante (le bouton « Terminer » provisoire demeure).
  */
 window.WaggisConfig = {
     key: "waggis",
@@ -39,7 +40,16 @@ window.WaggisConfig = {
         // Étape 1 : panneau provisoire de la scène de jeu, affiché en
         // attendant la génération des bandes (étape 2). Retiré à l'étape 2 :
         // le terrain généré remplace le panneau.
-        finirProvisoire: "Terminer (provisoire)"
+        finirProvisoire: "Terminer (provisoire)",
+
+        // Étape 5 : pavé directionnel (PC — équivalent obligatoire du
+        // clavier, article 409). Flèches Unicode, lisibles partout.
+        flecheHaut: "▲",
+        flecheBas: "▼",
+        flecheGauche: "◀",
+        flecheDroite: "▶",
+        // Score affiché pendant la partie (en haut au centre).
+        scoreEnCours: "Score : {score}"
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
@@ -122,6 +132,48 @@ window.WaggisConfig = {
         // prairie.
         probVigne: 0.3,
         decor: { min: 0, max: 3 }
+    },
+
+    // --- Contrôles (étape 5, CDC 706 §Contrôles — 100 % clic/tap, article
+    // 409, AUCUN clavier) ----------------------------------------------------
+    // 1 action = 1 bond d'une case, pas de déplacement continu. Les deux
+    // entrées coexistent sur tous les appareils :
+    //  - swipe (mobile) : haut = avancer, bas/gauche/droite = reculer/latéral ;
+    //  - pavé directionnel VISIBLE à l'écran (PC — équivalent obligatoire
+    //    du clavier ; « tout élément interactif doit être visible », article
+    //    409 — préféré au clic-glissé par le CDC).
+    controles: {
+        // Distance minimale du geste (en % du plus petit côté) pour être un
+        // swipe : en dessous, c'est un tap sans direction (aucun bond).
+        seuilSwipePct: 3,
+
+        // Durée d'un bond (ms). Les entrées sont ignorées pendant le bond :
+        // 1 action = 1 bond.
+        bondDureeMs: 170,
+
+        // Hauteur de l'arc du bond, en fraction de la hauteur d'une bande.
+        bondHauteur: 0.35,
+
+        // Défilement du monde : quand le joueur franchit ce seuil
+        // (fraction de la HAUTEUR d'écran) en avançant, le monde glisse
+        // d'une bande pour le rattraper — bandes sorties recyclées
+        // (pooling) — et le joueur reste dans la même zone de l'écran, à
+        // l'infini. Reculer est l'inverse exact : le monde glisse vers le
+        // haut à chaque bond arrière (voir LaneGenerator.reculer()).
+        seuilDefileHaut: 0.38,
+
+        // Personnage : taille en fraction de la hauteur d'une bande.
+        persoTaille: 0.75,
+
+        // Pavé directionnel : taille des boutons et écart centre-à-centre
+        // en % du plus petit côté (u), position du centre du pavé en % de
+        // la largeur / hauteur de l'écran. (82 % : le pavé reste entière-
+        // ment à l'écran sur mobile portrait ET desktop — le bouton ▼ ne
+        // dépasse pas en bas, le ▶ pas à droite, cf. tests.)
+        boutonTaille: 10,
+        boutonEcart: 12,
+        paveX: 82,
+        paveY: 82
     },
 
     // --- Couleurs -----------------------------------------------------------
