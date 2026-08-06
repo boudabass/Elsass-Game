@@ -16,15 +16,22 @@
  * en avançant à l'infini. Le score = nombre de bonds vers l'avant réussis,
  * il ne recule jamais (il suit la position la plus avancée, CDC 706).
  *
+ * ÉTAPE 6 — collisions (Arcade Physics, décision actée) et conditions de
+ * mort (CDC 706 §Conditions) :
+ *  - bande route : contact avec un véhicule = mort (overlap du corps du
+ *    personnage avec les corps des véhicules de la bande) ;
+ *  - bande eau : chute à l'eau = mort si le joueur n'est PAS sur un
+ *    nénuphar ; s'il est porté par un nénuphar, il dérive avec le courant
+ *    (comme Crossy Road) et meurt s'il est emporté hors de l'écran ;
+ *  - bande rails : présent sur les rails au passage du train = mort
+ *    (contrat bande.estMortelAuPoint exposé par LaneGenerator — phase
+ *    "passage" + emprise du convoi).
+ * La menace anti-attente (cigogne) n'est PAS dans cette étape (étape 8).
+ * Le bouton « Terminer (provisoire) » disparaît : la mort le remplace.
+ *
  * Le personnage est un piéton p8city (placeholder) : aucun sprite de Waggis
  * dans l'atelier (vérifié 06/08 — POINT OUVERT ASSETS, même statut que le
  * train : à remplacer quand l'atelier livrera le vrai Waggis).
- *
- * Le bouton « Terminer (provisoire) » reste nécessaire tant qu'il n'y a pas
- * de conditions de mort : sans lui, aucune partie ne peut se finir et la
- * chaîne menu → jeu → fin n'est plus testable. Il est relégué en haut à
- * droite (petit) pour ne pas masquer le terrain, et disparaîtra à l'étape
- * collisions. Aucun contrôle V1 (tap par case) n'est conservé.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -71,6 +78,15 @@ class GameScene extends Phaser.Scene {
         this.perso = this.add.sprite(this.scale.width / 2, depart.y, "pieton_rouge_1")
             .setDisplaySize(cote, cote)
             .setDepth(10);   // au-dessus des bandes (max 5), sous l'UI (50)
+        // Corps Arcade du personnage (étape 6 — collisions, CDC 706 :
+        // Arcade Physics décision actée). Immobile et sans gravité : le
+        // personnage est déplacé par les bonds (tweens), le corps suit
+        // le sprite automatiquement (synchronisé par le monde Arcade).
+        // La hitbox est plus petite que le sprite (fair-play, cf. config).
+        this.physics.add.existing(this.perso);
+        this.perso.body.setAllowGravity(false);
+        this.perso.body.setImmovable(true);
+        this._tailleHitboxPerso();
         // Ombre portée au sol : ancre visuelle pendant les bonds.
         this.ombre = this.add.ellipse(
             this.perso.x, this.perso.y + cote * 0.3,
@@ -83,20 +99,6 @@ class GameScene extends Phaser.Scene {
         this.texteScore = UI.text(this, 0, 0, "", 4, C.couleurs.texte);
         this.texteScore.setDepth(40);
         this._afficherScore();
-
-        // --- Bouton provisoire (retiré quand la mort arrive, étape 4) ------
-        const finir = UI.button(this, {
-            width: UI.u(this, 24), height: UI.u(this, 8),
-            label: C.textes.finirProvisoire,
-            color: C.couleurs.bouton,
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.terminer()
-        });
-        this._zonesBoutons.push(finir.zone);
-        UI.layout(this, (w, h) => {
-            finir.redimensionner(UI.u(this, 24), UI.u(this, 8))
-                 .setPosition(w - UI.u(this, 13), UI.u(this, 6));
-        });
 
         // --- Pavé directionnel (équivalent PC obligatoire, article 409) ----
         this._creerPaveDirectionnel();
@@ -133,6 +135,7 @@ class GameScene extends Phaser.Scene {
             // Le personnage et son ombre suivent la hauteur des bandes.
             const taillePerso = this.lanes.hauteur * this.C.controles.persoTaille;
             this.perso.setDisplaySize(taillePerso, taillePerso);
+            this._tailleHitboxPerso();   // hitbox resynchronisée (collisions)
             this.ombre.setSize(taillePerso * 0.6, taillePerso * 0.2);
             const x = Math.max(
                 this.lanes.hauteur / 2,
@@ -143,9 +146,17 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    /** Dimensionne la hitbox Arcade du personnage (fraction de sa taille). */
+    _tailleHitboxPerso() {
+        if (!this.perso || !this.perso.body) return;
+        const c = this.perso.displayWidth * this.C.collisions.persoHitbox;
+        this.perso.body.setSize(c, c);
+    }
+
     /**
      * Fait tourner le monde (véhicules, nénuphars, trains) et applique la
-     * position du personnage pendant un bond (déplacement + arc).
+     * position du personnage pendant un bond (déplacement + arc), puis
+     * vérifie les conditions de mort (étape 6) quand le joueur est posé.
      */
     update(time, delta) {
         if (this.lanes) this.lanes.update(time, delta);
@@ -153,6 +164,9 @@ class GameScene extends Phaser.Scene {
             this.perso.setPosition(this._etatBond.x, this._etatBond.y - this._altitude);
             this.ombre.setPosition(this._etatBond.x, this._etatBond.y + this._ombreOffset);
         }
+        // Collisions (étape 6) : uniquement quand le joueur est posé (pas
+        // en plein bond) et que la partie n'est pas déjà finie.
+        if (!this.enBond && !this._finEnCours) this._verifierMort(delta);
     }
 
     // ------------------------------------------------------------------
@@ -348,16 +362,104 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Fin de partie : le score réel (bonds vers l'avant réussis) est passé
-     * à l'écran de fin. Remplacé aux étapes suivantes par les conditions de
-     * mort (collision véhicule, chute à l'eau, train, menace anti-attente).
+     * Conditions de mort (étape 6, CDC 706 §Conditions — Arcade Physics).
+     * Appelée à chaque frame quand le joueur est posé (pas en plein bond) :
+     *  - bande route : contact avec un véhicule = mort (overlap du corps
+     *    du personnage avec les corps des véhicules de la bande) ;
+     *  - bande eau : chute à l'eau = mort si aucun nénuphar ne porte le
+     *    joueur ; sinon le joueur dérive avec le nénuphar (courant) et
+     *    meurt s'il est emporté hors de l'écran ;
+     *  - bande rails : présent sur les rails au passage du train = mort
+     *    (contrat bande.estMortelAuPoint exposé par LaneGenerator).
+     * @param {number} delta ms écoulées depuis la dernière frame (dérive)
      */
-    terminer() {
+    _verifierMort(delta) {
+        const bande = this.bandeJoueur;
+        if (!bande) return;
+        const T = LaneGenerator.TYPES;
+
+        if (bande.type === T.ROUTE) {
+            // Contact véhicule = mort. Le corps du personnage (hitbox
+            // réduite) overlap les corps des véhicules de la bande.
+            for (const v of bande.vehicules) {
+                if (this._chevauche(this.perso, v.sprite)) {
+                    this.mourir("vehicule");
+                    return;
+                }
+            }
+        } else if (bande.type === T.EAU) {
+            // Chute à l'eau = mort si aucun nénuphar ne porte le joueur.
+            let support = null;
+            for (const f of bande.flottants) {
+                if (this._chevauche(this.perso, f.sprite)) {
+                    support = f;
+                    break;
+                }
+            }
+            if (!support) {
+                this.mourir("eau");
+                return;
+            }
+            // Porté par le courant : le joueur dérive avec le nénuphar
+            // (mécanique Crossy Road). Emporté hors de l'écran = chute.
+            const dx = support.direction * support.vitesse * (delta / 1000);
+            const nx = this.perso.x + dx;
+            const w = this.scale.width;
+            if (nx < 0 || nx > w) {
+                this.mourir("eau");
+                return;
+            }
+            this._poserPerso(nx, this.perso.y);
+            // Le corps du personnage suit le sprite (monde Arcade).
+        } else if (bande.type === T.RAILS) {
+            // Présent sur les rails au passage du train = mort (contrat
+            // exposé par LaneGenerator : phase "passage" + emprise du
+            // convoi, demi-largeur du personnage incluse).
+            if (bande.estMortelAuPoint(this.perso.x, this.perso.displayWidth / 2)) {
+                this.mourir("train");
+            }
+        }
+    }
+
+    /**
+     * Test de chevauchement Arcade entre deux sprites. Les corps sont
+     * d'abord resynchronisés depuis leur sprite : les obstacles sont
+     * déplacés dans lanes.update() pendant le update() de la scène, or le
+     * monde Arcade synchronise les bodies AVANT ce déplacement — sans
+     * resynchronisation, l'overlap testerait des positions vieilles d'une
+     * frame (faux négatif au pixel près, vérifié au harnais).
+     * @returns {boolean} true si les deux corps se chevauchent
+     */
+    _chevauche(a, b) {
+        if (a.body) a.body.updateFromGameObject();
+        if (b.body && b.body.enable) b.body.updateFromGameObject();
+        return this.physics.overlap(a, b);
+    }
+
+    /**
+     * Fin de partie (étape 6) : le score réel (bonds vers l'avant réussis)
+     * est passé à l'écran de fin. Remplace le bouton « Terminer »
+     * provisoire des étapes 1-5.
+     * @param {string} cause "vehicule" | "eau" | "train" (son dédié)
+     */
+    mourir(cause) {
         if (this._finEnCours) return;
         this._finEnCours = true;
+        this._jouerSonMort(cause);
         this.cameras.main.fadeOut(300, 0, 0, 0);
         this.cameras.main.once("camerafadeoutcomplete", () => {
             this.scene.start(OverScene.KEY, { score: this.score });
         });
+    }
+
+    /**
+     * Son de la mort (MP3 de l'atelier, décision John 06/08 — réutiliser
+     * les sons, pas de dédiés) : snd_hurt pour véhicule/train, snd_fall
+     * pour la chute à l'eau.
+     */
+    _jouerSonMort(cause) {
+        if (!this.sound || this.sound.locked) return; // audio pas déverrouillée
+        const son = cause === "eau" ? "snd_fall" : "snd_hurt";
+        this.sound.play(son, { volume: 0.4 });
     }
 }

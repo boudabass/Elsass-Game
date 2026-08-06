@@ -19,8 +19,14 @@
  * droite = reculer/latéral) et pavé directionnel VISIBLE à l'écran pour le
  * PC (équivalent obligatoire du clavier, CDC 706 §Contrôles — tout élément
  * interactif est visible). 1 action = 1 bond d'une case, le monde défile et
- * recycle ses bandes pour une avancée infinie. Les collisions et la mort
- * restent à l'étape suivante (le bouton « Terminer » provisoire demeure).
+ * recycle ses bandes pour une avancée infinie.
+ *
+ * ÉTAPE 6 : les collisions (Arcade Physics, décision actée) et les
+ * conditions de mort du CDC 706 §Conditions arrivent : contact véhicule =
+ * mort, chute à l'eau (hors nénuphar) = mort, présent sur les rails au
+ * passage du train = mort (bande.estMortelAuPoint). Le bouton « Terminer »
+ * provisoire disparaît (la mort le remplace). La menace anti-attente
+ * (cigogne) n'est PAS dans cette étape (étape 8 dédiée).
  */
 window.WaggisConfig = {
     key: "waggis",
@@ -37,10 +43,6 @@ window.WaggisConfig = {
         score: "Score : {score}",
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
-        // Étape 1 : panneau provisoire de la scène de jeu, affiché en
-        // attendant la génération des bandes (étape 2). Retiré à l'étape 2 :
-        // le terrain généré remplace le panneau.
-        finirProvisoire: "Terminer (provisoire)",
 
         // Étape 5 : pavé directionnel (PC — équivalent obligatoire du
         // clavier, article 409). Flèches Unicode, lisibles partout.
@@ -174,6 +176,16 @@ window.WaggisConfig = {
         boutonEcart: 12,
         paveX: 82,
         paveY: 82
+    },
+
+    // --- Collisions (étape 6, CDC 706 §Conditions — Arcade Physics) ------
+    collisions: {
+        // Taille de la HITBOX du personnage, en fraction de sa taille
+        // affichée (persoTaille × hauteur de bande). Plus petite que le
+        // sprite : un contact « de justesse » sur le coin du dessin ne
+        // tue pas (fair-play, comme Crossy Road où la hitbox est plus
+        // petite que le personnage).
+        persoHitbox: 0.5
     },
 
     // --- Couleurs -----------------------------------------------------------

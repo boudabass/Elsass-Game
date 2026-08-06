@@ -67,6 +67,12 @@
             // Son du bond du personnage (étape 5) : snd_jump_a de l'atelier.
             scene.load.audio("snd_jump", "assets/son/snd_jump_a.mp3");
 
+            // Sons de la mort (étape 6) : snd_hurt_a (véhicule/train) et
+            // snd_fall_a (chute à l'eau), MP3 de l'atelier (décision John
+            // 06/08 — réutiliser les sons, pas de dédiés).
+            scene.load.audio("snd_hurt", "assets/son/snd_hurt.mp3");
+            scene.load.audio("snd_fall", "assets/son/snd_fall.mp3");
+
             // Personnage (étape 5) : piéton p8city rouge, 3 frames de marche.
             // Placeholder — aucun sprite de Waggis dans l'atelier (vérifié
             // 06/08) ; POINT OUVERT ASSETS à remplacer par le vrai Waggis.

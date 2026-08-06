@@ -42,11 +42,15 @@
  *                      via bande.estMortelAuPoint(x, demiLargeur) pour
  *                      l'étape collisions).
  *
- * POOLING : les bandes déjà traversées (sorties en bas de l'écran) ne sont
- * ni détruites ni recréées : elles sont recyclées en haut avec un nouveau
- * type (avancer()). Les sprites de décor, de véhicules et de wagons
- * passent par un pool interne et changent de texture plutôt que d'être
- * détruits — aucun monde infini n'est gardé en mémoire.
+ * POOLING (ObstaclePool.js, CDC 706 §Performance) : les bandes déjà
+ * traversées (sorties en bas de l'écran) ne sont ni détruites ni
+ * recréées : elles sont recyclées en haut avec un nouveau type
+ * (avancer()). Les sprites de décor, de véhicules et de wagons passent
+ * par ObstaclePool et changent de texture plutôt que d'être détruits —
+ * aucun monde infini n'est gardé en mémoire. Chaque sprite porte un
+ * corps Arcade Physics créé une seule fois ; seuls les obstacles
+ * (véhicules, nénuphars, wagons) ont le corps ACTIF (collisions étape
+ * 6), le décor garde un corps inerte.
  *
  * DÉFILEMENT (étape 5, contrôles) : le joueur reste dans la même zone de
  * l'écran ; c'est le MONDE qui glisse. `decalage` (px) décale toutes les
@@ -96,7 +100,12 @@ class LaneGenerator {
         this.scene = scene;
         this.C = window.WaggisConfig;
         this.bandes = [];        // bandes vivantes, de bas en haut
-        this.poolSprites = [];   // sprites décor/véhicule/wagon recyclés
+        // Pool unique des sprites d'obstacles ET de décor (CDC 706
+        // §Performance) : véhicules, nénuphars, wagons du train, mais
+        // aussi arbres/buissons — aucun sprite n'est recréé/détruit en
+        // continu, il change de texture. Les corps Arcade Physics des
+        // obstacles sont activés à la prise, désactivés au rendu.
+        this.pool = new ObstaclePool(scene);
         this.niveau = 0;         // palier de difficulté (score / 10)
 
         // Compteurs exposés pour la QA (probes window.__q / Arcade.game) :
@@ -330,21 +339,23 @@ class LaneGenerator {
                     bande.train.demiLargeur = bande.train.nb * bande.train.cote / 2;
                     for (const s of bande.train.sprites) {
                         s.y = bande.y;
-                        s.setDisplaySize(bande.train.cote, bande.train.cote);
+                        // Corps Arcade resynchronisé avec la nouvelle taille
+                        // (le corps ne suit pas le displaySize tout seul).
+                        this.pool.taille(s, bande.train.cote);
                     }
                 }
             }
             for (const v of bande.vehicules) {
                 v.sprite.y = bande.y;
-                v.sprite.setDisplaySize(v.cote, v.cote);
+                this.pool.taille(v.sprite, v.cote);
             }
             for (const f of bande.flottants) {
                 f.sprite.y = bande.y;
-                f.sprite.setDisplaySize(f.cote, f.cote);
+                this.pool.taille(f.sprite, f.cote);
             }
             for (const d of bande.decor) {
                 d.sprite.y = bande.y + (d.offsetY - 0.5) * this.hauteur;
-                d.sprite.setDisplaySize(d.taille, d.taille);
+                this.pool.taille(d.sprite, d.taille);
             }
         });
     }
@@ -560,11 +571,11 @@ class LaneGenerator {
      *   bas du pool).
      */
     _recyclerBande(bande, nouveauY, type, sousType, cote) {
-        for (const d of bande.decor) this._rendreSprite(d.sprite);
-        for (const v of bande.vehicules) this._rendreSprite(v.sprite);
-        for (const f of bande.flottants) this._rendreSprite(f.sprite);
+        for (const d of bande.decor) this.pool.rendre(d.sprite);
+        for (const v of bande.vehicules) this.pool.rendre(v.sprite);
+        for (const f of bande.flottants) this.pool.rendre(f.sprite);
         for (const s of (bande.train ? bande.train.sprites : [])) {
-            this._rendreSprite(s);
+            this.pool.rendre(s);
         }
         bande.decor = [];
         bande.vehicules = [];
@@ -706,11 +717,13 @@ class LaneGenerator {
         const taille = this.hauteur * 0.9;   // véhicule carré, presque la bande
 
         for (let i = 0; i < densite; i++) {
-            const sprite = this._prendreSprite(
+            const sprite = this.pool.prendre(
                 this._textureVehicule(bande.direction),
                 LaneGenerator.DEPTH.vehicule
             );
-            sprite.setDisplaySize(taille, taille);
+            // Corps Arcade ACTIVÉ : le véhicule participe aux collisions
+            // (contact = mort, étape 6).
+            this.pool.activer(sprite, taille);
             const v = {
                 sprite: sprite,
                 vitesse: vitesse,
@@ -781,11 +794,14 @@ class LaneGenerator {
         const taille = this.hauteur * 0.8;   // nénuphar un peu plus petit qu'un véhicule
 
         for (let i = 0; i < densite; i++) {
-            const sprite = this._prendreSprite(
+            const sprite = this.pool.prendre(
                 this._textureNenuphar(),
                 LaneGenerator.DEPTH.flottant
             );
-            sprite.setDisplaySize(taille, taille);
+            // Corps Arcade ACTIVÉ : un nénuphar est un support solide —
+            // le joueur qui le chevauche n'est PAS tombé à l'eau (le
+            // « sol » de la bande eau, étape 6).
+            this.pool.activer(sprite, taille);
             const f = {
                 sprite: sprite,
                 vitesse: vitesse,
@@ -935,8 +951,11 @@ class LaneGenerator {
         const textures = [this._textureLoco()];
         for (let i = 1; i < nb; i++) textures.push(this._textureWagon());
         for (let i = 0; i < nb; i++) {
-            const sprite = this._prendreSprite(textures[i], LaneGenerator.DEPTH.train);
-            sprite.setDisplaySize(taille, taille);
+            const sprite = this.pool.prendre(textures[i], LaneGenerator.DEPTH.train);
+            // Corps Arcade ACTIVÉ : le train tue au contact (étape 6 —
+            // la détection passe par bande.estMortelAuPoint, le corps
+            // reste cohérent pour le debug &debug=1).
+            this.pool.activer(sprite, taille);
             // Positionné hors écran du côté d'où il arrivera, masqué.
             sprite.setPosition(
                 (i - (nb - 1) / 2) * taille + (bande.direction > 0 ? -w : w),
@@ -1084,38 +1103,23 @@ class LaneGenerator {
             : ["buisson_vert", "arbre_vert", "arbre_vert_v2", "arbre_vert_v3",
                "arbre_vert_v4", "arbre_orange", "arbre_orange_v2", "arbre_orange_v3"];
         const texture = textures[Math.floor(Math.random() * textures.length)];
-        const sprite = this._prendreSprite(texture, LaneGenerator.DEPTH.decor);
+        // Décor : sprite du pool, corps RESTE inerte (jamais activé) —
+        // les arbres ne tuent pas et ne bloquent pas (top-down, pas de
+        // couverture).
+        const sprite = this.pool.prendre(texture, LaneGenerator.DEPTH.decor);
         const taille = this.hauteur * (buissonForce ? 0.55 : (0.7 + Math.random() * 0.3));
-        sprite.setDisplaySize(taille, taille);
+        this.pool.taille(sprite, taille);
         const offsetY = 0.5 + (Math.random() - 0.5) * 0.5; // centre ± 25 % de la bande
         sprite.setPosition(x, bande.y + (offsetY - 0.5) * this.hauteur);
         bande.decor.push({ sprite: sprite, offsetY: offsetY, taille: taille });
     }
 
     // ------------------------------------------------------------------
-    // Pool de sprites
+    // Pool de sprites (ObstaclePool.js — CDC 706 §Performance)
     // ------------------------------------------------------------------
-
-    /**
-     * Prend un sprite du pool (texture changée) ou en crée un.
-     * Le pool évite de créer/détruire en continu pendant le recyclage
-     * des bandes (CDC 706 §Performance).
-     */
-    _prendreSprite(texture, depth) {
-        let sprite = this.poolSprites.pop();
-        if (!sprite) {
-            sprite = this.scene.add.sprite(0, 0, texture);
-        } else {
-            sprite.setTexture(texture);
-            sprite.setVisible(true).setActive(true);
-        }
-        sprite.setDepth(depth);
-        return sprite;
-    }
-
-    /** Rend un sprite au pool (masqué, texture peu importe). */
-    _rendreSprite(sprite) {
-        sprite.setVisible(false).setActive(false);
-        this.poolSprites.push(sprite);
-    }
+    // Le pool est la propriété du LaneGenerator (this.pool, voir
+    // constructor) : prendre()/rendre()/activer()/taille() évitent de
+    // recréer ou détruire des sprites en continu pendant le recyclage
+    // des bandes. Les corps Arcade Physics sont créés une seule fois
+    // par sprite et activés/désactivés avec lui.
 }
