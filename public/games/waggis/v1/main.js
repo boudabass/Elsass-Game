@@ -15,6 +15,20 @@
  * persisté versionné dans la save ({v, t, data}) et relu tel quel au
  * retour en arrière. L'écriture à la victoire du niveau (spec 708 §9)
  * sera câblée à l'étape D2-3 (fin de niveau).
+ *
+ * ETAPE-7 (CDC 706 §Score/save) : le contrat passe en VERSION 3 avec
+ * data.wallet (pièces, monnaie de déblocage) et data.unlockedCharacters
+ * (skins débloqués — décision John 06/08 : personnages historiques
+ * d'origine alsacienne, liste précise post-MVP). La MÉCANIQUE
+ * pièces/déblocage est post-MVP (scope PRD 705) : le contrat est prêt,
+ * les valeurs restent à leurs défauts (wallet 0, seul "waggis" débloqué
+ * — le perso de départ est gratuit, comme le poulet de Crossy Road).
+ * data.currentLevel (CDC 706) suivra avec le système de niveaux
+ * (étape D2-3) : incrémenter à v4 à ce moment-là.
+ * Le meilleur score, lui, est géré par core/score.js (local + cloud) :
+ * boot.js configure la clé, MenuScene affiche Arcade.Score.best après
+ * Arcade.Score.load(), OverScene soumet Arcade.Score.submit(score) en
+ * fin de partie — rien à ajouter côté save pour le score.
  */
 (function () {
     "use strict";
@@ -165,35 +179,55 @@
                 console.warn("Rotation rails_v3 impossible, original utilisé.", e);
             }
 
-            // Contrat de save : version 2 (D2-1, spec 708 §7). Le format v1 ne
-            // contenait que { parties }. La migration 1→2 ajoute generatedRows
-            // (le monde procédural généré : { index, type, obstacles[], vitesse }
-            // indexé par position) — le monde ne se régénère jamais, il est
-            // persisté versionné dans la save ({v, t, data}). Les sauvegardes
-            // v1 existantes sont migrées, jamais perdues. (La règle « la save
-            // n'intervient qu'à la victoire du niveau » — spec 708 §9 — sera
-            // câblée avec la fin de niveau, étape D2-3.)
+            // Contrat de save : version 3 (ETAPE-7, CDC 706 §Score/save).
+            // v1 ({ parties }) → v2 (generatedRows, D2-1) → v3
+            // (wallet + unlockedCharacters, ETAPE-7). Chaque migration
+            // préserve les données existantes : on ne casse jamais la
+            // partie d'un joueur. (La règle « la save n'intervient qu'à
+            // la victoire du niveau » — spec 708 §9 — sera câblée avec
+            // la fin de niveau, étape D2-3.)
             Arcade.Save.configure({
                 key: C.key,
                 version: C.save.version,
                 migrations: {
-                    // v1 → v2 : on reprend les données existantes et on ajoute
-                    // le monde généré (vide par défaut : aucune partie en
-                    // cours à la migration).
+                    // v1 → v2 : on reprend les données existantes et on
+                    // ajoute le monde généré (vide par défaut : aucune
+                    // partie en cours à la migration).
                     1: function (data) {
                         return Object.assign({}, data, { generatedRows: {} });
+                    },
+                    // v2 → v3 : on ajoute le contrat pièces/déblocage à
+                    // ses valeurs par défaut — 0 pièce, seul le Waggis
+                    // débloqué (le perso de départ est gratuit, PRD 705).
+                    // La mécanique pièces/déblocage arrive post-MVP : le
+                    // contrat est prêt, les valeurs ne bougeront qu'à ce
+                    // moment-là (et la version avec elles).
+                    2: function (data) {
+                        return Object.assign({}, data, {
+                            wallet: 0,
+                            unlockedCharacters: ["waggis"]
+                        });
                     }
                 },
                 gather: function () {
                     return {
                         parties: scene.registry.get("parties") || 0,
-                        generatedRows: scene.registry.get("generatedRows") || {}
+                        generatedRows: scene.registry.get("generatedRows") || {},
+                        wallet: scene.registry.get("wallet") || 0,
+                        unlockedCharacters: scene.registry.get("unlockedCharacters") || ["waggis"]
                     };
                 },
                 apply: function (data) {
                     scene.registry.set("parties", (data && data.parties) || 0);
                     const gr = (data && data.generatedRows) || {};
                     scene.registry.set("generatedRows", gr);
+                    scene.registry.set("wallet", (data && typeof data.wallet === "number") ? data.wallet : 0);
+                    scene.registry.set(
+                        "unlockedCharacters",
+                        (data && Array.isArray(data.unlockedCharacters) && data.unlockedCharacters.length)
+                            ? data.unlockedCharacters
+                            : ["waggis"]
+                    );
                 }
             });
 

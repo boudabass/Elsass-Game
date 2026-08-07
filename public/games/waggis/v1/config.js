@@ -212,7 +212,15 @@ window.WaggisConfig = {
         // correspondante dans main.js — on ne casse jamais la partie d'un
         // joueur (règle du socle). v2 = generatedRows (le monde procédural
         // généré, spec 708 §7) ajouté au format.
-        version: 2
+        // v3 (ETAPE-7, CDC 706 §Score/save) = data.wallet (pièces, monnaie
+        // de déblocage) et data.unlockedCharacters (skins débloqués)
+        // ajoutés au format. La MÉCANIQUE pièces/déblocage est post-MVP
+        // (scope PRD 705) : le contrat est prêt, les valeurs restent à
+        // leurs défauts (0 pièce, seul le Waggis débloqué — le perso de
+        // départ est gratuit, comme le poulet de Crossy Road).
+        // data.currentLevel (CDC 706) suivra avec le système de niveaux
+        // (étape D2-3, fin de niveau) : incrémenter à v4 à ce moment-là.
+        version: 3
     },
 
     // --- Couleurs -----------------------------------------------------------
