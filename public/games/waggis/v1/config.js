@@ -20,8 +20,7 @@
  * 1 case par clic, dans la direction du clic par rapport au perso
  * (au-dessus → monte, gauche/droite → latéral, en dessous → descend vers
  * une case qui existe déjà). 100 % clic/tap, article 409 — aucun clavier.
- * 1 action = 1 bond d'une case, le monde défile et recycle ses bandes
- * pour une avancée infinie.
+ * 1 action = 1 bond d'une case, le monde défile et recycle ses bandes.
  *
  * ÉTAPE 6 : les collisions (Arcade Physics, décision actée) et les
  * conditions de mort du CDC 706 §Conditions arrivent : contact véhicule =
@@ -29,6 +28,16 @@
  * passage du train = mort (bande.estMortelAuPoint). Le bouton « Terminer »
  * provisoire disparaît (la mort le remplace). La menace anti-attente
  * (cigogne) n'est PAS dans cette étape (étape 8 dédiée).
+ *
+ * D2-3 (spec 708 §1/§8/§9/§10) : le jeu est découpé en NIVEAUX FINIS.
+ * La config par niveau vit dans `levels.json` (consultée par
+ * LaneGenerator : lignes(niveau) = 42 + niveau, types autorisés, densité,
+ * vitesse, max consécutifs — spec 708 §1/§2/§3/§5/§6) ; les valeurs de la
+ * section `lanes` ci-dessous deviennent les REPLIS (défauts identiques)
+ * si levels.json ne charge pas. Fin de niveau : quand l'index du joueur
+ * atteint lignes(niveau) → victoire, passage au niveau suivant (708 §10).
+ * Mort : relance le même niveau avec le même generatedRows, pas de vies
+ * (708 §8). Save : uniquement à la victoire du niveau (708 §9).
  */
 window.WaggisConfig = {
     key: "waggis",
@@ -47,7 +56,12 @@ window.WaggisConfig = {
         nouveauRecord: "Nouveau record !",
 
         // Score affiché pendant la partie (en haut au centre).
-        scoreEnCours: "Score : {score}"
+        scoreEnCours: "Score : {score}",
+
+        // D2-3 (spec 708 §10 — fin de niveau) : titre de l'écran de
+        // victoire et libellé du bouton de passage au niveau suivant.
+        niveauReussi: "Niveau {niveau} réussi !",
+        niveauSuivant: "Niveau suivant"
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
@@ -218,9 +232,13 @@ window.WaggisConfig = {
         // (scope PRD 705) : le contrat est prêt, les valeurs restent à
         // leurs défauts (0 pièce, seul le Waggis débloqué — le perso de
         // départ est gratuit, comme le poulet de Crossy Road).
-        // data.currentLevel (CDC 706) suivra avec le système de niveaux
-        // (étape D2-3, fin de niveau) : incrémenter à v4 à ce moment-là.
-        version: 3
+        // v4 (D2-3, spec 708 §1/§9/§10) = data.currentLevel (le niveau en
+        // cours, CDC 706 §Score/save) ajouté au format. La save n'intervient
+        // QU'À LA VICTOIRE du niveau (708 §9) : currentLevel y progresse
+        // (victoire du niveau N → currentLevel N+1), generatedRows y est
+        // celui du niveau gagné — une fermeture en cours de niveau ne
+        // sauvegarde RIEN (le niveau est régénéré à zéro au relancement).
+        version: 4
     },
 
     // --- Couleurs -----------------------------------------------------------

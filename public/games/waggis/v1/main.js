@@ -23,12 +23,24 @@
  * pièces/déblocage est post-MVP (scope PRD 705) : le contrat est prêt,
  * les valeurs restent à leurs défauts (wallet 0, seul "waggis" débloqué
  * — le perso de départ est gratuit, comme le poulet de Crossy Road).
- * data.currentLevel (CDC 706) suivra avec le système de niveaux
- * (étape D2-3) : incrémenter à v4 à ce moment-là.
  * Le meilleur score, lui, est géré par core/score.js (local + cloud) :
  * boot.js configure la clé, MenuScene affiche Arcade.Score.best après
  * Arcade.Score.load(), OverScene soumet Arcade.Score.submit(score) en
  * fin de partie — rien à ajouter côté save pour le score.
+ *
+ * ⭐ D2-3 (spec 708 §1/§7/§9/§10) — niveaux finis + save à la victoire :
+ *  - la CONFIG PAR NIVEAU est chargée ici depuis levels.json (lignes(niveau)
+ *    = 42 + niveau, types autorisés, densité, vitesse, max consécutifs) et
+ *    exposée sur WaggisConfig.levels — LaneGenerator la consulte (repli
+ *    sur les défauts de config.js si le fichier ne charge pas) ;
+ *  - le contrat de save passe en VERSION 4 avec data.currentLevel (le
+ *    niveau en cours, CDC 706 §Score/save ; migration 3→4 : défaut 1) ;
+ *  - la save n'intervient QU'À LA VICTOIRE du niveau (708 §9) :
+ *    startAutosave() est SUPPRIMÉ (plus d'écriture en cours de partie, ni
+ *    de flush à la fermeture de l'onglet) — OverScene (mode victoire)
+ *    écrit currentLevel = niveau suivant + generatedRows du niveau gagné ;
+ *    une fermeture en cours de niveau ne sauvegarde rien : au relancement,
+ *    le joueur reste sur son niveau, régénéré à zéro.
  */
 (function () {
     "use strict";
@@ -44,6 +56,12 @@
         // Chargement : sols, véhicules, flottants, train et décor des bandes
         // générées.
         preload: function (scene) {
+            // D2-3 (spec 708 §1/§3/§5/§6) : config par niveau (lignes(niveau)
+            // = 42 + niveau, types autorisés, densité, vitesse, max
+            // consécutifs) — consultée par LaneGenerator via
+            // WaggisConfig.levels (voir create()).
+            scene.load.json("levels", "levels.json");
+
             // Sols des bandes (zone sûre herbe / route asphalte + marquage).
             scene.load.image("herbe", "assets/sol/p8city_herbe.png");
             scene.load.image("herbe_fleurs_roses", "assets/sol/p8city_herbe_fleurs_roses.png");
@@ -179,13 +197,11 @@
                 console.warn("Rotation rails_v3 impossible, original utilisé.", e);
             }
 
-            // Contrat de save : version 3 (ETAPE-7, CDC 706 §Score/save).
+            // Contrat de save : version 4 (D2-3, spec 708 §1/§7/§9/§10).
             // v1 ({ parties }) → v2 (generatedRows, D2-1) → v3
-            // (wallet + unlockedCharacters, ETAPE-7). Chaque migration
-            // préserve les données existantes : on ne casse jamais la
-            // partie d'un joueur. (La règle « la save n'intervient qu'à
-            // la victoire du niveau » — spec 708 §9 — sera câblée avec
-            // la fin de niveau, étape D2-3.)
+            // (wallet + unlockedCharacters, ETAPE-7) → v4 (currentLevel,
+            // D2-3). Chaque migration préserve les données existantes :
+            // on ne casse jamais la partie d'un joueur.
             Arcade.Save.configure({
                 key: C.key,
                 version: C.save.version,
@@ -207,6 +223,13 @@
                             wallet: 0,
                             unlockedCharacters: ["waggis"]
                         });
+                    },
+                    // v3 → v4 (D2-3) : on ajoute le niveau en cours à sa
+                    // valeur par défaut — niveau 1. La save n'intervient
+                    // qu'à la victoire (spec 708 §9) : currentLevel ne
+                    // progressera qu'à la prochaine victoire.
+                    3: function (data) {
+                        return Object.assign({}, data, { currentLevel: 1 });
                     }
                 },
                 gather: function () {
@@ -214,7 +237,8 @@
                         parties: scene.registry.get("parties") || 0,
                         generatedRows: scene.registry.get("generatedRows") || {},
                         wallet: scene.registry.get("wallet") || 0,
-                        unlockedCharacters: scene.registry.get("unlockedCharacters") || ["waggis"]
+                        unlockedCharacters: scene.registry.get("unlockedCharacters") || ["waggis"],
+                        currentLevel: scene.registry.get("currentLevel") || 1
                     };
                 },
                 apply: function (data) {
@@ -228,11 +252,29 @@
                             ? data.unlockedCharacters
                             : ["waggis"]
                     );
+                    // D2-3 : niveau en cours (data.currentLevel, défaut 1).
+                    scene.registry.set(
+                        "currentLevel",
+                        (data && typeof data.currentLevel === "number" && data.currentLevel >= 1)
+                            ? data.currentLevel
+                            : 1
+                    );
                 }
             });
 
+            // D2-3 (spec 708 §1/§3/§5/§6) : config par niveau chargée
+            // depuis levels.json (lignes(niveau) = 42 + niveau, types
+            // autorisés, densité, vitesse, max consécutifs) — consultée
+            // par LaneGenerator. Repli silencieux sur les défauts de
+            // config.js (valeurs identiques) si le fichier ne charge pas.
+            window.WaggisConfig.levels = scene.cache.json.get("levels") || null;
+
             await Arcade.Save.load();
-            Arcade.Save.startAutosave();
+            // D2-3 (spec 708 §9) : PAS de sauvegarde automatique — la save
+            // n'intervient QU'À LA VICTOIRE du niveau (OverScene mode
+            // victoire). Une fermeture en cours de partie ne doit rien
+            // écrire : le joueur reste sur son niveau, régénéré à zéro au
+            // prochain lancement.
         }
     });
 })();

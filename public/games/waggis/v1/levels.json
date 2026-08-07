@@ -1,0 +1,44 @@
+{
+    "version": 1,
+    "_comment": "Config par niveau de Waggis — consultée par LaneGenerator (spec 708, article Odoo 708 : elle fait foi pour tous les chiffres). Les valeurs par niveau sont exprimées en fonction du numéro de niveau (1-based) ; la progression de difficulté suit les courbes ci-dessous sur les niveaux 1 → 100 (repère vitesse, PAS un plafond — 708 §1).",
+    "lignes": {
+        "base": 42,
+        "parNiveau": 1
+    },
+    "niveauMaxRepere": 100,
+    "typesAutorises": [
+        "herbe",
+        "buisson",
+        "route",
+        "eau",
+        "train",
+        "terre",
+        "piste"
+    ],
+    "vitesse": {
+        "base": 1.0,
+        "parNiveau": 0.01,
+        "variance": 0.3
+    },
+    "densite": {
+        "routePiste": {
+            "minFrac": 0.12,
+            "maxFrac": 0.75
+        },
+        "eauPlantes": {
+            "minFrac": 0.075,
+            "maxFrac": 0.75
+        },
+        "eauBateaux": {
+            "minFrac": 0.0,
+            "maxFrac": 0.75
+        }
+    },
+    "maxConsecutifs": {
+        "route": 3,
+        "tampon": {
+            "min": 1,
+            "max": 3
+        }
+    }
+}

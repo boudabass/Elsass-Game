@@ -39,6 +39,16 @@
  * (def.tampon = { type, reste, apres }) : la génération reste LAZY et
  * DÉTERMINISTE depuis generatedRows (relue au retour, jamais régénérée).
  *
+ * ⭐ D2-3 (spec 708 §1/§8/§10) : le niveau est une donnée du jeu (fixée
+ * par GameScene depuis la save : data.currentLevel), PLUS dérivée du
+ * score. La CONFIG PAR NIVEAU vit dans levels.json (chargé par main.js
+ * et exposé via WaggisConfig.levels) et est consultée ici : lignes(niveau)
+ * = 42 + niveau (§1, bornage de la fin de niveau), types autorisés (§3),
+ * densité (§5/§6), vitesse base 1.00 + 0.01×(niveau−1) ±30 % (§5) et max
+ * consécutifs (groupes de routes et tampons, §4). Chaque lecture a un
+ * REPLI sur les défauts de config.js (valeurs identiques) si levels.json
+ * ne charge pas — le jeu ne casse jamais.
+ *
  * ⭐ D2-1 (Décisions 2/3/4, articles 704 + 708 §7 — le monde ne se
  * régénère JAMAIS) : toute ligne générée est une DÉFINITION sérialisable
  * { index, type, obstacles[], vitesse } stockée dans `generatedRows`
@@ -140,7 +150,10 @@ class LaneGenerator {
         // en continu, il change de texture. Les corps Arcade Physics des
         // obstacles sont activés à la prise, désactivés au rendu.
         this.pool = new ObstaclePool(scene);
-        this.niveau = 1;         // spec 708 : 1-based (voir definirNiveau)
+        // D2-3 : le niveau (1-based, spec 708) est fixé par GameScene depuis
+        // la save (data.currentLevel) — plus dérivé du score. Il pilote la
+        // config par niveau (levels.json : lignes, vitesse, densité).
+        this.niveau = 1;
 
         // ⭐ D2-1 (spec 708 §7) : le monde généré, indexé par POSITION
         // (index absolu de ligne, 0 = départ). Chaque entrée est une
@@ -186,15 +199,106 @@ class LaneGenerator {
     // ------------------------------------------------------------------
 
     /**
-     * Niveau courant (1-based, spec 708). En attendant D2-3 (vrais niveaux
-     * bornés 42+niveau, spec 708 §1), le niveau est dérivé du score comme
-     * avant (score/10) mais DÉCALÉ pour commencer à 1 : score 0 → niveau 1
-     * (vitesseBase = 1.00, spec 708 §5), score 990+ → niveau 100 (repère
-     * vitesse, pas un plafond).
-     * @param {number} score score courant
+     * Nombre de lignes du niveau donné — spec 708 §1 : lignes(niveau) =
+     * 42 + niveau (42 lignes de base + le numéro du niveau). Ex. : niveau
+     * 10 → 52 lignes. Niveau 100 = repère pour la courbe de vitesse, PAS
+     * un niveau maximum (aucun plafond défini pour l'instant). C'est le
+     * BORNAGE de la fin de niveau (spec 708 §10 : quand l'index du joueur
+     * atteint lignes(niveau) → victoire).
+     * @param {number} n numéro du niveau (1-based)
+     * @returns {number} nombre de lignes du niveau
      */
-    definirNiveau(score) {
-        this.niveau = Math.max(1, Math.floor(score / 10) + 1);
+    lignesNiveau(n) {
+        const l = this._niveaux().lignes || {};
+        const base = (typeof l.base === "number") ? l.base : 42;
+        const parNiveau = (typeof l.parNiveau === "number") ? l.parNiveau : 1;
+        return base + parNiveau * n;
+    }
+
+    /**
+     * Config par niveau (spec 708) : levels.json chargé par main.js et
+     * exposé sur WaggisConfig.levels. Repli silencieux sur {} (les
+     * accesseurs retombent sur les défauts de config.js, valeurs
+     * identiques) si le fichier n'a pas chargé — le jeu ne casse jamais.
+     * @returns {object} la config par niveau
+     */
+    _niveaux() {
+        return (this.C && this.C.levels) || {};
+    }
+
+    /**
+     * Types de lignes AUTORISÉS au niveau courant (spec 708 §3) : les 7
+     * types par défaut, filtrables par levels.json (typesAutorisés) pour
+     * restreindre un niveau sans toucher au générateur.
+     * @returns {string[]} types autorisés (constantes LaneGenerator.TYPES)
+     */
+    _typesAutorises() {
+        const T = LaneGenerator.TYPES;
+        const liste = this._niveaux().typesAutorises;
+        if (Array.isArray(liste) && liste.length) {
+            const connus = Object.keys(T).map((k) => T[k]);
+            return liste.filter((t) => connus.indexOf(t) !== -1);
+        }
+        return Object.keys(T).map((k) => T[k]);
+    }
+
+    /**
+     * Courbes de densité (spec 708 §5/§6) : route/piste de faible → 75 %
+     * max de la ligne occupée, eau plantes 75 % → 1-2 plantes (jamais 0),
+     * bateaux en miroir 0 % → 75 % max (remplacement des plantes).
+     * @returns {{routePiste: {minFrac: number, maxFrac: number},
+     *            eauPlantes: {minFrac: number, maxFrac: number},
+     *            eauBateaux: {minFrac: number, maxFrac: number}}}
+     */
+    _densite() {
+        const C = this.C.lanes;
+        const d = this._niveaux().densite || {};
+        const frac = (src, repli) => ({
+            minFrac: (typeof src.minFrac === "number") ? src.minFrac : repli.minFrac,
+            maxFrac: (typeof src.maxFrac === "number") ? src.maxFrac : repli.maxFrac
+        });
+        return {
+            routePiste: frac(d.routePiste || {}, C.routeDensite),
+            eauPlantes: frac(d.eauPlantes || {}, C.eauPlantes),
+            eauBateaux: frac(d.eauBateaux || {}, C.eauBateaux)
+        };
+    }
+
+    /**
+     * Repère de niveau pour les courbes (spec 708 §1) : niveau 100 =
+     * repère pour la courbe de vitesse, pas un niveau maximum. Les courbes
+     * de densité progressent sur les niveaux 1 → repère (progres =
+     * (niveau−1)/(repère−1)).
+     * @returns {number} le repère (100 par défaut)
+     */
+    _niveauMaxRepere() {
+        const L = this._niveaux();
+        return (typeof L.niveauMaxRepere === "number") ? L.niveauMaxRepere : 100;
+    }
+
+    /**
+     * Nombre maximum de routes CONSÉCUTIVES dans un groupe (spec 708 §4 —
+     * « groupes de routes qui s'enchaînent », borné pour rester
+     * franchissable). levels.json maxConsecutifs.route, repli config.js.
+     * @returns {number}
+     */
+    _maxConsecutifsRoute() {
+        const m = this._niveaux().maxConsecutifs || {};
+        return (typeof m.route === "number") ? m.route : this.C.lanes.routeGroupe.max;
+    }
+
+    /**
+     * Plage de longueur d'un run de tampon (spec 708 §4 — « une ligne
+     * tampon = 1 à 3 lignes d'affilée »). levels.json
+     * maxConsecutifs.tampon, repli config.js.
+     * @returns {{min: number, max: number}}
+     */
+    _tamponLignes() {
+        const t = (this._niveaux().maxConsecutifs || {}).tampon || {};
+        return {
+            min: (typeof t.min === "number") ? t.min : this.C.lanes.tamponLignes.min,
+            max: (typeof t.max === "number") ? t.max : this.C.lanes.tamponLignes.max
+        };
     }
 
     /**
@@ -203,11 +307,13 @@ class LaneGenerator {
      * la marge d'avance au-dessus. Chaque ligne passe par _obtenirLigne() :
      * si elle existe déjà (reprise après mort), elle est RELUE, jamais
      * régénérée (D2-1, spec 708 §7 — le monde ne se réinvente pas).
-     * @param {number} score score courant (difficulté de départ)
+     * D2-3 : le niveau a été fixé par GameScene (this.niveau, depuis
+     * data.currentLevel) avant l'appel — la difficulté de départ (vitesse,
+     * densité) en découle.
+     * @param {number} score score courant (conservé pour compatibilité ;
+     *   la difficulté dépend désormais du niveau, spec 708 §5)
      */
     genererInitiales(score) {
-        this.definirNiveau(score);
-
         const h = this.scene.scale.height;
         const nb = Math.ceil(h / this.hauteur) + this.C.lanes.margeBandesHaut;
 
@@ -237,8 +343,6 @@ class LaneGenerator {
      * @returns {object} la bande recyclée (nouvelle bande en haut)
      */
     avancer(score) {
-        this.definirNiveau(score);
-
         // La nouvelle bande est posée AU-DESSUS de la plus haute (`haut`) :
         // c'est elle qui sert de référence aux règles de tampon.
         const bas = this.bandes.shift();
@@ -280,8 +384,6 @@ class LaneGenerator {
      *   null si la ligne visée est avant l'index 0 (début du monde)
      */
     reculer(score) {
-        this.definirNiveau(score);
-
         // La nouvelle bande est posée AU-DESSOUS de la plus basse (`bas`).
         const haut = this.bandes.pop();
         const bas = this.bandes[0];
@@ -687,11 +789,12 @@ class LaneGenerator {
         const T = LaneGenerator.TYPES;
 
         // « Groupes de routes qui s'enchaînent » (spec 708 §4) : tant que
-        // le groupe n'a pas atteint sa taille max et que le tirage
-        // continue, la route enchaîne (chaque route du groupe alterne son
-        // sens de circulation, cf. _directionVehicules).
+        // le groupe n'a pas atteint sa taille max (levels.json
+        // maxConsecutifs.route) et que le tirage continue, la route
+        // enchaîne (chaque route du groupe alterne son sens de circulation,
+        // cf. _directionVehicules).
         const nb = this._consecutives(index, cote, T.ROUTE);
-        if (nb < C.routeGroupe.max && Math.random() < C.routeGroupe.probContinuer) {
+        if (nb < this._maxConsecutifsRoute() && Math.random() < C.routeGroupe.probContinuer) {
             return { type: T.ROUTE, tampon: null };
         }
 
@@ -757,15 +860,20 @@ class LaneGenerator {
         if (voisin === T.TERRE) ajouter(T.TRAIN, pTrain, this._tamponApres(T.TRAIN));
         if (voisinSain) ajouter(T.PISTE, pPiste, this._tamponApres(T.PISTE));
 
+        // D2-3 (spec 708 §3) : seuls les types AUTORISÉS par levels.json
+        // (typesAutorisés — les 7 par défaut) participent au tirage.
+        const autorises = this._typesAutorises();
+        const tirer = candidats.filter((c) => autorises.indexOf(c.type) !== -1);
+
         // Tirage pondéré.
-        const total = candidats.reduce((s, c) => s + c.poids, 0);
+        const total = tirer.reduce((s, c) => s + c.poids, 0);
         if (total <= 0) return { type: T.HERBE, tampon: null };
         let r = Math.random() * total;
-        for (const c of candidats) {
+        for (const c of tirer) {
             r -= c.poids;
             if (r <= 0) return { type: c.type, tampon: c.tampon };
         }
-        return candidats[candidats.length - 1];
+        return tirer[tirer.length - 1];
     }
 
     /**
@@ -788,9 +896,13 @@ class LaneGenerator {
         }
         if (type === T.PISTE) {
             // Tampon aléatoire : avec ou sans, tiré au hasard ; type non
-            // imposé (herbe, buisson ou terre — les seules lignes sûres).
+            // imposé (herbe, buisson ou terre — les seules lignes sûres,
+            // restreintes aux types autorisés par levels.json).
             if (Math.random() < C.probPisteTampon) {
-                const sains = [T.HERBE, T.BUISSON, T.TERRE];
+                const autorises = this._typesAutorises();
+                const sains = [T.HERBE, T.BUISSON, T.TERRE]
+                    .filter((t) => autorises.indexOf(t) !== -1);
+                if (!sains.length) return null;
                 return {
                     type: sains[Math.floor(Math.random() * sains.length)],
                     reste: this._tamponReste(),
@@ -802,10 +914,10 @@ class LaneGenerator {
         return null;
     }
 
-    /** Spec 708 §4 : longueur d'un run de tampon, 1 à 3 lignes. */
+    /** Spec 708 §4 : longueur d'un run de tampon, 1 à 3 lignes (levels.json). */
     _tamponReste() {
-        const C = this.C.lanes.tamponLignes;
-        return C.min + Math.floor(Math.random() * (C.max - C.min + 1));
+        const t = this._tamponLignes();
+        return t.min + Math.floor(Math.random() * (t.max - t.min + 1));
     }
 
     /** Spec 708 §5 : probabilité d'un type dangereux au niveau courant. */
@@ -815,11 +927,26 @@ class LaneGenerator {
 
     /**
      * Spec 708 §5 : vitesseBase(niveau) = 1.00 + 0.01 × (niveau − 1)
-     * (multiplicateur ; ~2.0 au niveau 100, repère pas plafond).
+     * (multiplicateur ; ~2.0 au niveau 100, repère pas plafond — 708 §1).
+     * Valeurs lues dans levels.json (config par niveau), repli défauts.
      * @returns {number} le multiplicateur (1.00 au niveau 1)
      */
     _vitesseBase() {
-        return 1.00 + 0.01 * (this.niveau - 1);
+        const v = this._niveaux().vitesse || {};
+        const base = (typeof v.base === "number") ? v.base : 1.00;
+        const parNiveau = (typeof v.parNiveau === "number") ? v.parNiveau : 0.01;
+        return base + parNiveau * (this.niveau - 1);
+    }
+
+    /**
+     * Spec 708 §5 : variance aléatoire de ±30 % autour de la base PAR
+     * VÉHICULE (ex. niveau 1 : 0.70 à 1.30). levels.json
+     * vitesse.variance, repli config.js.
+     * @returns {number} la variance (0.3 par défaut)
+     */
+    _varianceVitesse() {
+        const v = this._niveaux().vitesse || {};
+        return (typeof v.variance === "number") ? v.variance : this.C.lanes.varianceVitesse;
     }
 
     /**
@@ -1082,7 +1209,7 @@ class LaneGenerator {
         // Vitesse de RÉFÉRENCE de la ligne (cases/s) : 1.00 + 0.01×(niveau−1)
         // × la référence absolue ; chaque véhicule applique sa variance ±30 %.
         def.vitesse = C.vitesseReferenceCasesParSec * this._vitesseBase();
-        this._peuplerVehicules(def, C.routeDensite,
+        this._peuplerVehicules(def, this._densite().routePiste,
             (direction) => this._textureVehiculeRoute(direction));
     }
 
@@ -1097,7 +1224,7 @@ class LaneGenerator {
         const C = this.C.lanes;
         def.direction = this._directionVehicules(index, cote);
         def.vitesse = C.vitesseReferenceCasesParSec * this._vitesseBase();
-        this._peuplerVehicules(def, C.routeDensite,
+        this._peuplerVehicules(def, this._densite().routePiste,
             (direction) => this._textureVehiculePiste(direction));
     }
 
@@ -1118,8 +1245,8 @@ class LaneGenerator {
         const nbCases = C.largeurCases;
 
         // Densité : linéaire de minFrac (début de jeu) à maxFrac 75 % (fin),
-        // sur les niveaux 1 → 100 (repère vitesse, pas un plafond).
-        const progres = Math.min(1, (this.niveau - 1) / 99);
+        // sur les niveaux 1 → repère 100 (spec 708 §1/§5 — pas un plafond).
+        const progres = Math.min(1, (this.niveau - 1) / (this._niveauMaxRepere() - 1));
         const frac = densiteCfg.minFrac + (densiteCfg.maxFrac - densiteCfg.minFrac) * progres;
         const cible = Math.round(frac * nbCases);
 
@@ -1145,7 +1272,7 @@ class LaneGenerator {
 
             // Vitesse INDIVIDUELLE : base ± 30 % (spec 708 §5) — chaque
             // véhicule dérive à son propre rythme (pas métronomique).
-            const alea = 1 + (Math.random() * 2 - 1) * C.varianceVitesse;
+            const alea = 1 + (Math.random() * 2 - 1) * this._varianceVitesse();
             const choixTexture = texturePicker(def.direction);
             def.obstacles.push({
                 texture: choixTexture.texture,
@@ -1255,21 +1382,24 @@ class LaneGenerator {
         const nbCases = C.largeurCases;
 
         def.direction = this._directionVehicules(index, cote);
-        // Courant : base(niveau) ± 30 % (spec 708 §5), en cases/seconde.
+        // Courant : base(niveau) ± 30 % (spec 708 §5, variance levels.json),
+        // en cases/seconde.
         def.vitesse = C.vitesseReferenceCasesParSec * this._vitesseBase() *
-            (1 + (Math.random() * 2 - 1) * C.varianceVitesse);
+            (1 + (Math.random() * 2 - 1) * this._varianceVitesse());
 
         // Plantes : 75 % de la bande en début de jeu → 1 à 2 plantes en fin
         // (jamais 0 — garantit « toujours au moins un passage traversable »).
-        const progres = Math.min(1, (this.niveau - 1) / 99);
-        const fracPlantes = C.eauPlantes.maxFrac -
-            (C.eauPlantes.maxFrac - C.eauPlantes.minFrac) * progres;
-        const nbPlantes = Math.max(1, Math.round(fracPlantes * nbCases));
-
         // Bateaux : miroir de la route — 0 % en début → 75 % max en fin,
         // bornés par les cases restantes (remplacement, pas addition).
-        const fracBateaux = C.eauBateaux.minFrac +
-            (C.eauBateaux.maxFrac - C.eauBateaux.minFrac) * progres;
+        // Courbes lues dans levels.json (config par niveau, spec 708 §6).
+        const d = this._densite();
+        const progres = Math.min(1, (this.niveau - 1) / (this._niveauMaxRepere() - 1));
+        const fracPlantes = d.eauPlantes.maxFrac -
+            (d.eauPlantes.maxFrac - d.eauPlantes.minFrac) * progres;
+        const nbPlantes = Math.max(1, Math.round(fracPlantes * nbCases));
+
+        const fracBateaux = d.eauBateaux.minFrac +
+            (d.eauBateaux.maxFrac - d.eauBateaux.minFrac) * progres;
         const nbBateaux = Math.min(Math.round(fracBateaux * nbCases), nbCases - nbPlantes);
 
         const occupees = new Array(nbCases).fill(false);

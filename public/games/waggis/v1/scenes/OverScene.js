@@ -4,6 +4,20 @@
  * ÉTAPE 1 : le score vaut 0 (aucun bond possible sans terrain). La mécanique
  * arrive avec les étapes suivantes : score = nombre de bonds vers l'avant
  * réussis (le score ne recule jamais, il suit la position la plus avancée).
+ *
+ * ⭐ D2-3 (spec 708 §8/§9/§10) — deux modes :
+ *  - MORT (fin de partie) : « Rejouer » relance le MÊME niveau avec le MÊME
+ *    generatedRows (le monde de la session reste dans le registry — rien
+ *    n'est réinventé, 708 §8), aucun système de vies. AUCUNE écriture de
+ *    save (708 §9 : pas de sauvegarde en cours de partie) ;
+ *  - VICTOIRE (fin de niveau, 708 §10) : la save EST écrite ICI, et
+ *    uniquement ici — currentLevel passe au niveau suivant (pas de
+ *    régression : fermer l'app après la victoire garde la progression) et
+ *    generatedRows est celui du niveau gagné. « Niveau suivant » lance le
+ *    niveau suivant avec un monde NEUF (régénéré à zéro).
+ * Une fermeture en cours de niveau ne sauvegarde donc rien : au prochain
+ * lancement le joueur reste sur son niveau (currentLevel inchangé), généré
+ * à nouveau depuis zéro (708 §9).
  */
 class OverScene extends Phaser.Scene {
     static KEY = "fin";
@@ -14,6 +28,8 @@ class OverScene extends Phaser.Scene {
 
     init(data) {
         this.scoreFinal = (data && data.score) || 0;
+        this.victoire = !!(data && data.victoire);
+        this.niveau = (data && data.niveau) || 1;
     }
 
     async create() {
@@ -24,7 +40,12 @@ class OverScene extends Phaser.Scene {
 
         // Encadré du record : dessiné AVANT le texte pour passer dessous.
         const recordFond = this.add.graphics();
-        const titre = UI.text(this, 0, 0, C.textes.fin, 9, C.couleurs.texte);
+        // D2-3 : titre selon le mode — victoire (fin de niveau, 708 §10) ou
+        // mort (fin de partie).
+        const titreTexte = this.victoire
+            ? C.textes.niveauReussi.replace("{niveau}", this.niveau)
+            : C.textes.fin;
+        const titre = UI.text(this, 0, 0, titreTexte, 9, C.couleurs.texte);
         const score = UI.text(
             this, 0, 0,
             C.textes.score.replace("{score}", this.scoreFinal),
@@ -57,12 +78,28 @@ class OverScene extends Phaser.Scene {
             }
         };
 
+        // D2-3 : bouton principal selon le mode — victoire → « Niveau
+        // suivant » (monde NEUF : currentLevel a déjà été avancé par la
+        // save ci-dessous, le niveau suivant se génère à zéro) ; mort →
+        // « Rejouer » (le MÊME monde reste dans le registry, 708 §8).
+        const action = this.victoire
+            ? {
+                label: C.textes.niveauSuivant,
+                onClick: () => {
+                    this.registry.set("generatedRows", null);
+                    this.scene.start(GameScene.KEY);
+                }
+            }
+            : {
+                label: C.textes.rejouer,
+                onClick: () => this.scene.start(GameScene.KEY)
+            };
         const rejouer = UI.button(this, {
             width: UI.u(this, 40), height: UI.u(this, 12),
-            label: C.textes.rejouer,
+            label: action.label,
             color: C.couleurs.bouton,
             textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(GameScene.KEY)
+            onClick: action.onClick
         });
         const menu = UI.button(this, {
             width: UI.u(this, 40), height: UI.u(this, 10),
@@ -80,9 +117,28 @@ class OverScene extends Phaser.Scene {
             menu.redimensionner(UI.u(this, 40), UI.u(this, 10)).setPosition(w / 2, h * 0.75);
         });
 
-        // Comptage des parties (sauvegardé en local et sur le serveur)
+        // Comptage des parties (statistique, en mémoire — elle ne se
+        // persiste qu'à la victoire, avec la save ci-dessous).
         this.registry.set("parties", (this.registry.get("parties") || 0) + 1);
-        Arcade.Save.save();
+
+        // D2-3 (spec 708 §9) : la save n'intervient QU'À LA VICTOIRE du
+        // niveau. Victoire → currentLevel = niveau suivant (pas de
+        // régression : fermer l'app après la victoire garde la progression)
+        // et generatedRows = monde du niveau gagné (spec 708 §7). Mort →
+        // AUCUNE écriture : une fermeture en cours de niveau laisse le
+        // joueur sur son niveau (currentLevel inchangé), régénéré à zéro
+        // au prochain lancement.
+        if (this.victoire) {
+            this.registry.set("currentLevel", this.niveau + 1);
+            Arcade.Save.saveLocal();
+            try {
+                await Arcade.Save.saveCloud();
+            } catch (e) {
+                // Cloud indisponible (hors-ligne, session absente) : la
+                // sauvegarde locale reste la copie de référence.
+                console.warn("[OverScene] Sauvegarde cloud impossible :", e);
+            }
+        }
 
         // Envoi du score : le serveur ne garde que le meilleur
         const nouveauRecord = await Arcade.Score.submit(this.scoreFinal);

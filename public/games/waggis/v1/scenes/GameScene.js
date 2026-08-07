@@ -35,6 +35,21 @@
  * Le personnage est un piéton p8city (placeholder) : aucun sprite de Waggis
  * dans l'atelier (vérifié 06/08 — POINT OUVERT ASSETS, même statut que le
  * train : à remplacer quand l'atelier livrera le vrai Waggis).
+ *
+ * ⭐ D2-3 (spec 708 §1/§8/§9/§10) — niveaux finis + fin de niveau :
+ *  - le niveau joué vient de la save (registry data.currentLevel), il
+ *    n'est plus dérivé du score ; lignesNiveau = lignes(niveau) = 42 +
+ *    niveau (708 §1, levels.json) ;
+ *  - FIN DE NIVEAU (708 §10) : quand l'index du joueur atteint
+ *    lignes(niveau) → victoire (gagner()), passage au niveau suivant via
+ *    l'écran de fin (OverScene en mode victoire, qui écrit la save) ;
+ *  - MORT (708 §8) : relance le MÊME niveau avec le MÊME generatedRows
+ *    tant que la session est en cours (Rejouer de l'écran de fin ne touche
+ *    pas au monde), aucun système de vies — tentatives illimitées ;
+ *  - SAVE (708 §9) : aucune écriture en cours de partie — la save
+ *    n'intervient qu'à la victoire du niveau (OverScene mode victoire) ;
+ *    une fermeture en cours de niveau laisse le joueur sur son niveau
+ *    (currentLevel inchangé), régénéré à zéro au prochain lancement.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -56,13 +71,25 @@ class GameScene extends Phaser.Scene {
         this.enBond = false;     // un bond en cours : entrées ignorées
         this._finEnCours = false;
 
+        // --- Niveau (D2-3, spec 708 §1/§10) -------------------------------
+        // Le niveau joué vient de la save (data.currentLevel, registry) —
+        // il n'est plus dérivé du score. lignesNiveau = lignes(niveau) =
+        // 42 + niveau (levels.json) : c'est le bornage de la fin de niveau.
+        this.niveau = this.registry.get("currentLevel") || 1;
+
         // --- Terrain généré (étapes 2-4, D2-1 : monde stable) ------------
         // ⭐ D2-1 (spec 708 §8) : à la mort, le joueur relance le MÊME
         // niveau avec le MÊME generatedRows (rien n'est réinventé). Le
         // monde de la session est conservé dans le registry (partagé
         // entre les scènes) ; une nouvelle partie depuis le menu le
-        // remet à zéro (voir MenuScene).
+        // remet à zéro (voir MenuScene). D2-3 : le monde est aussi
+        // remis à zéro au passage au niveau suivant (victoire).
         this.lanes = new LaneGenerator(this, this.registry.get("generatedRows") || null);
+        // D2-3 : le générateur n'a plus de dérivation score→niveau — le
+        // niveau lui est fixé ici (spec 708 §5 : vitesse/densité en
+        // découlent), avant la génération initiale.
+        this.lanes.niveau = this.niveau;
+        this.lignesNiveau = this.lanes.lignesNiveau(this.niveau);
         this.lanes.genererInitiales(0);
         // Le monde généré reste accessible aux prochaines scènes (mort →
         // rejouer) : c'est lui qui sera persisté dans la save (v2, D2-1).
@@ -110,6 +137,12 @@ class GameScene extends Phaser.Scene {
         this.texteScore.setDepth(40);
         this._afficherScore();
 
+        // D2-3 : niveau en cours (haut à gauche). Le niveau joué vient de
+        // la save (data.currentLevel) — il n'est plus dérivé du score.
+        this.texteNiveau = UI.text(this, 0, 0, "", 3.5, C.couleurs.texte);
+        this.texteNiveau.setDepth(40);
+        this._afficherNiveau();
+
         // --- Contrôles (FIX 06/08 — Décision 1, article 704) --------------
         // AUCUN contrôleur à l'écran : le perso se déplace uniquement par
         // clic/tap AUTOUR de lui, 1 case par clic, dans la direction du
@@ -142,6 +175,7 @@ class GameScene extends Phaser.Scene {
             );
             this._poserPerso(x, this.bandeJoueur.y);
             this.texteScore.setPosition(w / 2, h * 0.06);
+            this.texteNiveau.setPosition(w * 0.08, h * 0.06);
         });
     }
 
@@ -202,6 +236,9 @@ class GameScene extends Phaser.Scene {
                 this.lanes.avancer(this.score);
                 this._poserPerso(this.perso.x, this.bandeJoueur.y);
             }
+            // D2-3 (spec 708 §10) : fin de niveau — quand l'index du joueur
+            // atteint lignes(niveau) (42 + niveau, levels.json), victoire.
+            if (this.bandeJoueur.index >= this.lignesNiveau) this.gagner();
         });
     }
 
@@ -335,6 +372,13 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    /** Rafraîchit le texte du niveau en haut à gauche (D2-3). */
+    _afficherNiveau() {
+        if (this.texteNiveau) {
+            this.texteNiveau.setText("Niveau " + this.niveau);
+        }
+    }
+
 
     /**
      * Conditions de mort (étape 6, CDC 706 §Conditions — Arcade Physics).
@@ -428,6 +472,29 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.fadeOut(300, 0, 0, 0);
         this.cameras.main.once("camerafadeoutcomplete", () => {
             this.scene.start(OverScene.KEY, { score: this.score });
+        });
+    }
+
+    /**
+     * D2-3 (spec 708 §10) : fin de niveau — l'index du joueur a atteint
+     * lignes(niveau) (42 + niveau) → victoire, passage au niveau suivant.
+     * L'écran de fin s'ouvre en mode victoire (OverScene) : c'est là que la
+     * save est écrite (UNIQUEMENT à la victoire, spec 708 §9) et que le
+     * bouton « Niveau suivant » lance le niveau suivant avec un monde neuf.
+     * Le score (bonds vers l'avant réussis) est passé à l'écran de fin
+     * comme à la mort (CDC 706 §Score — envoyé à core/score.js par
+     * OverScene).
+     */
+    gagner() {
+        if (this._finEnCours) return;
+        this._finEnCours = true;
+        this.cameras.main.fadeOut(300, 0, 0, 0);
+        this.cameras.main.once("camerafadeoutcomplete", () => {
+            this.scene.start(OverScene.KEY, {
+                score: this.score,
+                victoire: true,
+                niveau: this.niveau
+            });
         });
     }
 
