@@ -77,6 +77,18 @@
  *  - la victoire ne fait JAMAIS reculer currentLevel (OverScene :
  *    max(currentLevel, niveau + 1)) — rejouer un vieux niveau pour
  *    améliorer son meilleur score est permis (spec 709), sans régression.
+ *
+ * ⭐ MENU-4 (spec 709 §7 boutons — Décision 6, article 704) — écrans
+ * Personnages + Boutique :
+ *  - CharactersScene et ShopScene (nouvelles scènes) sont enregistrées ici
+ *    et ouvertes par les boutons « Personnages » / « Boutique » du menu ;
+ *  - les 3 personnages à l'achat (config.personnages, prix > 0 — Waggis
+ *    gratuit de départ jamais à vendre) chargent leurs textures de marche :
+ *    piétons p8city bleu / orange / rose (3 frames chacun, 8×8, même style
+ *    que le rouge Waggis — aucun sprite de Waggis dans l'atelier, POINT
+ *    OUVERT ASSETS conservé) ;
+ *  - GameScene lit data.activeCharacter (save v5, sélection MENU-4) pour
+ *    afficher le bon skin — cosmétique pur, aucun impact gameplay (709).
  */
 (function () {
     "use strict";
@@ -86,7 +98,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.ciel,
-        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene, LevelsScene],
+        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene, LevelsScene, CharactersScene, ShopScene],
         firstScene: MenuScene.KEY,
 
         // Chargement : sols, véhicules, flottants, train et décor des bandes
@@ -165,6 +177,21 @@
             scene.load.image("pieton_rouge_1", "assets/perso/p8city_pieton_rouge_1.png");
             scene.load.image("pieton_rouge_2", "assets/perso/p8city_pieton_rouge_2.png");
             scene.load.image("pieton_rouge_3", "assets/perso/p8city_pieton_rouge_3.png");
+
+            // MENU-4 (spec 709 — écrans Personnages/Boutique) : les 3
+            // personnages À L'ACHAT au lancement (config.personnages, prix >
+            // 0) — piétons p8city bleu / orange / rose, 3 frames de marche
+            // chacun, même style que le Waggis rouge (assets atelier
+            // vérifiés 07/08 : 8×8, 3 frames, cf. CharactersScene/ShopScene).
+            scene.load.image("pieton_bleu_1", "assets/perso/p8city_pieton_bleu_1.png");
+            scene.load.image("pieton_bleu_2", "assets/perso/p8city_pieton_bleu_2.png");
+            scene.load.image("pieton_bleu_3", "assets/perso/p8city_pieton_bleu_3.png");
+            scene.load.image("pieton_orange_1", "assets/perso/p8city_pieton_orange_1.png");
+            scene.load.image("pieton_orange_2", "assets/perso/p8city_pieton_orange_2.png");
+            scene.load.image("pieton_orange_3", "assets/perso/p8city_pieton_orange_3.png");
+            scene.load.image("pieton_rose_1", "assets/perso/p8city_pieton_rose_1.png");
+            scene.load.image("pieton_rose_2", "assets/perso/p8city_pieton_rose_2.png");
+            scene.load.image("pieton_rose_3", "assets/perso/p8city_pieton_rose_3.png");
 
             // Véhicules des bandes route (vue de dessus, sens de circulation).
             scene.load.image("voiture_rouge_droite", "assets/vehicule/p8city_voiture_rouge_dessus_droite.png");

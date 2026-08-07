@@ -36,6 +36,13 @@
  * dans l'atelier (vérifié 06/08 — POINT OUVERT ASSETS, même statut que le
  * train : à remplacer quand l'atelier livrera le vrai Waggis).
  *
+ * ⭐ MENU-4 (spec 709 — écran Personnages, CharactersScene) : le sprite du
+ * joueur est le personnage ACTIF de la save v5 (data.activeCharacter,
+ * sélectionné depuis l'écran Personnages — un seul skin actif à la fois).
+ * Cosmétique pur : le skin ne change AUCUNE mécanique de jeu (aucun bonus/
+ * malus, spec 709). Le Waggis = piéton rouge (placeholder), les 3 skins à
+ * l'achat (Boutique) = piétons bleu / orange / rose (config.personnages).
+ *
  * ⭐ D2-3 (spec 708 §1/§8/§9/§10) — niveaux finis + fin de niveau :
  *  - le niveau joué vient de la save (registry data.currentLevel), il
  *    n'est plus dérivé du score ; lignesNiveau = lignes(niveau) = 42 +
@@ -124,23 +131,33 @@ class GameScene extends Phaser.Scene {
         this.registry.set("generatedRows", this.lanes.generatedRows);
         UI.layout(this, () => this.lanes.redimensionner());
 
-        // --- Personnage (placeholder p8city, cf. en-tête) ------------------
+        // --- Personnage (MENU-4 : skin actif — spec 709) -------------------
+        // Le sprite du joueur est le personnage ACTIF de la save v5
+        // (data.activeCharacter, sélectionné dans l'écran Personnages).
+        // Cosmétique pur : le skin ne change AUCUNE mécanique de jeu.
+        // Placeholder p8city (aucun sprite de Waggis dans l'atelier,
+        // vérifié 06/08 — cf. en-tête) : le Waggis = piéton rouge, les 3
+        // skins à l'achat = bleu/orange/rose (config.personnages).
+        const persoId = this.registry.get("activeCharacter") || "waggis";
+        const persoDef = C.personnages[persoId] || C.personnages.waggis;
+        this.persoFrames = persoDef.frames;   // [repos, marche1, marche2]
+        const animKey = "pieton_marche_" + persoId;
         const cote = this.lanes.hauteur * C.controles.persoTaille;
-        if (!this.anims.exists("pieton_marche")) {
-            // 3 frames de marche du piéton p8city (8x8, agrandies).
+        if (!this.anims.exists(animKey)) {
+            // 3 frames de marche du piéton p8city (8x8, agrandies) — une
+            // animation PAR personnage (le joueur peut changer de skin
+            // entre deux parties : l'animation de l'ancien skin ne doit
+            // pas être réutilisée).
             this.anims.create({
-                key: "pieton_marche",
-                frames: [
-                    { key: "pieton_rouge_1" },
-                    { key: "pieton_rouge_2" },
-                    { key: "pieton_rouge_3" }
-                ],
+                key: animKey,
+                frames: this.persoFrames.map((f) => ({ key: f })),
                 frameRate: 14,
                 repeat: -1
             });
         }
+        this.persoAnimKey = animKey;
         const depart = this.lanes.bandeDepart();
-        this.perso = this.add.sprite(this.scale.width / 2, depart.y, "pieton_rouge_1")
+        this.perso = this.add.sprite(this.scale.width / 2, depart.y, this.persoFrames[0])
             .setDisplaySize(cote, cote)
             .setDepth(10);   // au-dessus des bandes (max 5), sous l'UI (50)
         // Corps Arcade du personnage (étape 6 — collisions, CDC 706 :
@@ -350,7 +367,7 @@ class GameScene extends Phaser.Scene {
         this._etatBond = { x: this.perso.x, y: this.perso.y };
         this._altitude = 0;
         this._ombreOffset = this.ombre.y - this._etatBond.y;
-        if (this.perso.anims) this.perso.play("pieton_marche", true);
+        if (this.perso.anims) this.perso.play(this.persoAnimKey, true);
 
         // Arc du bond (monte puis redescend, yo-yo sur la moitié de durée).
         this.tweens.addCounter({
@@ -370,8 +387,9 @@ class GameScene extends Phaser.Scene {
                 if (this.perso.anims) {
                     this.perso.stop();
                     // Les frames de marche sont des textures distinctes
-                    // (piéton p8city 8x8) : on remet la texture de repos.
-                    this.perso.setTexture("pieton_rouge_1");
+                    // (piéton p8city 8x8) : on remet la texture de repos du
+                    // skin actif (MENU-4, spec 709).
+                    this.perso.setTexture(this.persoFrames[0]);
                 }
                 if (apres) apres();
             }

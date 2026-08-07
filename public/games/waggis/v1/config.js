@@ -88,7 +88,21 @@ window.WaggisConfig = {
         pagePrecedente: "◀",
         pageSuivante: "▶",
         pageInfo: "Page {page} / {total}",
-        verrouille: "🔒"
+        verrouille: "🔒",
+
+        // MENU-4 (spec 709 §7 boutons — écran Personnages, CharactersScene,
+        // et Boutique, ShopScene) : pièces affichées (data.wallet), sélection
+        // du skin actif (un seul à la fois — spec 709), achat des
+        // personnages avec les pièces (Boutique — 3 à l'achat + Waggis
+        // gratuit de départ). Cosmétique pur, aucun impact gameplay.
+        pieces: "Pièces : {pieces}",
+        selectionner: "Sélectionner",
+        actif: "Actif",
+        acheter: "Acheter",
+        dejaDebloque: "Déjà débloqué",
+        pasAssezPieces: "Pas assez de pièces",
+        gratuit: "Gratuit",
+        aDebloquer: "À débloquer dans la Boutique"
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
@@ -272,6 +286,46 @@ window.WaggisConfig = {
         // défaut {}) ajoutés au format — l'écran Niveaux (MENU-3) affichera
         // l'état de chaque niveau + son meilleur score (709).
         version: 5
+    },
+
+    // --- Personnages (MENU-4, spec 709 §7 boutons) -------------------------
+    // Les SKINS jouables : le Waggis (gratuit, débloqué d'office — le perso
+    // de départ, PRD 705) + les 3 personnages disponibles À L'ACHAT au
+    // lancement (Boutique, achat avec les pièces de data.wallet).
+    // Cosmétique pur : un skin ne change AUCUNE mécanique de jeu (709).
+    //
+    // ASSETS : aucun sprite de Waggis dans l'atelier (vérifié 06/08) — les 4
+    // personnages sont des piétons p8city (8×8, 3 frames de marche chacun,
+    // cf. GameScene). Le rouge est le Waggis actuel (placeholder), le bleu,
+    // l'orange et le rose sont les 3 skins à l'achat. Chaque entrée :
+    //   id      : identifiant de save (data.unlockedCharacters /
+    //             data.activeCharacter)
+    //   nom     : libellé affiché (écrans Personnages / Boutique)
+    //   prix    : coût en pièces (data.wallet) — 0 = gratuit (débloqué
+    //             d'office, jamais dans la boutique)
+    //   frames  : textures de marche (repos = frames[0]), clés chargées
+    //             dans main.js
+    personnages: {
+        waggis: {
+            nom: "Waggis",
+            prix: 0,
+            frames: ["pieton_rouge_1", "pieton_rouge_2", "pieton_rouge_3"]
+        },
+        pieton_bleu: {
+            nom: "Piéton bleu",
+            prix: 100,
+            frames: ["pieton_bleu_1", "pieton_bleu_2", "pieton_bleu_3"]
+        },
+        pieton_orange: {
+            nom: "Piéton orange",
+            prix: 200,
+            frames: ["pieton_orange_1", "pieton_orange_2", "pieton_orange_3"]
+        },
+        pieton_rose: {
+            nom: "Piéton rose",
+            prix: 300,
+            frames: ["pieton_rose_1", "pieton_rose_2", "pieton_rose_3"]
+        }
     },
 
     // --- Couleurs -----------------------------------------------------------

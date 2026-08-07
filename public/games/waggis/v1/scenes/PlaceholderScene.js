@@ -3,11 +3,12 @@
  * implémentés.
  *
  * ⭐ MENU-1 (spec 709) : les boutons Personnages, Boutique, Réglages et
- * Classement ouvrent cet écran générique en attendant leur vraie étape
- * (MENU-4 Personnages/Boutique, MENU-5 Réglages/Classement). L'écran
- * Niveaux a sa propre scène depuis MENU-3 (LevelsScene). Scène propre à
- * Waggis (article 709 : pas dans core/ tant qu'un 2e jeu n'en a pas
- * besoin).
+ * Classement ouvraient cet écran générique en attendant leur vraie étape.
+ * Depuis MENU-4, seuls Réglages et Classement l'utilisent encore (leur
+ * vraie étape arrive MENU-5) ; l'écran Niveaux a sa propre scène depuis
+ * MENU-3 (LevelsScene), Personnages et Boutique depuis MENU-4
+ * (CharactersScene / ShopScene). Scène propre à Waggis (article 709 : pas
+ * dans core/ tant qu'un 2e jeu n'en a pas besoin).
  *
  * Scène générique : reçoit le titre de l'écran via
  * scene.start(PlaceholderScene.KEY, { titre }), affiche « à venir » et un

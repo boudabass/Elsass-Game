@@ -13,9 +13,12 @@
  *    page de l'arcade (/games) ;
  *  - « Niveaux » ouvre l'écran Niveaux (LevelsScene, MENU-3 — grille de
  *    tous les niveaux, état + meilleur score, verrouillage linéaire) ;
- *  - les 4 autres boutons ouvrent un écran placeholder (PlaceholderScene) :
- *    leurs vraies étapes arrivent MENU-4 (Personnages/Boutique) et MENU-5
- *    (Réglages/Classement).
+ *  - « Personnages » ouvre l'écran Personnages (CharactersScene, MENU-4 —
+ *    liste des skins débloqués/à débloquer, un seul actif à la fois) ;
+ *  - « Boutique » ouvre l'écran Boutique (ShopScene, MENU-4 — les 3
+ *    personnages à l'achat avec les pièces de data.wallet) ;
+ *  - les 2 autres boutons (Réglages/Classement) ouvrent un écran
+ *    placeholder (PlaceholderScene) : leur vraie étape arrive MENU-5.
  *
  * Mobile-first : les tailles sont en PROPORTION du plus petit côté (Arcade.UI.u),
  * la mise en page est recalculée à chaque rotation (Arcade.UI.layout).
@@ -55,11 +58,11 @@ class MenuScene extends Phaser.Scene {
             },
             {
                 label: C.textes.personnages,
-                onClick: () => this.ouvrirPlaceholder(C.textes.personnages)
+                onClick: () => this.scene.start(CharactersScene.KEY)
             },
             {
                 label: C.textes.boutique,
-                onClick: () => this.ouvrirPlaceholder(C.textes.boutique)
+                onClick: () => this.scene.start(ShopScene.KEY)
             },
             {
                 label: C.textes.reglages,
