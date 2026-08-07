@@ -2,11 +2,12 @@
  * PlaceholderScene — écran provisoire des boutons du menu pas encore
  * implémentés.
  *
- * ⭐ MENU-1 (spec 709) : les 5 boutons Niveaux, Personnages, Boutique,
- * Réglages et Classement ouvrent cet écran générique en attendant leur
- * vraie étape (MENU-3 Niveaux, MENU-4 Personnages/Boutique, MENU-5
- * Réglages/Classement). Scène propre à Waggis (article 709 : pas dans
- * core/ tant qu'un 2e jeu n'en a pas besoin).
+ * ⭐ MENU-1 (spec 709) : les boutons Personnages, Boutique, Réglages et
+ * Classement ouvrent cet écran générique en attendant leur vraie étape
+ * (MENU-4 Personnages/Boutique, MENU-5 Réglages/Classement). L'écran
+ * Niveaux a sa propre scène depuis MENU-3 (LevelsScene). Scène propre à
+ * Waggis (article 709 : pas dans core/ tant qu'un 2e jeu n'en a pas
+ * besoin).
  *
  * Scène générique : reçoit le titre de l'écran via
  * scene.start(PlaceholderScene.KEY, { titre }), affiche « à venir » et un

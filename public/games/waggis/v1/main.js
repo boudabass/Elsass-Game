@@ -59,10 +59,24 @@
  *    Réglages, Classement, Quitter) — « Jouer » lance directement le
  *    prochain niveau non terminé (data.currentLevel) ; « Quitter » fait la
  *    même chose que le bouton retour de la barre du haut (Décision John
- *    07/08 : navigation standard, jeu en iframe → /games) ; les 5 autres
- *    ouvrent PlaceholderScene (MENU-3/4/5 implémenteront leurs écrans) ;
+ *    07/08 : navigation standard, jeu en iframe → /games) ; les 4 autres
+ *    ouvrent PlaceholderScene (MENU-4/5 implémenteront leurs écrans) ;
  *  - PlaceholderScene (nouvelle scène) est enregistrée ici (elle est
  *    démarrée par MenuScene avec { titre }).
+ *
+ * ⭐ MENU-3 (spec 709 §7 boutons — Décision 6, article 704) — écran Niveaux :
+ *  - LevelsScene (nouvelle scène) est enregistrée ici et ouverte par le
+ *    bouton « Niveaux » du menu : grille paginée de tous les niveaux
+ *    (5 × 5 par page, ◀ / ▶), état par niveau (verrouillé / complété / en
+ *    cours — déverrouillage strictement linéaire, terminer N débloque N+1)
+ *    + meilleur score par niveau (data.bestScores, save v5) ;
+ *  - cliquer un niveau DÉBLOQUÉ le lance : GameScene reçoit { niveau }
+ *    (init) et le garde dans niveauSession — la relance après mort (708 §8)
+ *    reprend le même niveau ; « Jouer » du menu et « Niveau suivant » de la
+ *    victoire effacent niveauSession pour repartir de data.currentLevel ;
+ *  - la victoire ne fait JAMAIS reculer currentLevel (OverScene :
+ *    max(currentLevel, niveau + 1)) — rejouer un vieux niveau pour
+ *    améliorer son meilleur score est permis (spec 709), sans régression.
  */
 (function () {
     "use strict";
@@ -72,7 +86,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.ciel,
-        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene],
+        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene, LevelsScene],
         firstScene: MenuScene.KEY,
 
         // Chargement : sols, véhicules, flottants, train et décor des bandes

@@ -58,6 +58,16 @@ class GameScene extends Phaser.Scene {
         super(GameScene.KEY);
     }
 
+    /**
+     * ⭐ MENU-3 (spec 709) : l'écran Niveaux peut lancer un niveau précis
+     * (scene.start(GameScene.KEY, { niveau })). Sans donnée, le niveau
+     * vient du registry (create() — voir niveauSession / currentLevel).
+     */
+    init(data) {
+        const n = data && data.niveau;
+        this._niveauDemande = (typeof n === "number" && n >= 1) ? n : null;
+    }
+
     create() {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
@@ -73,9 +83,19 @@ class GameScene extends Phaser.Scene {
 
         // --- Niveau (D2-3, spec 708 §1/§10) -------------------------------
         // Le niveau joué vient de la save (data.currentLevel, registry) —
-        // il n'est plus dérivé du score. lignesNiveau = lignes(niveau) =
-        // 42 + niveau (levels.json) : c'est le bornage de la fin de niveau.
-        this.niveau = this.registry.get("currentLevel") || 1;
+        // il n'est plus dérivé du score. ⭐ MENU-3 (spec 709) : l'écran
+        // Niveaux peut lancer un niveau précis ({ niveau }, init) ; la
+        // relance après mort (Rejouer, 708 §8) reprend le même niveau via
+        // niveauSession ; « Jouer » du menu repart de data.currentLevel.
+        // lignesNiveau = lignes(niveau) = 42 + niveau (levels.json) : c'est
+        // le bornage de la fin de niveau.
+        if (this._niveauDemande) {
+            this.niveau = this._niveauDemande;
+        } else {
+            this.niveau = this.registry.get("niveauSession")
+                || this.registry.get("currentLevel") || 1;
+        }
+        this.registry.set("niveauSession", this.niveau);
 
         // --- Terrain généré (étapes 2-4, D2-1 : monde stable) ------------
         // ⭐ D2-1 (spec 708 §8) : à la mort, le joueur relance le MÊME

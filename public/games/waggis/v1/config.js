@@ -76,10 +76,19 @@ window.WaggisConfig = {
         quitter: "Quitter",
 
         // Écran placeholder des boutons pas encore implémentés (MENU-1 :
-        // Niveaux/Personnages/Boutique/Réglages/Classement — leurs vraies
-        // étapes arrivent MENU-3/4/5). « Retour » ramène au menu.
+        // Personnages/Boutique/Réglages/Classement — leurs vraies étapes
+        // arrivent MENU-4/5). « Retour » ramène au menu.
         placeholder: "Écran à venir — implémenté à une étape ultérieure.",
-        retour: "Retour"
+        retour: "Retour",
+
+        // MENU-3 (spec 709 §7 boutons — écran Niveaux, LevelsScene) :
+        // pagination de la grille (5 × 5 = 25 niveaux par page, ◀ / ▶) et
+        // cadenas des niveaux verrouillés (déverrouillage strictement
+        // linéaire : terminer le niveau N débloque N+1).
+        pagePrecedente: "◀",
+        pageSuivante: "▶",
+        pageInfo: "Page {page} / {total}",
+        verrouille: "🔒"
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------
@@ -274,6 +283,11 @@ window.WaggisConfig = {
         // Encadré du record sur l'écran de fin : orange, texte noir à
         // l'intérieur (lisible sur le fond bleu ciel).
         encadreRecord: "#F2B93D",
+        // MENU-3 (spec 709 — écran Niveaux, LevelsScene) : couleurs des
+        // tuiles selon l'état du niveau — complété (vert), verrouillé
+        // (gris) ; « en cours » utilise la couleur bouton (rouge Waggis).
+        complete: "#2E9E4F",
+        verrouille: "#8A8A8A",
         // Bande rails : lit de ballast (gravier) sous la voie — la texture
         // rogrpg_rails est ajourée, le fond opaque est dessiné en dessous.
         ballast: "#5c5750",

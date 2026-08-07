@@ -89,10 +89,14 @@ class OverScene extends Phaser.Scene {
         // suivant » (monde NEUF : currentLevel a déjà été avancé par la
         // save ci-dessous, le niveau suivant se génère à zéro) ; mort →
         // « Rejouer » (le MÊME monde reste dans le registry, 708 §8).
+        // ⭐ MENU-3 : « Niveau suivant » efface niveauSession (le niveau
+        // éventuellement lancé depuis l'écran Niveaux) — la partie repart
+        // du niveau en cours (data.currentLevel, spec 709).
         const action = this.victoire
             ? {
                 label: C.textes.niveauSuivant,
                 onClick: () => {
+                    this.registry.set("niveauSession", null);
                     this.registry.set("generatedRows", null);
                     this.scene.start(GameScene.KEY);
                 }
@@ -148,7 +152,11 @@ class OverScene extends Phaser.Scene {
                 bests[cle] = this.scoreFinal;
                 this.registry.set("bestScores", bests);
             }
-            this.registry.set("currentLevel", this.niveau + 1);
+            // MENU-3 (spec 709) : PAS DE RÉGRESSION — l'écran Niveaux
+            // permet de rejouer un niveau déjà complété ; la victoire d'un
+            // ancien niveau ne doit JAMAIS faire reculer currentLevel.
+            const courant = this.registry.get("currentLevel") || 1;
+            this.registry.set("currentLevel", Math.max(courant, this.niveau + 1));
             Arcade.Save.saveLocal();
             try {
                 await Arcade.Save.saveCloud();

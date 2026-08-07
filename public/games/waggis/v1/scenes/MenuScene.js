@@ -11,9 +11,11 @@
  *    haut (DÉCISION JOHN 07/08/2026, articles 704/709) : retour de
  *    navigation standard — le jeu tourne en iframe, le retour ramène à la
  *    page de l'arcade (/games) ;
- *  - les 5 autres boutons ouvrent un écran placeholder (PlaceholderScene) :
- *    leurs vraies étapes arrivent MENU-3 (Niveaux), MENU-4
- *    (Personnages/Boutique) et MENU-5 (Réglages/Classement).
+ *  - « Niveaux » ouvre l'écran Niveaux (LevelsScene, MENU-3 — grille de
+ *    tous les niveaux, état + meilleur score, verrouillage linéaire) ;
+ *  - les 4 autres boutons ouvrent un écran placeholder (PlaceholderScene) :
+ *    leurs vraies étapes arrivent MENU-4 (Personnages/Boutique) et MENU-5
+ *    (Réglages/Classement).
  *
  * Mobile-first : les tailles sont en PROPORTION du plus petit côté (Arcade.UI.u),
  * la mise en page est recalculée à chaque rotation (Arcade.UI.layout).
@@ -49,7 +51,7 @@ class MenuScene extends Phaser.Scene {
             },
             {
                 label: C.textes.niveaux,
-                onClick: () => this.ouvrirPlaceholder(C.textes.niveaux)
+                onClick: () => this.scene.start(LevelsScene.KEY)
             },
             {
                 label: C.textes.personnages,
@@ -111,12 +113,15 @@ class MenuScene extends Phaser.Scene {
 
     /**
      * « Jouer » (spec 709) : lance DIRECTEMENT le prochain niveau non
-     * terminé — data.currentLevel (save v4, appliquée au boot), pas de
+     * terminé — data.currentLevel (save v5, appliquée au boot), pas de
      * passage par l'écran Niveaux. Le monde repart à zéro (spec 708 §9 :
      * au relancement, le niveau est régénéré) ; GameScene relit
-     * currentLevel du registry.
+     * currentLevel du registry. ⭐ MENU-3 : la session éventuelle (niveau
+     * lancé depuis l'écran Niveaux, niveauSession) est effacée pour
+     * repartir du niveau en cours.
      */
     jouer() {
+        this.registry.set("niveauSession", null);
         this.registry.set("generatedRows", null);
         this.scene.start(GameScene.KEY);
     }
