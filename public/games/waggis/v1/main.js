@@ -197,6 +197,39 @@
                 console.warn("Rotation rails_v3 impossible, original utilisé.", e);
             }
 
+            // Fix post-D2 (t_2282d963, règle studio : tout asset
+            // directionnel orienté dans le sens de circulation) : les
+            // barques rogrpg (barque_v1/v2/v3) sont dessinées avec leur
+            // LONGUEUR VERTICALE dans la texture (les extrémités relevées
+            // en haut et en bas du sprite) alors qu'elles NAVIGUENT
+            // HORIZONTALEMENT sur la bande d'eau — le même défaut que les
+            // rails v3 (fix 06/08). On tourne les trois variantes de 90°
+            // au chargement (comme rails_v3_h) : la longueur devient
+            // horizontale, dans le sens du courant. L'orientation
+            // gauche/droite (proue dans le sens de circulation) est
+            // ensuite appliquée par LaneGenerator._textureBateau
+            // (flipX selon def.direction). Les textures originales
+            // restent chargées (repli / compatibilité).
+            for (const [srcKey, dstKey] of [
+                ["barque_v1", "barque_v1_h"],
+                ["barque_v2", "barque_v2_h"],
+                ["barque_v3", "barque_v3_h"]
+            ]) {
+                try {
+                    const src = scene.textures.get(srcKey).getSourceImage();
+                    const rot = document.createElement("canvas");
+                    rot.width = src.height;
+                    rot.height = src.width;
+                    const ctx = rot.getContext("2d");
+                    ctx.translate(rot.width / 2, rot.height / 2);
+                    ctx.rotate(Math.PI / 2);
+                    ctx.drawImage(src, -src.width / 2, -src.height / 2);
+                    scene.textures.addCanvas(dstKey, rot);
+                } catch (e) {
+                    console.warn(`Rotation ${srcKey} impossible, original utilisé.`, e);
+                }
+            }
+
             // Contrat de save : version 4 (D2-3, spec 708 §1/§7/§9/§10).
             // v1 ({ parties }) → v2 (generatedRows, D2-1) → v3
             // (wallet + unlockedCharacters, ETAPE-7) → v4 (currentLevel,

@@ -1343,14 +1343,21 @@ class LaneGenerator {
     /**
      * Texture d'un véhicule volant de la piste d'atterrissage (spec 708
      * §3/§5 : même comportement qu'un véhicule de route) : avions vue de
-     * dessus (aucun miroir — pas d'avant/arrière sur une vue de dessus) et
-     * hélicos (queue à droite, vérifié pixel par pixel 06/08 — miroir
-     * quand ils volent vers la droite).
+     * dessus et hélicos, TOUS vérifiés pixel par pixel le 07/08 (fix
+     * post-D2, t_2282d963 — règle studio : tout asset directionnel
+     * orienté dans le sens de sa circulation) :
+     *   - avions battle : le NEZ (verrière blanche) est à DROITE dans la
+     *     texture (centre du cockpit x≈11/16) → miroir quand ils volent
+     *     vers la gauche (direction < 0) — corrige le bug « avions à
+     *     reculons » signalé par John ;
+     *   - hélicos battle : la QUEUE (rotor de queue) est à DROITE dans la
+     *     texture (vérifié 06/08) → miroir quand ils volent vers la
+     *     droite (direction > 0), comportement conservé.
      */
     _textureVehiculePiste(direction) {
         if (Math.random() < 0.6) {
             const avions = ["avion_rouge", "avion_vert", "avion_bleu"];
-            return { texture: avions[Math.floor(Math.random() * avions.length)], flipX: false };
+            return { texture: avions[Math.floor(Math.random() * avions.length)], flipX: direction < 0 };
         }
         const helicos = ["helico_rouge", "helico_vert"];
         return { texture: helicos[Math.floor(Math.random() * helicos.length)], flipX: direction > 0 };
@@ -1438,9 +1445,11 @@ class LaneGenerator {
             largeur = Math.min(largeur, nbBateaux - poses);
             for (let c = debut; c < debut + largeur; c++) occupees[c] = true;
             poses += largeur;
+            const bateau = this._textureBateau(def.direction);
             def.obstacles.push({
                 type: "bateau",
-                texture: this._textureBateau(),
+                texture: bateau.texture,
+                flipX: bateau.flipX || false,
                 x: (debut + largeur / 2) / nbCases,
                 largeur: largeur
             });
@@ -1486,11 +1495,27 @@ class LaneGenerator {
 
     /**
      * Texture d'un bateau (véhicule de l'eau, spec 708 §6) : barques
-     * rogrpg de l'atelier (vue de dessus, symétriques — aucun miroir).
+     * rogrpg de l'atelier. Fix post-D2 (t_2282d963, règle studio : tout
+     * asset directionnel orienté dans le sens de sa circulation) :
+     *   - les textures sont TOURNÉES de 90° au chargement (main.js :
+     *     barque_v1_h/v2_h/v3_h, comme rails_v3_h le 06/08) — elles
+     *     étaient dessinées avec la longueur VERTICALE (extrémités
+     *     relevées en haut/bas du sprite) alors que les barques
+     *     NAVIGUENT horizontalement ; après rotation, la longueur suit
+     *     le courant ;
+     *   - la proue (grandes extrémités relevées) est à DROITE dans les
+     *     textures tournées (vérifié pixel par pixel le 07/08) → miroir
+     *     quand la bande va vers la gauche (direction < 0), comme les
+     *     avions de la piste.
+     * @param {number} direction sens de circulation de la bande (-1/+1)
+     * @returns {{texture: string, flipX: boolean}}
      */
-    _textureBateau() {
-        const textures = ["barque_v1", "barque_v2", "barque_v3"];
-        return textures[Math.floor(Math.random() * textures.length)];
+    _textureBateau(direction) {
+        const textures = ["barque_v1_h", "barque_v2_h", "barque_v3_h"];
+        return {
+            texture: textures[Math.floor(Math.random() * textures.length)],
+            flipX: direction < 0
+        };
     }
 
     // ------------------------------------------------------------------
