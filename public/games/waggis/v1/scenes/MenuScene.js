@@ -118,12 +118,14 @@ class MenuScene extends Phaser.Scene {
      * au relancement, le niveau est régénéré) ; GameScene relit
      * currentLevel du registry. ⭐ MENU-3 : la session éventuelle (niveau
      * lancé depuis l'écran Niveaux, niveauSession) est effacée pour
-     * repartir du niveau en cours.
+     * repartir du niveau en cours. Data EXPLICITE {} au start (piège
+     * Phaser : sans data, settings.data garde celle du démarrage
+     * précédent — l'écran Niveaux passerait son niveau).
      */
     jouer() {
         this.registry.set("niveauSession", null);
         this.registry.set("generatedRows", null);
-        this.scene.start(GameScene.KEY);
+        this.scene.start(GameScene.KEY, {});
     }
 
     /**

@@ -62,6 +62,14 @@ class GameScene extends Phaser.Scene {
      * ⭐ MENU-3 (spec 709) : l'écran Niveaux peut lancer un niveau précis
      * (scene.start(GameScene.KEY, { niveau })). Sans donnée, le niveau
      * vient du registry (create() — voir niveauSession / currentLevel).
+     *
+     * PIÈGE PHASER (corrigé 07/08, QA MENU-3) : le SceneManager ne
+     * remplace settings.data que si le scene.start passe un objet. Sans
+     * data, la scène reçoit celle du démarrage PRÉCÉDENT ({ niveau } de
+     * l'écran Niveaux) → le niveau rejoué repartirait au lieu du niveau
+     * en cours. RÈGLE : tout scene.start(GameScene.KEY) passe TOUJOURS
+     * une data explicite — { niveau } (écran Niveaux) ou {} (menu /
+     * Rejouer / Niveau suivant = niveau courant du registry).
      */
     init(data) {
         const n = data && data.niveau;

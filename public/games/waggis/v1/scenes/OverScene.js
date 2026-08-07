@@ -98,12 +98,15 @@ class OverScene extends Phaser.Scene {
                 onClick: () => {
                     this.registry.set("niveauSession", null);
                     this.registry.set("generatedRows", null);
-                    this.scene.start(GameScene.KEY);
+                    // Data EXPLICITE {} (piège Phaser : sans data,
+                    // settings.data garde celle du démarrage précédent —
+                    // l'écran Niveaux passerait son niveau rejoué).
+                    this.scene.start(GameScene.KEY, {});
                 }
             }
             : {
                 label: C.textes.rejouer,
-                onClick: () => this.scene.start(GameScene.KEY)
+                onClick: () => this.scene.start(GameScene.KEY, {})
             };
         const rejouer = UI.button(this, {
             width: UI.u(this, 40), height: UI.u(this, 12),
