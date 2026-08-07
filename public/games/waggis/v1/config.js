@@ -61,7 +61,25 @@ window.WaggisConfig = {
         // D2-3 (spec 708 §10 — fin de niveau) : titre de l'écran de
         // victoire et libellé du bouton de passage au niveau suivant.
         niveauReussi: "Niveau {niveau} réussi !",
-        niveauSuivant: "Niveau suivant"
+        niveauSuivant: "Niveau suivant",
+
+        // MENU-1 (spec 709, verrouillée 07/08/2026) : les 7 boutons du
+        // menu principal (MenuScene). « Jouer » lance le prochain niveau
+        // non terminé ; « Quitter » a le même comportement que le bouton
+        // retour de la barre du haut (Décision John 07/08 — le jeu tourne
+        // en iframe, le retour ramène à la page de l'arcade).
+        niveaux: "Niveaux",
+        personnages: "Personnages",
+        boutique: "Boutique",
+        reglages: "Réglages",
+        classement: "Classement",
+        quitter: "Quitter",
+
+        // Écran placeholder des boutons pas encore implémentés (MENU-1 :
+        // Niveaux/Personnages/Boutique/Réglages/Classement — leurs vraies
+        // étapes arrivent MENU-3/4/5). « Retour » ramène au menu.
+        placeholder: "Écran à venir — implémenté à une étape ultérieure.",
+        retour: "Retour"
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------

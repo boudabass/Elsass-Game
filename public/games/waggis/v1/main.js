@@ -41,6 +41,16 @@
  *    écrit currentLevel = niveau suivant + generatedRows du niveau gagné ;
  *    une fermeture en cours de niveau ne sauvegarde rien : au relancement,
  *    le joueur reste sur son niveau, régénéré à zéro.
+ *
+ * ⭐ MENU-1 (spec 709, Décision 6 article 704) — squelette du menu :
+ *  - MenuScene passe à 7 boutons (Jouer, Niveaux, Personnages, Boutique,
+ *    Réglages, Classement, Quitter) — « Jouer » lance directement le
+ *    prochain niveau non terminé (data.currentLevel) ; « Quitter » fait la
+ *    même chose que le bouton retour de la barre du haut (Décision John
+ *    07/08 : navigation standard, jeu en iframe → /games) ; les 5 autres
+ *    ouvrent PlaceholderScene (MENU-3/4/5 implémenteront leurs écrans) ;
+ *  - PlaceholderScene (nouvelle scène) est enregistrée ici (elle est
+ *    démarrée par MenuScene avec { titre }).
  */
 (function () {
     "use strict";
@@ -50,7 +60,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.ciel,
-        scenes: [MenuScene, GameScene, OverScene],
+        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene],
         firstScene: MenuScene.KEY,
 
         // Chargement : sols, véhicules, flottants, train et décor des bandes
