@@ -17,8 +17,10 @@
  *    liste des skins débloqués/à débloquer, un seul actif à la fois) ;
  *  - « Boutique » ouvre l'écran Boutique (ShopScene, MENU-4 — les 3
  *    personnages à l'achat avec les pièces de data.wallet) ;
- *  - les 2 autres boutons (Réglages/Classement) ouvrent un écran
- *    placeholder (PlaceholderScene) : leur vraie étape arrive MENU-5.
+ *  - « Réglages » ouvre l'écran Réglages (SettingsScene, MENU-5 — son
+ *    on/off uniquement, spec 709) ;
+ *  - « Classement » ouvre l'écran Classement (ClassementScene, MENU-5 —
+ *    classement général entre joueurs, cloud, leaderboard du socle).
  *
  * Mobile-first : les tailles sont en PROPORTION du plus petit côté (Arcade.UI.u),
  * la mise en page est recalculée à chaque rotation (Arcade.UI.layout).
@@ -40,12 +42,11 @@ class MenuScene extends Phaser.Scene {
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texte);
 
         // --- Les 7 boutons (spec 709) --------------------------------------
-        // « Jouer » : bouton principal (rouge Waggis). Les autres écrans
-        // sont des placeholders en attendant leur étape (MENU-3/4/5).
-        // « Quitter » : même comportement que le bouton retour de la barre
-        // du haut (Décision John 07/08 — navigation standard, jeu en
-        // iframe). Ordre imposé par la spec : Jouer, Niveaux, Personnages,
-        // Boutique, Réglages, Classement, Quitter.
+        // « Jouer » : bouton principal (rouge Waggis). « Quitter » : même
+        // comportement que le bouton retour de la barre du haut (Décision
+        // John 07/08 — navigation standard, jeu en iframe). Ordre imposé
+        // par la spec : Jouer, Niveaux, Personnages, Boutique, Réglages,
+        // Classement, Quitter.
         const definitions = [
             {
                 label: C.textes.jouer,
@@ -66,11 +67,11 @@ class MenuScene extends Phaser.Scene {
             },
             {
                 label: C.textes.reglages,
-                onClick: () => this.ouvrirPlaceholder(C.textes.reglages)
+                onClick: () => this.scene.start(SettingsScene.KEY)
             },
             {
                 label: C.textes.classement,
-                onClick: () => this.ouvrirPlaceholder(C.textes.classement)
+                onClick: () => this.scene.start(ClassementScene.KEY)
             },
             {
                 label: C.textes.quitter,
@@ -151,10 +152,5 @@ class MenuScene extends Phaser.Scene {
         } catch (e) {
             window.location.href = "/games";
         }
-    }
-
-    /** Placeholder d'un bouton pas encore implémenté (MENU-3/4/5). */
-    ouvrirPlaceholder(titre) {
-        this.scene.start(PlaceholderScene.KEY, { titre: titre });
     }
 }

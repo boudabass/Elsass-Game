@@ -75,10 +75,8 @@ window.WaggisConfig = {
         classement: "Classement",
         quitter: "Quitter",
 
-        // Écran placeholder des boutons pas encore implémentés (MENU-1 :
-        // Personnages/Boutique/Réglages/Classement — leurs vraies étapes
-        // arrivent MENU-4/5). « Retour » ramène au menu.
-        placeholder: "Écran à venir — implémenté à une étape ultérieure.",
+        // « Retour » ramène au menu depuis les écrans du menu (Niveaux,
+        // Personnages, Boutique, Réglages, Classement).
         retour: "Retour",
 
         // MENU-3 (spec 709 §7 boutons — écran Niveaux, LevelsScene) :
@@ -102,7 +100,19 @@ window.WaggisConfig = {
         dejaDebloque: "Déjà débloqué",
         pasAssezPieces: "Pas assez de pièces",
         gratuit: "Gratuit",
-        aDebloquer: "À débloquer dans la Boutique"
+        aDebloquer: "À débloquer dans la Boutique",
+
+        // MENU-5 (spec 709 §7 boutons — écran Réglages, SettingsScene, et
+        // Classement, ClassementScene) : le son (on/off UNIQUEMENT — pas de
+        // vibration, pas de langue pour l'instant, spec 709), et le
+        // classement GÉNÉRAL entre joueurs (cloud — endpoint d'agrégation
+        // GET /api/scores vérifié EXISTANT côté backend le 07/08,
+        // Arcade.Platform.score.leaderboard).
+        sonOn: "Son : Activé",
+        sonOff: "Son : Désactivé",
+        classementChargement: "Chargement du classement…",
+        classementVide: "Aucun score pour l'instant — joue une partie pour apparaître !",
+        classementHorsLigne: "Classement indisponible hors ligne."
     },
 
     // --- Génération des bandes (LaneGenerator) ------------------------------

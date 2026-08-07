@@ -59,10 +59,8 @@
  *    Réglages, Classement, Quitter) — « Jouer » lance directement le
  *    prochain niveau non terminé (data.currentLevel) ; « Quitter » fait la
  *    même chose que le bouton retour de la barre du haut (Décision John
- *    07/08 : navigation standard, jeu en iframe → /games) ; les 4 autres
- *    ouvrent PlaceholderScene (MENU-4/5 implémenteront leurs écrans) ;
- *  - PlaceholderScene (nouvelle scène) est enregistrée ici (elle est
- *    démarrée par MenuScene avec { titre }).
+ *    07/08 : navigation standard, jeu en iframe → /games) ; les écrans
+ *    intermédiaires arrivent avec leurs étapes (MENU-3/4/5) ;
  *
  * ⭐ MENU-3 (spec 709 §7 boutons — Décision 6, article 704) — écran Niveaux :
  *  - LevelsScene (nouvelle scène) est enregistrée ici et ouverte par le
@@ -89,6 +87,26 @@
  *    OUVERT ASSETS conservé) ;
  *  - GameScene lit data.activeCharacter (save v5, sélection MENU-4) pour
  *    afficher le bon skin — cosmétique pur, aucun impact gameplay (709).
+ *
+ * ⭐ MENU-5 (spec 709 §7 boutons — Décision 6, article 704) — écrans
+ * Réglages + Classement :
+ *  - SettingsScene et ClassementScene (nouvelles scènes) sont enregistrées
+ *    ici et ouvertes par les boutons « Réglages » / « Classement » du menu ;
+ *  - « Réglages » : son on/off UNIQUEMENT (spec 709 — pas de vibration, pas
+ *    de langue). Préférence LOCALE (soundPref.js, localStorage) — PAS dans
+ *    la save cloud : préférence d'appareil et règle 708 §9 (la save
+ *    n'intervient qu'à la victoire du niveau) — le contrat de save reste
+ *    en v5, inchangé. Le mute est appliqué au SoundManager global ici, au
+ *    BOOT (après le chargement de la save) : un son coupé le reste au
+ *    lancement du jeu, avant même d'ouvrir Réglages ;
+ *  - « Classement » : classement GÉNÉRAL entre joueurs (spec 709) via
+ *    Arcade.Platform.score.leaderboard() (core/platform.js → GET
+ *    /api/scores?gameId=X) — endpoint d'agrégation VÉRIFIÉ EXISTANT côté
+ *    backend le 07/08 (src/app/api/scores/route.ts : TOP 100 par jeu, une
+ *    ligne par joueur = meilleur score, tri décroissant, user_name de la
+ *    session signée). RIEN créé côté backend : l'écran consomme l'existant ;
+ *  - PlaceholderScene est SUPPRIMÉE : depuis MENU-5, les 7 boutons du menu
+ *    ouvrent tous un vrai écran — plus aucun placeholder.
  */
 (function () {
     "use strict";
@@ -98,7 +116,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.ciel,
-        scenes: [MenuScene, GameScene, OverScene, PlaceholderScene, LevelsScene, CharactersScene, ShopScene],
+        scenes: [MenuScene, GameScene, OverScene, LevelsScene, CharactersScene, ShopScene, SettingsScene, ClassementScene],
         firstScene: MenuScene.KEY,
 
         // Chargement : sols, véhicules, flottants, train et décor des bandes
@@ -410,6 +428,14 @@
             // victoire). Une fermeture en cours de partie ne doit rien
             // écrire : le joueur reste sur son niveau, régénéré à zéro au
             // prochain lancement.
+
+            // MENU-5 (spec 709 — écran Réglages) : la préférence son
+            // (on/off, stockée LOCALEMENT — soundPref.js) est appliquée au
+            // SoundManager global dès le boot : un son coupé le reste au
+            // lancement du jeu, avant même d'ouvrir Réglages. Le mute
+            // couvre bond, mort et signal du train (GameScene /
+            // LaneGenerator — tous passent par scene.sound).
+            WaggisSound.appliquer(scene);
         }
     });
 })();
