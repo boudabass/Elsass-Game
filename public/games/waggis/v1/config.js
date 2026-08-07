@@ -256,7 +256,13 @@ window.WaggisConfig = {
         // (victoire du niveau N → currentLevel N+1), generatedRows y est
         // celui du niveau gagné — une fermeture en cours de niveau ne
         // sauvegarde RIEN (le niveau est régénéré à zéro au relancement).
-        version: 4
+        // v5 (MENU-2, spec 709 §Données nécessaires) = data.activeCharacter
+        // (personnage actif sélectionné, défaut "waggis" — le seul débloqué
+        // au MVP, la sélection arrive avec l'écran Personnages MENU-4) et
+        // data.bestScores (meilleur score PAR NIVEAU, map niveau→score,
+        // défaut {}) ajoutés au format — l'écran Niveaux (MENU-3) affichera
+        // l'état de chaque niveau + son meilleur score (709).
+        version: 5
     },
 
     // --- Couleurs -----------------------------------------------------------

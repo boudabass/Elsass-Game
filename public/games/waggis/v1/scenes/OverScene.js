@@ -18,6 +18,13 @@
  * Une fermeture en cours de niveau ne sauvegarde donc rien : au prochain
  * lancement le joueur reste sur son niveau (currentLevel inchangé), généré
  * à nouveau depuis zéro (708 §9).
+ *
+ * ⭐ MENU-2 (spec 709 §Données nécessaires) : la VICTOIRE enregistre aussi
+ * le meilleur score PAR NIVEAU dans la save — data.bestScores, map
+ * niveau→score (max conservé, jamais de recul — CDC 706 §Score). Le score
+ * d'une victoire au niveau N est comparé à bestScores[N] et n'écrase que
+ * s'il est supérieur. data.activeCharacter (personnage actif) est porté
+ * par la save depuis la v5 (défaut "waggis", sélection MENU-4).
  */
 class OverScene extends Phaser.Scene {
     static KEY = "fin";
@@ -129,6 +136,18 @@ class OverScene extends Phaser.Scene {
         // joueur sur son niveau (currentLevel inchangé), régénéré à zéro
         // au prochain lancement.
         if (this.victoire) {
+            // MENU-2 (spec 709 §Données nécessaires) : meilleur score PAR
+            // NIVEAU — bestScores est une map niveau→score (clé = numéro
+            // de niveau). Enregistré à la VICTOIRE (seul point d'écriture
+            // de la save, 708 §9) : on ne conserve que le meilleur score
+            // de chaque niveau (jamais de recul, CDC 706 §Score).
+            const bests = this.registry.get("bestScores") || {};
+            const cle = String(this.niveau);
+            const precedent = (typeof bests[cle] === "number") ? bests[cle] : 0;
+            if (this.scoreFinal > precedent) {
+                bests[cle] = this.scoreFinal;
+                this.registry.set("bestScores", bests);
+            }
             this.registry.set("currentLevel", this.niveau + 1);
             Arcade.Save.saveLocal();
             try {

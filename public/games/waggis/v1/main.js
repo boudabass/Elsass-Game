@@ -42,6 +42,18 @@
  *    une fermeture en cours de niveau ne sauvegarde rien : au relancement,
  *    le joueur reste sur son niveau, régénéré à zéro.
  *
+ * ⭐ MENU-2 (spec 709 §Données nécessaires) — contrat de save étendu :
+ *  - le contrat passe en VERSION 5 avec data.activeCharacter (le
+ *    personnage actif sélectionné, défaut "waggis" — sélection MENU-4) et
+ *    data.bestScores (meilleur score PAR NIVEAU, map niveau→score — écran
+ *    Niveaux MENU-3) ; migration 4→5 écrite (défauts : "waggis", {}) ;
+ *  - data.wallet (pièces) et data.unlockedCharacters (skins débloqués)
+ *    étaient déjà au contrat depuis la v3 (ETAPE-7) — la mécanique
+ *    pièces/déblocage reste post-MVP (PRD 705) ;
+ *  - le meilleur score PAR NIVEAU est enregistré à la VICTOIRE du niveau
+ *    (OverScene mode victoire — seul point d'écriture de la save, 708 §9) :
+ *    bestScores[niveau] = max(ancien, score de la victoire).
+ *
  * ⭐ MENU-1 (spec 709, Décision 6 article 704) — squelette du menu :
  *  - MenuScene passe à 7 boutons (Jouer, Niveaux, Personnages, Boutique,
  *    Réglages, Classement, Quitter) — « Jouer » lance directement le
@@ -240,11 +252,12 @@
                 }
             }
 
-            // Contrat de save : version 4 (D2-3, spec 708 §1/§7/§9/§10).
-            // v1 ({ parties }) → v2 (generatedRows, D2-1) → v3
+            // Contrat de save : version 5 (MENU-2, spec 709 §Données
+            // nécessaires). v1 ({ parties }) → v2 (generatedRows, D2-1) → v3
             // (wallet + unlockedCharacters, ETAPE-7) → v4 (currentLevel,
-            // D2-3). Chaque migration préserve les données existantes :
-            // on ne casse jamais la partie d'un joueur.
+            // D2-3) → v5 (activeCharacter + bestScores, MENU-2). Chaque
+            // migration préserve les données existantes : on ne casse
+            // jamais la partie d'un joueur.
             Arcade.Save.configure({
                 key: C.key,
                 version: C.save.version,
@@ -273,6 +286,17 @@
                     // progressera qu'à la prochaine victoire.
                     3: function (data) {
                         return Object.assign({}, data, { currentLevel: 1 });
+                    },
+                    // v4 → v5 (MENU-2, spec 709 §Données nécessaires) : on
+                    // ajoute le personnage actif (défaut "waggis" — le seul
+                    // débloqué au MVP, la sélection arrive MENU-4) et la
+                    // map des meilleurs scores par niveau (vide par
+                    // défaut : elle se remplit à chaque victoire, 708 §9).
+                    4: function (data) {
+                        return Object.assign({}, data, {
+                            activeCharacter: "waggis",
+                            bestScores: {}
+                        });
                     }
                 },
                 gather: function () {
@@ -281,7 +305,9 @@
                         generatedRows: scene.registry.get("generatedRows") || {},
                         wallet: scene.registry.get("wallet") || 0,
                         unlockedCharacters: scene.registry.get("unlockedCharacters") || ["waggis"],
-                        currentLevel: scene.registry.get("currentLevel") || 1
+                        currentLevel: scene.registry.get("currentLevel") || 1,
+                        activeCharacter: scene.registry.get("activeCharacter") || "waggis",
+                        bestScores: scene.registry.get("bestScores") || {}
                     };
                 },
                 apply: function (data) {
@@ -289,12 +315,10 @@
                     const gr = (data && data.generatedRows) || {};
                     scene.registry.set("generatedRows", gr);
                     scene.registry.set("wallet", (data && typeof data.wallet === "number") ? data.wallet : 0);
-                    scene.registry.set(
-                        "unlockedCharacters",
-                        (data && Array.isArray(data.unlockedCharacters) && data.unlockedCharacters.length)
-                            ? data.unlockedCharacters
-                            : ["waggis"]
-                    );
+                    const unlocked = (data && Array.isArray(data.unlockedCharacters) && data.unlockedCharacters.length)
+                        ? data.unlockedCharacters
+                        : ["waggis"];
+                    scene.registry.set("unlockedCharacters", unlocked);
                     // D2-3 : niveau en cours (data.currentLevel, défaut 1).
                     scene.registry.set(
                         "currentLevel",
@@ -302,6 +326,33 @@
                             ? data.currentLevel
                             : 1
                     );
+                    // MENU-2 (spec 709) : personnage actif — le skin
+                    // sélectionné doit être parmi les débloqués, sinon
+                    // repli sur le Waggis (défaut, toujours débloqué).
+                    const actif = (data && typeof data.activeCharacter === "string" && data.activeCharacter)
+                        ? data.activeCharacter
+                        : "waggis";
+                    scene.registry.set(
+                        "activeCharacter",
+                        unlocked.indexOf(actif) >= 0 ? actif : "waggis"
+                    );
+                    // MENU-2 (spec 709) : meilleur score PAR NIVEAU — map
+                    // niveau→score (clé = numéro de niveau, valeur = score
+                    // en bonds avant). Nettoyée au chargement : seules les
+                    // entrées niveau≥1 avec un score numérique ≥ 0 sont
+                    // conservées (données corrompues ignorées).
+                    const bests = {};
+                    if (data && data.bestScores && typeof data.bestScores === "object") {
+                        Object.keys(data.bestScores).forEach(function (cle) {
+                            const niveau = Number(cle);
+                            const score = Number(data.bestScores[cle]);
+                            if (Number.isInteger(niveau) && niveau >= 1 &&
+                                Number.isFinite(score) && score >= 0) {
+                                bests[cle] = score;
+                            }
+                        });
+                    }
+                    scene.registry.set("bestScores", bests);
                 }
             });
 
