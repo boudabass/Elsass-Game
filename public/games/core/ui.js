@@ -212,7 +212,6 @@
          */
         iconesPlateforme: function (scene) {
             Arcade.UI._clicPlateforme = false;
-            var marge = Arcade.UI.u(scene, 2);
             var profondeur = 1000;   // au-dessus de tout (UI, HUD, menu)
 
             // Options du jeu (config.js → main.js → Arcade.boot({
@@ -238,18 +237,25 @@
 
             // Options communes du composant (core/ui/button.js) : hauteur
             // u(10.5) comme les boutons secondaires du menu, largeur
-            // adaptée au libellé (min u(15), marge u(4)). Pas de marqueur
-            // _clicPlateforme : il n'est plus posé (plus d'icônes dans
-            // GameScene Waggis — décision John 08/08 : Retour / Plein
-            // écran visibles QUE sur le menu principal).
+            // adaptée au libellé (min u(15), marge u(4)). ⭐ FIX 08/08/2026
+            // (signalement John — responsive mobile) : les tailles sont
+            // passées EN u() (hauteurU / largeurMinU / margeLibelleU) et le
+            // composant les recalcule LUI-MÊME à chaque rotation /
+            // redimensionnement (Arcade.UI.layout) — comme Réglages / Jouer
+            // / secondaires, pilotés par le layout de leur scène. Avant :
+            // px convertis UNE SEULE FOIS à la création → Retour / Plein
+            // écran restaient figés sur mobile (rotation, plein écran).
+            // Pas de marqueur _clicPlateforme : il n'est plus posé (plus
+            // d'icônes dans GameScene Waggis — décision John 08/08 :
+            // Retour / Plein écran visibles QUE sur le menu principal).
             var optionsBouton = {
                 couleur: couleur,
                 ombre: ombre,
                 police: police,
-                hauteur: Arcade.UI.u(scene, 10.5),
+                hauteurU: 10.5,
                 autoLargeur: true,
-                largeurMin: Arcade.UI.u(scene, 15),
-                margeLibelle: Arcade.UI.u(scene, 4),
+                largeurMinU: 15,
+                margeLibelleU: 4,
                 profondeur: profondeur,
                 stroke: "#141210"
             };
@@ -344,9 +350,12 @@
             }
 
             // Positionnement aux coins, recalculé à chaque rotation /
-            // redimensionnement (Arcade.UI.layout). Le bouton est calé sur
-            // les bords : son coin extérieur reste à la marge.
+            // redimensionnement (Arcade.UI.layout) — marge ET tailles
+            // recalculées (le composant redimensionne en u() avant ce
+            // callback, même règle que les boutons du menu). Le bouton est
+            // calé sur les bords : son coin extérieur reste à la marge.
             Arcade.UI.layout(scene, function (w) {
+                var marge = Arcade.UI.u(scene, 2);
                 quitter.setPosition(marge + quitter.largeur() / 2,
                     marge + quitter.hauteur() / 2);
                 if (pleinEcran) {

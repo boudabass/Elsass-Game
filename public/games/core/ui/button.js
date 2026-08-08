@@ -21,10 +21,20 @@
  *       police: "system-ui, …",
  *       textColor: "#ffffff",
  *       // --- Dimensions (u() mobile-first, recalculées au resize) ----
- *       largeur: …, hauteur: …,
- *       autoLargeur: true,      // largeur = max(largeurMin,
- *                               //   txt.width + margeLibelle)
- *       largeurMin: …, margeLibelle: …,
+ *       // Deux modes équivalents (jamais de taille figée en pixels) :
+ *       //  - u() : largeurU / hauteurU / largeurMinU / margeLibelleU —
+ *       //    pourcentages du plus petit côté. Le composant les recalcule
+ *       //    LUI-MÊME à chaque rotation / redimensionnement
+ *       //    (Arcade.UI.layout) : c'est la règle unifiée du composant
+ *       //    (FIX 08/08/2026 — Retour / Plein écran s'adaptent comme
+ *       //    Réglages) ;
+ *       //  - px (redimensionner() appelé par le layout de la scène,
+ *       //    ex. menus Waggis / Cigogne) : valeurs déjà recalculées par
+ *       //    l'appelant à chaque layout.
+ *       hauteurU: 10.5,          // ex. hauteur = u(10.5)
+ *       autoLargeur: true,       // largeur = max(largeurMin,
+ *                                //   txt.width + margeLibelle)
+ *       largeurMinU: 15, margeLibelleU: 4,
  *       profondeur: 50,
  *       onClick: fn
  *   })
@@ -203,15 +213,54 @@
         };
 
         // --- Géométrie courante -------------------------------------------
-        var largeur = o.largeur || 10;
-        var hauteur = o.hauteur || 10;
+        // Deux modes de dimensionnement (FIX 08/08/2026 — signalement
+        // John : Retour / Plein écran ne s'adaptaient pas comme Réglages
+        // car leurs tailles étaient figées en px à la création) :
+        //  - mode u() : largeurU / hauteurU / largeurMinU / margeLibelleU
+        //    (pourcentages du plus petit côté). Le composant recalcule
+        //    lui-même les px à chaque layout / rotation (Arcade.UI.layout)
+        //    — MÊMES RÈGLES pour les 2 variantes (icône+texte, texte
+        //    simple) : plus aucune taille figée en pixels ;
+        //  - mode px : largeur / hauteur / largeurMin / margeLibelle
+        //    (ou redimensionner() appelé par le layout de la scène, ex.
+        //    menus Waggis / Cigogne — l'appelant recalcule à chaque
+        //    rotation). Conservé pour compatibilité.
+        var largeurU = (typeof o.largeurU === "number") ? o.largeurU : null;
+        var hauteurU = (typeof o.hauteurU === "number") ? o.hauteurU : null;
+        var largeurMinU = (typeof o.largeurMinU === "number") ? o.largeurMinU : null;
+        var margeLibelleU = (typeof o.margeLibelleU === "number") ? o.margeLibelleU : null;
+        var largeur = o.largeur || 10;   // placeholder : écrasé au 1er
+        var hauteur = o.hauteur || 10;   // dessin (u() ou redimensionner)
         var x = o.x || 0;
         var y = o.y || 0;
         var autoLargeur = !!o.autoLargeur;
         var largeurMin = o.largeurMin || 0;
         var margeLibelle = o.margeLibelle || 0;
 
+        // Applique le mode u() : convertit les pourcentages en px courants
+        // (plus petit côté de l'écran au moment de l'appel).
+        var appliquerU = function () {
+            if (hauteurU !== null) {
+                hauteur = Arcade.UI.u(scene, hauteurU);
+            }
+            if (largeurU !== null) {
+                largeur = Arcade.UI.u(scene, largeurU);
+            }
+            if (largeurMinU !== null) {
+                largeurMin = Arcade.UI.u(scene, largeurMinU);
+            }
+            if (margeLibelleU !== null) {
+                margeLibelle = Arcade.UI.u(scene, margeLibelleU);
+            }
+        };
+
         var dessiner = function () {
+            // Mode u() : recalcule les px à partir du plus petit côté
+            // COURANT de l'écran — le redessin suit la rotation / le
+            // redimensionnement (Arcade.UI.layout), comme les autres
+            // boutons du menu (FIX 08/08/2026).
+            appliquerU();
+
             // Largeur adaptée au libellé (boutons plateforme) : recalculée
             // AVANT le dessin du fond, comme l'ancien code.
             if (autoLargeur) {
@@ -294,6 +343,13 @@
                 return this;
             },
             redimensionner: function (nw, nh) {
+                // Reprend la main en px : le mode u() est désactivé (les
+                // valeurs u() ne re-écrasent plus le redimensionnement
+                // manuel, ex. layout de scène qui calcule en u() lui-même).
+                largeurU = null;
+                hauteurU = null;
+                largeurMinU = null;
+                margeLibelleU = null;
                 largeur = nw; hauteur = nh;
                 dessiner();
                 return this;
@@ -331,6 +387,18 @@
             hauteur: function () { return hauteur; }
         };
         bouton.setPosition(x, y);
+
+        // Mode u() : le composant se redimensionne LUI-MÊME à chaque
+        // rotation / redimensionnement (Arcade.UI.layout), comme les
+        // boutons du menu pilotés par leur layout de scène — MÊMES RÈGLES
+        // pour les 2 variantes (FIX 08/08/2026, signalement John : Retour
+        // / Plein écran restaient figés quand Réglages s'adaptait).
+        if (largeurU !== null || hauteurU !== null ||
+                largeurMinU !== null || margeLibelleU !== null) {
+            Arcade.UI.layout(scene, function () {
+                dessiner();
+            });
+        }
 
         zone.on("pointerdown", function () {
             var cibles = [ombreG, corps];
