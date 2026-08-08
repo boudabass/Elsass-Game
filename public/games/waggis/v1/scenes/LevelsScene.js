@@ -31,12 +31,18 @@
  *    fleche), ÉCARTÉES du texte « Page X / Y » — le texte n'est plus
  *    recouvert par les flèches (bug signalé John) ;
  *  - ⭐ FIX 08/08 (corrections John) : la barre de pagination est
- *    EMPILÉE à la suite de la grille (position calculée depuis le bas
- *    du tableau, plus de hauteur fixe qui recouvrait la dernière ligne
- *    de tuiles) et le cadenas d'un niveau verrouillé est EMPILÉ sur la
- *    ligne du score (sous le chiffre, comme « ★ score » pour un niveau
- *    complété) — plus aucune superposition. Règle UI John : tout est
- *    empilé, jamais superposé.
+ *    EMPILÉE à la suite de la grille et le cadenas d'un niveau verrouillé
+ *    est EMPILÉ sur la ligne du score (sous le chiffre, comme « ★ score »
+ *    pour un niveau complété) — plus aucune superposition ;
+ *  - ⭐ FIX 08/08 (correction John — cet écran) : la GRILLE a une
+ *    hauteur VARIABLE (plus de hauteur fixe) : la taille des tuiles est
+ *    recalculée pour que le tableau occupe TOUTE la hauteur disponible
+ *    entre le titre et le bloc du bas — pagination et bouton retour
+ *    EMPILÉS, ancrés EN BAS de l'écran (le retour posé sur le sol, la
+ *    pagination au-dessus, même espace u(4.5) qu'entre les étages du
+ *    menu principal). Sur un écran portrait, la grille occupe la
+ *    largeur (bornée par la largeur, jamais de débordement). Règle UI
+ *    John : tout est empilé, jamais superposé.
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
  * Le nombre de niveaux affichés = le repère de levels.json (niveauMaxRepere
@@ -117,26 +123,46 @@ class LevelsScene extends Phaser.Scene {
         });
 
         // Mise en page recalculée à chaque rotation : titre en haut, grille
-        // centrée, pagination EMPILÉE à la suite de la grille et retour en
-        // bas. Le texte « Page X / Y » est centré et les flèches écartées
-        // (± 19u). ⭐ FIX 08/08 (John) : la pagination n'est plus posée à une
-        // hauteur fixe (h*0.8) qui recouvrait le bas du tableau — son Y est
-        // calculé DEPUIS le bas de la grille (mêmes constantes que
-        // _dessinerGrille), elle est donc toujours empilée à sa suite.
+        // à hauteur VARIABLE dans l'espace restant, pagination + retour
+        // EMPILÉS, ancrés EN BAS (correction John 08/08). Le texte
+        // « Page X / Y » reste centré et les flèches écartées (± 19u).
+        // ⭐ FIX 08/08 (John) : plus aucune hauteur fixe — le bloc du bas
+        // est ancré au sol (retour posé sur le sol, pagination empilée
+        // au-dessus, même espace u(4.5) qu'entre les étages du menu) et la
+        // GRILLE occupe toute la hauteur disponible entre le titre et ce
+        // bloc (taille des tuiles recalculée par _calculerGrille, plus de
+        // cote fixe u(10.5)).
         UI.layout(this, (w, h) => {
             WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.08)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            const basGrille = h * 0.17 + (5 * UI.u(this, 10.5) + 4 * UI.u(this, 1.5));
-            const yPagination = basGrille + UI.u(this, 5.5);
+
+            const u = (n) => UI.u(this, n);
+            const espace = u(4.5);          // même espace qu'entre les étages du menu
+            const ySol = h * 0.965;         // ancrage bas (pattern MenuScene)
+            const hauteurRetour = u(9);
+            const yRetour = ySol - hauteurRetour / 2;
+            // Pagination EMPILÉE au-dessus du retour : les flèches font
+            // u(9) de diamètre, leur centre est donc à u(4.5) (demi-flèche)
+            // + u(4.5) (espace) au-dessus du haut du bouton retour.
+            const yPagination = yRetour - hauteurRetour / 2 - espace - u(4.5);
+
             pageInfo.setPosition(w / 2, yPagination)
-                    .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
-            prec.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 - UI.u(this, 19), yPagination);
-            suiv.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 + UI.u(this, 19), yPagination);
-            retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
-                  .setPosition(w / 2, h * 0.91);
+                    .setFontSize(Math.round(u(3.5)) + "px");
+            prec.redimensionner(u(9))
+                .setPosition(w / 2 - u(19), yPagination);
+            suiv.redimensionner(u(9))
+                .setPosition(w / 2 + u(19), yPagination);
+            retour.redimensionner(u(40), hauteurRetour)
+                  .setPosition(w / 2, yRetour);
+
+            // Bande de la grille : du dessous du titre (centre h*0.08 +
+            // demi-titre u(4.5) + espace) au-dessus de la pagination (haut
+            // des flèches − espace). La géométrie (taille des tuiles) est
+            // recalculée ici, à chaque rotation.
+            const hautGrille = h * 0.08 + u(4.5) + espace;
+            const basGrille = yPagination - u(4.5) - espace;
+            this._grille = this._calculerGrille(w, h, hautGrille, basGrille);
             this._dessinerGrille();
         });
         this._majPageInfo();
@@ -169,9 +195,43 @@ class LevelsScene extends Phaser.Scene {
     }
 
     /**
+     * ⭐ FIX 08/08 (correction John) : géométrie de la grille à hauteur
+     * VARIABLE. La taille d'une tuile est recalculée pour que le tableau
+     * (5 × 5 = 25 tuiles, spec 709) occupe TOUTE la hauteur disponible
+     * entre le titre et le bloc du bas (pagination + retour) — plus de
+     * cote fixe u(10.5). La tuile est aussi bornée par la largeur (min
+     * des deux) : sur un écran portrait la grille occupe alors la largeur
+     * de l'écran, sans jamais déborder. La grille est centrée dans sa
+     * bande (horizontalement et verticalement).
+     * @returns {{cote:number, gap:number, x0:number, y0:number}} centre
+     *          de la PREMIÈRE tuile (haut-gauche de la grille)
+     */
+    _calculerGrille(w, h, hautGrille, basGrille) {
+        const UI = Arcade.UI;
+        const cols = 5;
+        const lignes = 5;
+        const gap = UI.u(this, 1.5);
+        // Tuile la plus grande qui tient dans la hauteur de la bande…
+        const coteH = (basGrille - hautGrille - (lignes - 1) * gap) / lignes;
+        // …et dans la largeur de l'écran.
+        const coteW = (w - (cols - 1) * gap) / cols;
+        const cote = Math.max(1, Math.min(coteH, coteW));
+        const grilleW = cols * cote + (cols - 1) * gap;
+        const grilleH = lignes * cote + (lignes - 1) * gap;
+        return {
+            cote: cote,
+            gap: gap,
+            x0: w / 2 - grilleW / 2 + cote / 2,
+            y0: (hautGrille + basGrille) / 2 - grilleH / 2 + cote / 2
+        };
+    }
+
+    /**
      * (Re)dessine les tuiles de la page courante. Détruit les tuiles de la
      * page précédente — les objets Phaser ne sont pas réutilisés (le nombre
-     * de tuiles par page est constant, 25).
+     * de tuiles par page est constant, 25). ⭐ FIX 08/08 (John) : la
+     * géométrie (taille des tuiles, position) vient de _calculerGrille,
+     * rejouée à chaque rotation — le tableau suit la hauteur disponible.
      */
     _dessinerGrille() {
         this._tuiles.forEach((t) => {
@@ -184,17 +244,11 @@ class LevelsScene extends Phaser.Scene {
         });
         this._tuiles = [];
 
-        const UI = Arcade.UI;
-        const w = this.scale.width;
-        const h = this.scale.height;
-        const cote = UI.u(this, 10.5);   // tuile carrée
-        const gap = UI.u(this, 1.5);
+        const g = this._grille;
+        if (!g) return;
+        const cote = g.cote;
+        const gap = g.gap;
         const cols = 5;
-        const lignes = 5;
-        const grilleW = cols * cote + (cols - 1) * gap;
-        const grilleH = lignes * cote + (lignes - 1) * gap;
-        const x0 = w / 2 - grilleW / 2 + cote / 2;
-        const y0 = h * 0.17 + cote / 2;
 
         const debut = this.page * this.parPage;
         const fin = Math.min(debut + this.parPage, this.nbNiveaux);
@@ -203,8 +257,8 @@ class LevelsScene extends Phaser.Scene {
             const rel = i - debut;
             const col = rel % cols;
             const ligne = Math.floor(rel / cols);
-            const x = x0 + col * (cote + gap);
-            const y = y0 + ligne * (cote + gap);
+            const x = g.x0 + col * (cote + gap);
+            const y = g.y0 + ligne * (cote + gap);
             this._creerTuile(niveau, x, y, cote);
         }
         this._majPageInfo();
