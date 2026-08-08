@@ -13,15 +13,22 @@
         scenes: [MenuScene, GameScene, OverScene],
         firstScene: MenuScene.KEY,
 
-        // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
-        // art. 704 Chantier B) : libellés affichés SOUS les icônes
-        // persistantes Quitter / Plein écran — lus par
-        // Arcade.UI.iconesPlateforme (core/ui.js). Les textes vivent dans
-        // config.js (textes.retour / textes.pleinEcran), c'est ici qu'ils
-        // sont transmis au socle.
+        // ⭐ FIX 08/08/2026 (style bouton Réglages, décision John 08/08 —
+        // art. 704 Chantier B) : les boutons persistants Quitter (haut-
+        // gauche) / Plein écran (haut-droite) reprennent EXACTEMENT le
+        // style du bouton Réglages (fond, coins arrondis, ombre portée,
+        // feedback au clic, dégradé — spec 709 révision 08/08). L'icône +
+        // le libellé sont À L'INTÉRIEUR du bouton (pattern
+        // _creerBoutonSecondaire). Les textes vivent dans config.js
+        // (textes.retour / textes.pleinEcran), la couleur de fond vient
+        // de la config — c'est ici que tout est transmis au socle (ombre
+        // + police = défauts du socle, même rendu que le bouton Réglages).
         iconesPlateforme: {
             retour: C.textes.retour,
-            pleinEcran: C.textes.pleinEcran
+            pleinEcran: C.textes.pleinEcran,
+            style: {
+                couleur: C.couleurs.bouton
+            }
         },
 
         // Chargement : une seule image à télécharger, le reste est dessiné.

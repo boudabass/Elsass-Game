@@ -246,10 +246,10 @@ class GameScene extends Phaser.Scene {
             // ⭐ Chantier B : le niveau passe SOUS l'icône Quitter (en
             // haut-gauche) — avant il était à w*0.08, h*0.06 et
             // chevauchait l'icône en portrait (mobile-first). ⭐ FIX
-            // 08/08/2026 (assets icônes) : le bouton Quitter affiche
-            // maintenant son libellé « Retour » SOUS le cercle (bloc haut
-            // ≈ u(14)) — le niveau descend à u(15) pour rester sous le
-            // libellé, jamais superposé (règle John).
+            // 08/08/2026 (style bouton Réglages) : le bouton Quitter est
+            // maintenant un VRAI bouton au style Réglages (hauteur u(10.5),
+            // calé à la marge u(2) → bas du bouton ≈ u(12.5)) — le niveau
+            // reste à u(15), sous le bouton, jamais superposé (règle John).
             this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 15));
         });
     }

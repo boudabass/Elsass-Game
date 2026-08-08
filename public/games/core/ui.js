@@ -176,7 +176,7 @@
 
         /**
          * ⭐ Chantier B (art. 704 — suppression barre GameShell, contrat de
-         * plateforme) : les DEUX icônes persistantes qui remplacent la
+         * plateforme) : les DEUX boutons persistants qui remplacent la
          * barre du haut — Quitter (haut-gauche) et Plein écran
          * (haut-droite) — visibles sur TOUTES les scènes de chaque jeu.
          *
@@ -188,16 +188,24 @@
          *    l'état réel ; cachée si le navigateur ne supporte pas le
          *    plein écran (même règle que l'ancien canFullscreen).
          *
-         * ⭐ FIX 08/08/2026 (assets icônes, décision John 08/08) : chaque
-         * bouton affiche désormais une VRAIE IMAGE (asset atelier copié
-         * dans le dossier du jeu : ui/rogrpg_fleche_brun_gauche.png pour
-         * Quitter, ui/desert_ecran.png pour Plein écran) posée sur le
-         * cercle, avec son LIBELLÉ EN DESSOUS (« Retour » / « Plein
+         * ⭐ FIX 08/08/2026 (style bouton Réglages, décision John 08/08) :
+         * chaque bouton est un VRAI bouton reprenant EXACTEMENT le style
+         * du bouton Réglages (pattern _creerBoutonSecondaire, spec 709
+         * révision 08/08) : fond arrondi (rayon 0.3 × hauteur) + ombre
+         * portée décalée (+7 % hauteur) + voile clair sur la moitié
+         * haute (dégradé léger) + icône (asset atelier copié dans le
+         * dossier du jeu : ui/rogrpg_fleche_brun_gauche.png pour Quitter,
+         * ui/desert_ecran.png pour Plein écran) EN HAUT du bouton et
+         * libellé blanc EN DESSOUS, À L'INTÉRIEUR (« Retour » / « Plein
          * écran » — textes du jeu, config.js, passés par Arcade.boot →
-         * options.iconesPlateforme). La zone cliquable englobe le cercle
-         * ET le libellé. Si les textures ne sont pas chargées (jeu qui
-         * n'a pas encore copié les assets), repli sur le symbole dessiné
-         * (Graphics) — le libellé reste affiché.
+         * options.iconesPlateforme) + feedback au clic (rétricissement
+         * 10 % centré, Back.Out). Si les textures ne sont pas chargées
+         * (jeu qui n'a pas encore copié les assets), repli sur le symbole
+         * dessiné (Graphics) — le libellé reste affiché.
+         *
+         * Le style (couleur de fond, ombre, police) est surchargeable par
+         * le jeu via options.iconesPlateforme.style (Waggis passe sa
+         * police Azimut et son ombre — défauts du socle sinon).
          *
          * Mobile-first : tailles en % du plus petit côté (u), clic/tap
          * uniquement. À appeler dans le create() de CHAQUE scène du jeu.
@@ -205,110 +213,131 @@
         iconesPlateforme: function (scene) {
             Arcade.UI._clicPlateforme = false;
             var marge = Arcade.UI.u(scene, 2);
-            var taille = Arcade.UI.u(scene, 8);      // diamètre du cercle
-            var rayon = taille / 2;
             var profondeur = 1000;   // au-dessus de tout (UI, HUD, menu)
 
-            // Libellés sous les icônes : textes du jeu (config.js → textes.
-            // retour / pleinEcran), transmis par main.js via Arcade.boot({
-            // iconesPlateforme: {...} }). Repli générique si le jeu ne les
-            // fournit pas.
-            var libelles = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
-            var texteRetour = libelles.retour || "Retour";
-            var textePleinEcran = libelles.pleinEcran || "Plein écran";
+            // Options du jeu (config.js → main.js → Arcade.boot({
+            // iconesPlateforme })) : libellés + style du bouton.
+            var opts = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
+            var style = opts.style || {};
+            var texteRetour = opts.retour || "Retour";
+            var textePleinEcran = opts.pleinEcran || "Plein écran";
 
-            // Feedback de clic : l'icône se ternit à l'appui.
-            var pointerdown = function (g, img, txt, zone) {
-                g.setAlpha(0.6);
-                if (img) img.setAlpha(0.6);
-                if (txt) txt.setAlpha(0.6);
-                zone.setAlpha(0.6);
-                // Marqueur lu par les scènes qui écoutent le pointerup
-                // GLOBAL (ex. GameScene de Waggis : un clic sur une icône
-                // plateforme ne doit pas faire bondir le personnage).
-                Arcade.UI._clicPlateforme = true;
+            // STYLE DU BOUTON — reprend EXACTEMENT le bouton Réglages
+            // (pattern _creerBoutonSecondaire, MenuScene — spec 709
+            // révision 08/08). Défauts du socle, surchargeables par le
+            // jeu (Waggis passe police.famille + couleurs.ombreBouton).
+            var couleur = style.couleur || "#E31B23";      // rouge Waggis
+            var ombre = style.ombre || "rgba(20, 18, 16, 0.28)";
+            var police = style.police ||
+                "system-ui, -apple-system, Segoe UI, sans-serif";
+
+            // Feedback au clic : rétricissement 10 % AUTOUR DU CENTRE,
+            // micro-rebond Back.Out (pattern MenuScene — aucun
+            // déplacement, dessin en coordonnées centrées).
+            var enfoncer = function (cibles) {
+                for (var i = 0; i < cibles.length; i++) {
+                    scene.tweens.add({ targets: cibles[i], scale: 0.9, duration: 70, ease: "Linear" });
+                }
             };
-            var relacher = function (g, img, txt, zone) {
-                g.setAlpha(1);
-                if (img) img.setAlpha(1);
-                if (txt) txt.setAlpha(1);
-                zone.setAlpha(1);
+            var relacher = function (cibles) {
+                for (var i = 0; i < cibles.length; i++) {
+                    scene.tweens.add({ targets: cibles[i], scale: 1, duration: 170, ease: "Back.Out" });
+                }
             };
 
             /**
-             * Bouton plateforme : cercle sombre translucide + liseré clair,
-             * IMAGE (asset) au centre si la texture est chargée (sinon
-             * symbole dessiné — repli), LIBELLÉ EN DESSOUS du cercle.
-             * La zone cliquable englobe cercle + libellé.
+             * VRAI bouton au style Réglages : fond arrondi + ombre portée
+             * + voile clair + icône en haut + libellé blanc en dessous,
+             * À L'INTÉRIEUR. La zone cliquable = le bouton entier.
              * @param {string} cleTexture clé de l'image chargée par le jeu
              *                            (ou null → symbole dessiné)
-             * @param {function} dessiner (g, r) — symbole de repli
-             * @param {string} libelle texte affiché sous l'icône
+             * @param {function} dessiner (g, r) — symbole de repli (r =
+             *                            demi-côté de la zone icône)
+             * @param {string} libelle texte affiché DANS le bouton
              * @param {function} onClick — action au relâchement
              */
             var creerBouton = function (cleTexture, dessiner, libelle, onClick) {
-                var g = scene.add.graphics()
+                var ombreG = scene.add.graphics()
                     .setDepth(profondeur)
                     .setScrollFactor(0);
-                var img = null;
+                var corps = scene.add.graphics()
+                    .setDepth(profondeur + 1)
+                    .setScrollFactor(0);
+                var icone = null;      // image asset OU Graphics de repli
+                var repliG = null;
                 if (cleTexture && scene.textures.exists(cleTexture)) {
-                    img = scene.add.image(0, 0, cleTexture)
-                        .setDepth(profondeur + 1)
+                    icone = scene.add.image(0, 0, cleTexture)
+                        .setDepth(profondeur + 2)
                         .setScrollFactor(0);
+                } else {
+                    repliG = scene.add.graphics()
+                        .setDepth(profondeur + 2)
+                        .setScrollFactor(0);
+                    icone = repliG;
                 }
                 var txt = scene.add
                     .text(0, 0, libelle, {
-                        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                        fontFamily: police,
                         color: "#ffffff",
                         align: "center"
                     })
                     .setOrigin(0.5)
-                    .setDepth(profondeur + 1)
+                    .setDepth(profondeur + 2)
                     .setScrollFactor(0)
                     // Lisible sur ciel clair comme sur fond sombre.
                     .setStroke("#141210", Math.max(2, Arcade.UI.u(scene, 0.35)));
                 var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
                     .setInteractive({ useHandCursor: true })
-                    .setDepth(profondeur + 2)
+                    .setDepth(profondeur + 3)
                     .setScrollFactor(0);
                 zone.setData("iconePlateforme", true);
 
-                // Dimensions du bloc : cercle en HAUT, libellé en DESSOUS.
-                var tailleTexte = Arcade.UI.u(scene, 2.6);
-                var espace = Arcade.UI.u(scene, 0.8);
-                var hauteurTexte = 0;
-                var largeurBloc = 0;
-                var hauteurBloc = 0;
+                // Dimensions du bouton : hauteur u(10.5) (MÊME que les
+                // boutons secondaires du menu — dont Réglages), largeur
+                // adaptée au libellé (au moins u(15), comme Réglages).
+                var hauteur = Arcade.UI.u(scene, 10.5);
+                var largeur = 0;
                 var x = 0, y = 0;
+                var coteIcone = hauteur * 0.45;  // même proportion que l'emoji Réglages
 
                 var dessinerTout = function () {
-                    txt.setFontSize(Math.round(tailleTexte) + "px");
-                    hauteurTexte = txt.height;
-                    // Largeur du bloc : le cercle ou le libellé, le plus large.
-                    largeurBloc = Math.max(taille, txt.width + Arcade.UI.u(scene, 2));
-                    hauteurBloc = taille + espace + hauteurTexte;
-
-                    // Le cercle occupe le HAUT du bloc, le libellé le bas.
-                    var cy = y - hauteurBloc / 2 + rayon;
-                    g.clear();
-                    g.setPosition(x, cy);
-                    g.fillStyle(0x141210, 0.55);
-                    g.fillCircle(0, 0, rayon);
-                    g.lineStyle(Math.max(2, rayon * 0.12), 0xffffff, 0.45);
-                    g.strokeCircle(0, 0, rayon);
-                    if (img) {
-                        // Image au centre du cercle, 70 % de son diamètre
-                        // (pixel art 16×16 agrandi sans flou : pixelArt
-                        // activé par boot.js).
-                        var cote = taille * 0.7;
-                        img.setDisplaySize(cote, cote).setPosition(x, cy);
+                    txt.setFontSize(Math.round(hauteur * 0.23) + "px");
+                    largeur = Math.max(Arcade.UI.u(scene, 15),
+                        txt.width + Arcade.UI.u(scene, 4));
+                    var r = hauteur * 0.3;
+                    // Dessin centré sur (0,0) local + objet posé au centre
+                    // du bouton : le scale de l'appui garde le centre
+                    // (aucun déplacement — pattern MenuScene).
+                    // Ombre portée décalée vers le bas (+7 % hauteur).
+                    ombreG.clear();
+                    ombreG.fillStyle(ombre, 1);
+                    ombreG.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
+                        largeur, hauteur, r);
+                    ombreG.setPosition(x, y);
+                    // Corps du bouton (couleur du jeu — rouge Waggis).
+                    corps.clear();
+                    corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, 1);
+                    corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
+                    // Dégradé léger : voile clair sur la moitié haute (spec 709).
+                    corps.fillStyle(0xffffff, 0.16);
+                    corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
+                        largeur, hauteur * 0.52, r);
+                    corps.setPosition(x, y);
+                    // Icône EN HAUT du bouton (même emplacement que
+                    // l'emoji du bouton Réglages).
+                    if (repliG) {
+                        repliG.clear();
+                        dessiner(repliG, coteIcone / 2);
+                        repliG.setPosition(x, y - hauteur * 0.16);
                     } else {
-                        dessiner(g, rayon);
+                        icone.setDisplaySize(coteIcone, coteIcone)
+                            .setPosition(x, y - hauteur * 0.16);
                     }
-                    txt.setPosition(x, y + hauteurBloc / 2 - hauteurTexte / 2);
-                    zone.setPosition(x, y).setSize(largeurBloc, hauteurBloc);
+                    // Libellé BLANC EN DESSOUS, À L'INTÉRIEUR du bouton.
+                    txt.setPosition(x, y + hauteur * 0.28);
+                    zone.setPosition(x, y).setSize(largeur, hauteur);
                     if (zone.input && zone.input.hitArea) {
-                        zone.input.hitArea.setSize(largeurBloc, hauteurBloc);
+                        zone.input.hitArea.setSize(largeur, hauteur);
                     }
                 };
 
@@ -325,22 +354,33 @@
                         return this;
                     },
                     setAlpha: function (a) {
-                        g.setAlpha(a);
-                        if (img) img.setAlpha(a);
+                        ombreG.setAlpha(a);
+                        corps.setAlpha(a);
+                        if (repliG) repliG.setAlpha(a);
+                        else icone.setAlpha(a);
                         txt.setAlpha(a);
                         zone.setAlpha(a);
                         return this;
                     },
-                    // Dimensions courantes du bloc (pour le positionnement).
-                    largeur: function () { return largeurBloc; },
-                    hauteur: function () { return hauteurBloc; }
+                    // Dimensions courantes du bouton (pour le positionnement).
+                    largeur: function () { return largeur; },
+                    hauteur: function () { return hauteur; }
                 };
                 bouton.setPosition(0, 0);
 
-                zone.on("pointerdown", function () { pointerdown(g, img, txt, zone); });
-                zone.on("pointerout", function () { relacher(g, img, txt, zone); });
+                zone.on("pointerdown", function () {
+                    enfoncer([ombreG, corps, icone, txt, zone]);
+                    // Marqueur lu par les scènes qui écoutent le pointerup
+                    // GLOBAL (ex. GameScene de Waggis : un clic sur une icône
+                    // plateforme ne doit pas faire bondir le personnage).
+                    Arcade.UI._clicPlateforme = true;
+                });
+                var relacherBouton = function () {
+                    relacher([ombreG, corps, icone, txt, zone]);
+                };
+                zone.on("pointerout", relacherBouton);
                 zone.on("pointerup", function () {
-                    relacher(g, img, txt, zone);
+                    relacherBouton();
                     if (typeof onClick === "function") onClick();
                 });
 
@@ -435,9 +475,8 @@
             }
 
             // Positionnement aux coins, recalculé à chaque rotation /
-            // redimensionnement (Arcade.UI.layout). Le bloc (cercle +
-            // libellé) est calé sur les bords : son coin extérieur reste à
-            // la marge.
+            // redimensionnement (Arcade.UI.layout). Le bouton est calé sur
+            // les bords : son coin extérieur reste à la marge.
             Arcade.UI.layout(scene, function (w) {
                 quitter.setPosition(marge + quitter.largeur() / 2,
                     marge + quitter.hauteur() / 2);
