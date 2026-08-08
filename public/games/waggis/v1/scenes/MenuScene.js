@@ -214,17 +214,24 @@ class MenuScene extends Phaser.Scene {
                 .setPosition(waggisX, waggisY);
             this._dessinerSolOmbre(waggisX, waggisY + hWaggis / 2, hWaggis * 0.9);
 
-            // « Jouer » pleine largeur (80 % de la largeur d'écran).
+            // « Jouer » pleine largeur (80 % de la largeur d'écran). Sa
+            // largeur est la RÉFÉRENCE de la page : chaque ligne de la
+            // grille 2×2 des boutons secondaires reprend exactement cette
+            // largeur (correction John 08/08).
+            const largeurJouer = w * 0.8;
             this.boutonJouer
-                .redimensionner(w * 0.8, u(11.5))
+                .redimensionner(largeurJouer, u(11.5))
                 .setPosition(w / 2, h * 0.635);
 
             // Grille 2×2 des boutons secondaires (correction John 08/08) :
             // ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
-            // Classement. Centrée horizontalement, et verticalement entre
-            // le bas du bouton « Jouer » et le sol (avec un garde-fou pour
-            // les écrans très courts).
-            const largeurSec = u(15);
+            // Classement. CHAQUE LIGNE a la MÊME LARGEUR TOTALE que le
+            // bouton « Jouer » (largeurJouer) : les 2 boutons d'une ligne
+            // se partagent cette largeur, séparés par un espace de u(4.5).
+            // Centrée horizontalement, et verticalement entre le bas du
+            // bouton « Jouer » et le sol (avec un garde-fou pour les
+            // écrans très courts).
+            const largeurSec = (largeurJouer - u(4.5)) / 2;
             const hauteurSec = u(10.5);
             const pasX = largeurSec + u(4.5);
             const pasY = hauteurSec + u(4.5);
@@ -245,11 +252,22 @@ class MenuScene extends Phaser.Scene {
                 ic.bouton.redimensionner(largeurSec, hauteurSec).setPosition(x, y);
             });
 
-            // ⚙️ Réglages : bouton en bas à droite, aligné sur la ligne 2
-            // de la grille (correction John 08/08).
+            // ⚙️ Réglages : vrai bouton en bas à droite. La grille occupant
+            // désormais TOUTE la largeur de « Jouer », il ne peut plus
+            // s'aligner sur la ligne 2 sans chevaucher la grille (surtout
+            // sur mobile) : il garde sa taille compacte (u(15), découplée
+            // de largeurSec) et est placé SOUS la grille, calé à droite —
+            // ou posé sur le sol si l'écran est trop court (desktop), en
+            // restant toujours à l'écart de la grille (jamais superposé,
+            // règle John).
+            const largeurReglages = u(15);
+            const yReglages = Math.min(
+                yLigne2 + hauteurSec / 2 + u(2) + hauteurSec / 2,
+                ySol - hauteurSec / 2
+            );
             this.boutonReglages
-                .redimensionner(largeurSec, hauteurSec)
-                .setPosition(w - u(8.5), yLigne2);
+                .redimensionner(largeurReglages, hauteurSec)
+                .setPosition(w - u(8.5), yReglages);
         };
 
         UI.layout(this, this._miseEnPage);
