@@ -226,6 +226,11 @@
             // (pattern _creerBoutonSecondaire, MenuScene — spec 709
             // révision 08/08). Défauts du socle, surchargeables par le
             // jeu (Waggis passe police.famille + couleurs.ombreBouton).
+            // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08
+            // — couleur PAR BOUTON) : Retour et Plein écran sont ROUGES —
+            // couleur passée EXPLICITEMENT (jamais le défaut noir du
+            // composant) : style.couleur du jeu (C.couleurs.bouton, rouge)
+            // ou défaut socle rouge ci-dessous.
             var couleur = style.couleur || "#E31B23";      // rouge Waggis
             var ombre = style.ombre || "rgba(20, 18, 16, 0.28)";
             var police = style.police ||

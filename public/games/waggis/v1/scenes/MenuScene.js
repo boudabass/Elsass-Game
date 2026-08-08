@@ -127,7 +127,7 @@ class MenuScene extends Phaser.Scene {
         // coins arrondis, ombre, feedback clic). Plus de code dupliqué.
         this.boutonJouer = Arcade.UI.bouton(this, {
             label: C.textes.jouer,
-            couleur: C.couleurs.bouton,
+            couleur: C.couleurs.boutonJouer,  // VERT (Jouer — décision John 08/08)
             ombre: C.couleurs.ombreBouton,
             police: C.police.famille,
             onClick: () => this.jouer()
@@ -163,7 +163,7 @@ class MenuScene extends Phaser.Scene {
             bouton: Arcade.UI.bouton(this, {
                 icone: ic.emoji,
                 label: ic.label,
-                couleur: C.couleurs.bouton,
+                couleur: C.couleurs.boutonSecondaire,  // NOIR (secondaires — décision John 08/08)
                 ombre: C.couleurs.ombreBouton,
                 police: C.police.famille,
                 onClick: ic.onClick
@@ -176,7 +176,7 @@ class MenuScene extends Phaser.Scene {
         this.boutonReglages = Arcade.UI.bouton(this, {
             icone: "⚙️",
             label: C.textes.reglages,
-            couleur: C.couleurs.bouton,
+            couleur: C.couleurs.bouton,  // ROUGE (Réglages — décision John 08/08)
             ombre: C.couleurs.ombreBouton,
             police: C.police.famille,
             onClick: () => this.aller(SettingsScene.KEY)

@@ -16,7 +16,7 @@
  *       repliDessin: fn(g, r),  // symbole dessiné si texture absente
  *       // --- Texte + couleurs (ce qui change selon le bouton) --------
  *       label: "Réglages",
- *       couleur: "#E31B23",     // fond du bouton
+ *       couleur: "#141210",     // fond du bouton — NOIR par défaut
  *       ombre: "rgba(20,18,16,0.28)",
  *       police: "system-ui, …",
  *       textColor: "#ffffff",
@@ -115,7 +115,11 @@
     Arcade.UI.bouton = function (scene, o) {
         o = o || {};
 
-        var couleur = o.couleur || "#E31B23";
+        var couleur = o.couleur || "#141210";
+        // NOIR par défaut (boutons secondaires — Niveaux, Personnages,
+        // Boutique, Classement ; décision John 08/08 : couleur PAR BOUTON).
+        // ROUGE (Retour / Plein écran / Réglages) et VERT (Jouer /
+        // Commencer) sont passés explicitement par chaque appel.
         var ombre = o.ombre || "rgba(20, 18, 16, 0.28)";
         var police = o.police ||
             "system-ui, -apple-system, Segoe UI, sans-serif";

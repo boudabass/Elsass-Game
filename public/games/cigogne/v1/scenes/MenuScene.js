@@ -34,7 +34,7 @@ class MenuScene extends Phaser.Scene {
         // — variante TEXTE SIMPLE, même style partagé que Waggis.
         const bouton = Arcade.UI.bouton(this, {
             label: "Commencer",
-            couleur: C.couleurs.bouton,
+            couleur: C.couleurs.boutonJouer,  // VERT (Commencer — décision John 08/08)
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(GameScene.KEY)
         });
