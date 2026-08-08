@@ -123,9 +123,7 @@ class ShopScene extends Phaser.Scene {
             a.ombre.destroy();
             a.fond.destroy();
             a.sprite.destroy();
-            a.nom.destroy();
-            a.prix.destroy();
-            a.action.destroy();
+            a.conteneur.destroy();
             a.zone.destroy();
         });
         this._articles = [];
@@ -194,8 +192,18 @@ class ShopScene extends Phaser.Scene {
             .image(x - largeur / 2 + hauteur * 0.6, y, perso.frames[0])
             .setDisplaySize(hauteur * 0.8, hauteur * 0.8);
 
+        // ⭐ FIX 08/08 (correction John) : nom + prix + action dans un MÊME
+        // conteneur — nom et prix EMPILÉS verticalement à gauche, action
+        // alignée à droite du bloc texte, jamais superposés (règle UI
+        // John : tout est empilé, jamais superposé). Si les textes ne
+        // tiennent pas côte à côte, la police de l'action (puis du nom)
+        // est réduite jusqu'à ce qu'ils ne se touchent plus.
+        const texteX = x - largeur / 2 + hauteur * 1.3;
+        const texteW = largeur - hauteur * 1.3 - UI.u(this, 2);
+        const gap = UI.u(this, 1);
+
         const nom = this.add
-            .text(x - largeur / 2 + hauteur * 1.3, y - hauteur * 0.12, perso.nom, {
+            .text(0, -hauteur * 0.13, perso.nom, {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 4)) + "px",
                 color: "#141210",
@@ -204,17 +212,16 @@ class ShopScene extends Phaser.Scene {
             .setOrigin(0, 0.5);
 
         const prix = this.add
-            .text(x - largeur / 2 + hauteur * 1.3, y + hauteur * 0.14,
-                perso.prix + " pièces", {
-                    fontFamily: C.police.famille,
-                    fontSize: Math.round(UI.u(this, 3.2)) + "px",
-                    color: "#5a5a5a",
-                    align: "left"
-                })
+            .text(0, hauteur * 0.13, perso.prix + " pièces", {
+                fontFamily: C.police.famille,
+                fontSize: Math.round(UI.u(this, 3.2)) + "px",
+                color: "#5a5a5a",
+                align: "left"
+            })
             .setOrigin(0, 0.5);
 
-        // Action : bouton « Acheter » (assez de pièces) / prix grisé
-        // « Pas assez de pièces » / « Déjà débloqué » (plus rien à acheter).
+        // Action : « Acheter » (assez de pièces) / prix grisé « Pas assez
+        // de pièces » / « Déjà débloqué » (plus rien à acheter).
         let actionTexte = "";
         let actionCouleur = C.couleurs.bouton;
         let actionnable = false;
@@ -229,13 +236,30 @@ class ShopScene extends Phaser.Scene {
             actionCouleur = "#8A8A8A";
         }
         const action = this.add
-            .text(x + largeur / 2 - UI.u(this, 2), y, actionTexte, {
+            .text(0, 0, actionTexte, {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 3.4)) + "px",
                 color: actionCouleur,
                 align: "right"
             })
             .setOrigin(1, 0.5);
+
+        // Ajustement anti-chevauchement : l'action tient dans la moitié
+        // droite du bloc, le nom dans ce qui reste à gauche.
+        let fsAction = 3.4;
+        while (action.width > texteW * 0.5 && fsAction > 2.4) {
+            fsAction -= 0.2;
+            action.setFontSize(Math.round(UI.u(this, fsAction)) + "px");
+        }
+        let fsNom = 4;
+        while (nom.width > texteW - action.width - gap && fsNom > 3) {
+            fsNom -= 0.2;
+            nom.setFontSize(Math.round(UI.u(this, fsNom)) + "px");
+        }
+        action.setPosition(texteW, 0);
+
+        const conteneur = this.add.container(texteX, y);
+        conteneur.add([nom, prix, action]);
 
         // Zone tactile : VRAIE uniquement si l'achat est possible.
         const zone = this.add
@@ -249,7 +273,7 @@ class ShopScene extends Phaser.Scene {
                 this.acheter(id);
             });
         }
-        this._articles.push({ ombre, fond, sprite, nom, prix, action, zone });
+        this._articles.push({ ombre, fond, sprite, conteneur, zone });
     }
 
     /**

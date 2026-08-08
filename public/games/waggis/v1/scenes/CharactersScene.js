@@ -128,8 +128,7 @@ class CharactersScene extends Phaser.Scene {
             l.ombre.destroy();
             l.fond.destroy();
             l.sprite.destroy();
-            l.nom.destroy();
-            l.etat.destroy();
+            l.conteneur.destroy();
             if (l.cadenas) l.cadenas.destroy();
             l.zone.destroy();
         });
@@ -204,8 +203,19 @@ class CharactersScene extends Phaser.Scene {
             .setDisplaySize(hauteur * 0.8, hauteur * 0.8);
         if (couleurSprite !== null) sprite.setAlpha(couleurSprite);
 
+        // ⭐ FIX 08/08 (correction John) : nom + statut dans un MÊME
+        // conteneur, alignés l'un À CÔTÉ de l'autre (nom à gauche, statut
+        // à droite du bloc texte) — jamais superposés (règle UI John :
+        // tout est empilé, jamais superposé). Si les deux textes ne
+        // tiennent pas côte à côte, la police de l'état (puis du nom) est
+        // réduite jusqu'à ce qu'ils ne se touchent plus.
+        const texteX = x - largeur / 2 + hauteur * 1.3;
+        const texteY = y;
+        const texteW = largeur - hauteur * 1.3 - UI.u(this, 2);
+        const gap = UI.u(this, 1);
+
         const nom = this.add
-            .text(x - largeur / 2 + hauteur * 1.3, y - hauteur * 0.12, perso.nom, {
+            .text(0, 0, perso.nom, {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 4)) + "px",
                 color: !debloque ? "#ffffff" : "#141210",
@@ -228,13 +238,30 @@ class CharactersScene extends Phaser.Scene {
             couleurEtat = C.couleurs.bouton;
         }
         const etat = this.add
-            .text(x + largeur / 2 - UI.u(this, 2), y, etatTexte, {
+            .text(0, 0, etatTexte, {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 3.4)) + "px",
                 color: couleurEtat,
                 align: "right"
             })
             .setOrigin(1, 0.5);
+
+        // Ajustement anti-chevauchement : l'état tient dans la moitié
+        // droite du bloc, le nom dans ce qui reste à gauche.
+        let fsEtat = 3.4;
+        while (etat.width > texteW * 0.5 && fsEtat > 2.4) {
+            fsEtat -= 0.2;
+            etat.setFontSize(Math.round(UI.u(this, fsEtat)) + "px");
+        }
+        let fsNom = 4;
+        while (nom.width > texteW - etat.width - gap && fsNom > 3) {
+            fsNom -= 0.2;
+            nom.setFontSize(Math.round(UI.u(this, fsNom)) + "px");
+        }
+        etat.setPosition(texteW, 0);
+
+        const conteneur = this.add.container(texteX, texteY);
+        conteneur.add([nom, etat]);
 
         // Zone tactile : VRAIE sur les skins débloqués NON actifs — sélection
         // (spec 709). Un skin déjà actif ou à débloquer ne réagit à rien.
@@ -248,7 +275,7 @@ class CharactersScene extends Phaser.Scene {
             const cadenas = this.add.graphics();
             WaggisUI.cadenas(cadenas, x - largeur / 2 + hauteur * 0.6, y,
                 hauteur * 0.42, 0xffffff);
-            this._lignes.push({ ombre, fond, sprite, nom, etat, cadenas, zone });
+            this._lignes.push({ ombre, fond, sprite, conteneur, cadenas, zone });
             return;
         }
         if (!estActif) {
@@ -259,7 +286,7 @@ class CharactersScene extends Phaser.Scene {
                 this.selectionner(id);
             });
         }
-        this._lignes.push({ ombre, fond, sprite, nom, etat, zone });
+        this._lignes.push({ ombre, fond, sprite, conteneur, zone });
     }
 
     /**
