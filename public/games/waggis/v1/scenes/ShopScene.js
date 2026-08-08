@@ -22,6 +22,13 @@
  *    elle ne doit pas se perdre au rechargement (contrairement à la
  *    progression de niveau, 708 §9, écrite à la victoire uniquement).
  *
+ * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
+ *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
+ *  - lignes : ombre portée + coins arrondis ; article DÉJÀ DÉBLOQUÉ =
+ *    bordure/glow verte au lieu de l'aplat vert ; article ACHETABLE =
+ *    bordure rouge Waggis discrète ; police ronde Azimut sur tous les
+ *    textes ; transitions animées fade entre écrans (WaggisUI.aller).
+ *
  * Mobile-first : tailles en % du plus petit côté (Arcade.UI.u), mise en
  * page recalculée à chaque rotation (Arcade.UI.layout), 100 % clic/tap
  * (article 409). Scène propre à Waggis (article 709 : pas dans core/ tant
@@ -38,33 +45,49 @@ class ShopScene extends Phaser.Scene {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
         this.C = C;
-
-        this.cameras.main.setBackgroundColor(C.couleurs.ciel);
+        this.enTransition = false;
 
         // Données de la save v5 (appliquée au boot par Arcade.Save.apply).
         this.debloques = this.registry.get("unlockedCharacters") || ["waggis"];
 
-        // --- Titre + pièces ------------------------------------------------
-        const titre = UI.text(this, 0, 0, C.textes.boutique, 9, C.couleurs.texte);
-        const pieces = UI.text(this, 0, 0, "", 4, C.couleurs.texte);
+        // --- Fond : dégradé de ciel (spec 709 révision 08/08) --------------
+        this.fond = this.add.graphics().setDepth(0);
+
+        // --- Titre (police Azimut + relief) + pièces -----------------------
+        const titre = this.add.text(0, 0, C.textes.boutique, {
+            fontFamily: C.police.famille,
+            color: "#ffffff",
+            align: "center"
+        })
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setStroke("#141210", 3)
+            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
+        const pieces = this.add.text(0, 0, "", {
+            fontFamily: C.police.famille,
+            color: C.couleurs.texte,
+            align: "center"
+        })
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setShadow(0, 2, "rgba(255, 255, 255, 0.7)", 2, false, true);
         this.piecesTexte = pieces;
 
         // --- Articles à vendre -----------------------------------------------
-        this._articles = [];   // objets { fond, sprite, nom, prix, action, zone }
+        this._articles = [];   // objets { ombre, fond, sprite, nom, prix, action, zone }
 
-        // --- Retour au menu ---------------------------------------------------
-        const retour = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 9),
+        // --- Retour au menu (bouton refondu) --------------------------------
+        const retour = WaggisUI.bouton(this, {
             label: C.textes.retour,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(MenuScene.KEY)
+            couleur: "#141210",
+            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
         this.retour = retour;
 
         // Mise en page recalculée à chaque rotation : titre en haut, pièces,
         // liste des articles centrée, retour en bas.
         UI.layout(this, (w, h) => {
+            WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.08)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
             pieces.setPosition(w / 2, h * 0.155)
@@ -74,6 +97,9 @@ class ShopScene extends Phaser.Scene {
             this._dessinerArticles();
         });
         this._majPieces();
+
+        // Transition d'arrivée : fondu depuis le noir (spec 709).
+        this.cameras.main.fadeIn(220, 0, 0, 0);
     }
 
     /** Rafraîchit le texte des pièces (data.wallet). */
@@ -94,6 +120,7 @@ class ShopScene extends Phaser.Scene {
         const C = this.C;
         const UI = Arcade.UI;
         this._articles.forEach((a) => {
+            a.ombre.destroy();
             a.fond.destroy();
             a.sprite.destroy();
             a.nom.destroy();
@@ -125,22 +152,42 @@ class ShopScene extends Phaser.Scene {
     }
 
     /**
-     * Crée la ligne d'un article : fond arrondi, sprite (repos = frames[0]),
-     * nom, prix (« N pièces ») et action (Acheter / Pas assez de pièces /
-     * Déjà débloqué). Zone tactile active UNIQUEMENT quand l'achat est
-     * possible (débloqué → aucune interaction).
+     * Crée la ligne d'un article — ⭐ REFONTE 08/08 (spec 709) : ombre
+     * portée + coins arrondis ; DÉJÀ DÉBLOQUÉ = bordure/glow verte (plus
+     * l'aplat vert) ; ACHETABLE = bordure rouge Waggis discrète ; sinon
+     * fond blanc simple. Sprite, nom, prix (« N pièces ») et action
+     * (Acheter / Pas assez de pièces / Déjà débloqué). Zone tactile active
+     * UNIQUEMENT quand l'achat est possible.
      */
     _creerArticle(id, perso, debloque, x, y, largeur, hauteur) {
         const C = this.C;
         const UI = Arcade.UI;
         const wallet = this.registry.get("wallet") || 0;
         const assez = wallet >= perso.prix;
+        const hex = (s) => Phaser.Display.Color.HexStringToColor(s).color;
+        const r = hauteur * 0.18;
 
+        // Ombre portée sous la ligne.
+        const ombre = this.add.graphics();
+        ombre.fillStyle(C.couleurs.ombrePortee, 0.22);
+        ombre.fillRoundedRect(x - largeur / 2, y - hauteur / 2 + hauteur * 0.06,
+            largeur, hauteur, r);
+
+        // Corps : fond blanc, bordure selon l'état.
         const fond = this.add.graphics();
-        fond.fillStyle(Phaser.Display.Color.HexStringToColor(
-            debloque ? C.couleurs.complete : "#ffffff"
-        ).color, 1);
-        fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, hauteur * 0.18);
+        fond.fillStyle(hex(C.couleurs.fondCarte), 1);
+        fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+        if (debloque) {
+            // Déjà débloqué : bordure/glow verte (spec 709 révision 08/08).
+            const liseret = hex(C.couleurs.liseretActif);
+            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), liseret, 1);
+            fond.strokeRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+        } else if (assez) {
+            // Achetable : bordure rouge Waggis discrète (accent).
+            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.6))),
+                hex(C.couleurs.bouton), 0.8);
+            fond.strokeRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+        }
 
         // Sprite du personnage : frame de repos (frames[0]).
         const sprite = this.add
@@ -149,7 +196,7 @@ class ShopScene extends Phaser.Scene {
 
         const nom = this.add
             .text(x - largeur / 2 + hauteur * 1.3, y - hauteur * 0.12, perso.nom, {
-                fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 4)) + "px",
                 color: "#141210",
                 align: "left"
@@ -159,7 +206,7 @@ class ShopScene extends Phaser.Scene {
         const prix = this.add
             .text(x - largeur / 2 + hauteur * 1.3, y + hauteur * 0.14,
                 perso.prix + " pièces", {
-                    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                    fontFamily: C.police.famille,
                     fontSize: Math.round(UI.u(this, 3.2)) + "px",
                     color: "#5a5a5a",
                     align: "left"
@@ -173,17 +220,17 @@ class ShopScene extends Phaser.Scene {
         let actionnable = false;
         if (debloque) {
             actionTexte = C.textes.dejaDebloque;
-            actionCouleur = C.couleurs.verrouille;
+            actionCouleur = C.couleurs.liseretActif;
         } else if (assez) {
             actionTexte = C.textes.acheter;
             actionnable = true;
         } else {
             actionTexte = C.textes.pasAssezPieces;
-            actionCouleur = C.couleurs.verrouille;
+            actionCouleur = "#8A8A8A";
         }
         const action = this.add
             .text(x + largeur / 2 - UI.u(this, 2), y, actionTexte, {
-                fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 3.4)) + "px",
                 color: actionCouleur,
                 align: "right"
@@ -202,7 +249,7 @@ class ShopScene extends Phaser.Scene {
                 this.acheter(id);
             });
         }
-        this._articles.push({ fond, sprite, nom, prix, action, zone });
+        this._articles.push({ ombre, fond, sprite, nom, prix, action, zone });
     }
 
     /**

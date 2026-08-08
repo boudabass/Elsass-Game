@@ -25,6 +25,15 @@
  * vide côté serveur : message d'invite à jouer. « Retour » ramène au
  * menu.
  *
+ * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
+ *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
+ *  - lignes : ombre portée + coins arrondis (même langage visuel que les
+ *    cartes des autres écrans) ; police ronde Azimut sur tous les textes ;
+ *  - flèches de pagination redessinées, fines et arrondies (WaggisUI.
+ *    fleche), ÉCARTÉES du texte « Page X / Y » — plus de recouvrement
+ *    (même correctif que l'écran Niveaux) ;
+ *  - transitions animées fade entre écrans (WaggisUI.aller).
+ *
  * Scène propre à Waggis (article 709 : pas dans core/ tant qu'un 2e jeu
  * n'en a pas besoin), mobile-first (Arcade.UI.u), mise en page recalculée
  * à chaque rotation (Arcade.UI.layout).
@@ -40,45 +49,42 @@ class ClassementScene extends Phaser.Scene {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
         this.C = C;
+        this.enTransition = false;
 
-        this.cameras.main.setBackgroundColor(C.couleurs.ciel);
+        // Fond : dégradé de ciel (spec 709 révision 08/08).
+        this.fond = this.add.graphics().setDepth(0);
 
-        // Titre de l'écran (spec 709 : « Classement »).
-        const titre = UI.text(this, 0, 0, C.textes.classement, 9, C.couleurs.texte);
+        // Titre de l'écran (spec 709 : « Classement »), police Azimut.
+        const titre = this.add.text(0, 0, C.textes.classement, {
+            fontFamily: C.police.famille,
+            color: "#ffffff",
+            align: "center"
+        })
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setStroke("#141210", 3)
+            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
 
         // Ligne d'état : chargement, hors ligne, liste vide, ou page X/Y.
         const etat = UI.text(this, 0, 0, C.textes.classementChargement, 3.5, C.couleurs.texte);
         this.etat = etat;
 
         // Pagination (même pattern que LevelsScene : ◀ / ▶, 100 % clic/tap).
-        const prec = UI.button(this, {
-            width: UI.u(this, 12), height: UI.u(this, 8),
-            label: C.textes.pagePrecedente,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => {
-                if (this.page > 0) { this.page--; this._dessinerListe(); }
-            }
+        // ⭐ REFONTE 08/08 : flèches fines et arrondies, écartées du texte.
+        const prec = WaggisUI.fleche(this, "gauche", () => {
+            if (this.page > 0) { this.page--; this._dessinerListe(); }
         });
-        const suiv = UI.button(this, {
-            width: UI.u(this, 12), height: UI.u(this, 8),
-            label: C.textes.pageSuivante,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => {
-                if (this.page < this._nbPages() - 1) { this.page++; this._dessinerListe(); }
-            }
+        const suiv = WaggisUI.fleche(this, "droite", () => {
+            if (this.page < this._nbPages() - 1) { this.page++; this._dessinerListe(); }
         });
         this.prec = prec;
         this.suiv = suiv;
 
-        // Retour au menu (comportement standard des écrans du menu).
-        const retour = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 9),
+        // Retour au menu (bouton refondu).
+        const retour = WaggisUI.bouton(this, {
             label: C.textes.retour,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(MenuScene.KEY)
+            couleur: "#141210",
+            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 
         // 10 entrées par page : rang + nom + score lisibles sur mobile.
@@ -88,18 +94,22 @@ class ClassementScene extends Phaser.Scene {
         this._lignes = [];       // objets de rendu de la page courante
 
         UI.layout(this, (w, h) => {
+            WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.07)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
             etat.setPosition(w / 2, h * 0.86)
                 .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
-            prec.redimensionner(UI.u(this, 12), UI.u(this, 8))
-                .setPosition(w / 2 - UI.u(this, 10), h * 0.86);
-            suiv.redimensionner(UI.u(this, 12), UI.u(this, 8))
-                .setPosition(w / 2 + UI.u(this, 10), h * 0.86);
+            prec.redimensionner(UI.u(this, 9))
+                .setPosition(w / 2 - UI.u(this, 19), h * 0.86);
+            suiv.redimensionner(UI.u(this, 9))
+                .setPosition(w / 2 + UI.u(this, 19), h * 0.86);
             retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
                   .setPosition(w / 2, h * 0.94);
             this._dessinerListe();
         });
+
+        // Transition d'arrivée : fondu depuis le noir (spec 709).
+        this.cameras.main.fadeIn(220, 0, 0, 0);
 
         // Chargement du classement général (cloud) : l'endpoint
         // d'agrégation du socle (Arcade.Platform.score.leaderboard, GET
@@ -142,11 +152,14 @@ class ClassementScene extends Phaser.Scene {
     }
 
     /**
-     * (Re)dessine les lignes de la page courante. Détruit les lignes de la
-     * page précédente — objets Phaser non réutilisés (pattern LevelsScene).
+     * (Re)dessine les lignes de la page courante — ⭐ REFONTE 08/08 : ombre
+     * portée + coins arrondis (même langage que les cartes Niveaux/
+     * Personnages). Détruit les lignes de la page précédente — objets
+     * Phaser non réutilisés (pattern LevelsScene).
      */
     _dessinerListe() {
         this._lignes.forEach((l) => {
+            l.ombre.destroy();
             l.fond.destroy();
             l.rang.destroy();
             l.nom.destroy();
@@ -155,6 +168,7 @@ class ClassementScene extends Phaser.Scene {
         this._lignes = [];
         this._majEtat();
 
+        const C = this.C;
         const UI = Arcade.UI;
         const w = this.scale.width;
         const h = this.scale.height;
@@ -169,6 +183,7 @@ class ClassementScene extends Phaser.Scene {
         const zoneBas = h * 0.80;
         const hauteurLigne = Math.min((zoneBas - zoneHaut) / this.parPage, UI.u(this, 6));
         const largeur = UI.u(this, 46);
+        const r = hauteurLigne * 0.22;
 
         for (let i = debut; i < fin; i++) {
             const e = entrees[i];
@@ -176,14 +191,21 @@ class ClassementScene extends Phaser.Scene {
             const y = zoneHaut + hauteurLigne * rel + hauteurLigne / 2;
             const x = w / 2;
 
+            // Ombre portée sous la ligne.
+            const ombre = this.add.graphics();
+            ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
+            ombre.fillRoundedRect(x - largeur / 2, y - hauteurLigne / 2 + hauteurLigne * 0.05,
+                largeur, hauteurLigne, r);
+
             const fond = this.add.graphics();
             fond.fillStyle(0x141210, 0.85);
-            fond.fillRoundedRect(x - largeur / 2, y - hauteurLigne / 2, largeur, hauteurLigne, hauteurLigne * 0.22);
+            fond.fillRoundedRect(x - largeur / 2, y - hauteurLigne / 2,
+                largeur, hauteurLigne, r);
 
             const taille = Math.round(UI.u(this, 3.2)) + "px";
             const rang = this.add
                 .text(x - largeur / 2 + UI.u(this, 4), y, String(i + 1) + ".", {
-                    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                    fontFamily: C.police.famille,
                     fontSize: taille,
                     color: "#F2B93D",
                     align: "left"
@@ -191,7 +213,7 @@ class ClassementScene extends Phaser.Scene {
                 .setOrigin(0, 0.5);
             const nom = this.add
                 .text(x, y, this._nomAffiche(e.user_name), {
-                    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                    fontFamily: C.police.famille,
                     fontSize: taille,
                     color: "#ffffff",
                     align: "center"
@@ -199,14 +221,14 @@ class ClassementScene extends Phaser.Scene {
                 .setOrigin(0.5);
             const score = this.add
                 .text(x + largeur / 2 - UI.u(this, 4), y, String(e.score), {
-                    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                    fontFamily: C.police.famille,
                     fontSize: taille,
                     color: "#ffffff",
                     align: "right"
                 })
                 .setOrigin(1, 0.5);
 
-            this._lignes.push({ fond, rang, nom, score });
+            this._lignes.push({ ombre, fond, rang, nom, score });
         }
     }
 }

@@ -110,7 +110,12 @@ window.WaggisConfig = {
         dejaDebloque: "Déjà débloqué",
         pasAssezPieces: "Pas assez de pièces",
         gratuit: "Gratuit",
-        aDebloquer: "À débloquer dans la Boutique",
+        // ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08) : le texte des
+        // personnages verrouillés passe de « À débloquer dans la Boutique »
+        // (répété à l'identique) à « 🔒 Débloque-le en Boutique » — l'icône
+        // 🔒 vient du préfixe textes.verrouille (CharactersScene concatène
+        // verrouille + aDebloquer).
+        aDebloquer: "Débloque-le en Boutique",
 
         // MENU-5 (spec 709 §7 boutons — écran Réglages, SettingsScene, et
         // Classement, ClassementScene) : le son (on/off UNIQUEMENT — pas de
@@ -391,7 +396,20 @@ window.WaggisConfig = {
         toits: "#8C3B42",
         solMenu: "#7CB85C",
         ombreBouton: "rgba(20, 18, 16, 0.28)",
-        iconeFond: "#FFFFFF"
+        iconeFond: "#FFFFFF",
+
+        // ⭐ REFONTE écrans secondaires 08/08/2026 (spec 709 — révision
+        // 08/08) : cartes niveaux/personnages avec ombre portée + coins
+        // arrondis, état verrouillé = overlay semi-transparent + cadenas
+        // fin, sélection active = bordure/glow au lieu de l'aplat vert.
+        // VALEURS NUMÉRIQUES OBLIGATOIRES pour les Graphics (le renderer
+        // WebGL ne convertit pas les chaînes CSS — QA 08/08, NC1) :
+        // ombrePortee s'utilise avec un alpha (ex. fillStyle(0x141210,
+        // 0.25)) ; fondCarte et liseretActif sont convertis par
+        // Phaser.Display.Color.HexStringToColor(...).color.
+        ombrePortee: 0x141210,
+        fondCarte: "#FFFFFF",
+        liseretActif: "#2E9E4F",
     },
 
     // --- Police (REFONTE 08/08/2026, spec 709 — révision 08/08) -----------

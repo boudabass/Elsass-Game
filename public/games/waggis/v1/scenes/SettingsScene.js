@@ -15,6 +15,13 @@
  *  - la préférence est appliquée dès le BOOT (main.js, après le
  *    chargement de la save) : un son coupé le reste au lancement du jeu.
  *
+ * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
+ *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
+ *  - boutons refondus (WaggisUI.bouton : coins arrondis + ombre portée +
+ *    dégradé léger + feedback clic) — plus de noir mat uniforme ;
+ *  - police ronde Azimut (C.police.famille) ;
+ *  - transitions animées fade entre écrans (WaggisUI.aller).
+ *
  * Aucun autre réglage à l'écran (spec 709 : pas de vibration, pas de
  * langue) — un seul contrôle + le retour au menu.
  *
@@ -32,32 +39,41 @@ class SettingsScene extends Phaser.Scene {
     create() {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
+        this.enTransition = false;
 
-        this.cameras.main.setBackgroundColor(C.couleurs.ciel);
+        // Fond : dégradé de ciel (spec 709 révision 08/08).
+        this.fond = this.add.graphics().setDepth(0);
 
-        const titre = UI.text(this, 0, 0, C.textes.reglages, 9, C.couleurs.texte);
+        // Titre (police Azimut + relief).
+        const titre = this.add.text(0, 0, C.textes.reglages, {
+            fontFamily: C.police.famille,
+            color: "#ffffff",
+            align: "center"
+        })
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setStroke("#141210", 3)
+            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
 
         // Bouton bascule du son : le libellé porte l'état courant
         // (« Son : Activé » / « Son : Désactivé »), le clic bascule.
-        const sonBtn = UI.button(this, {
-            width: UI.u(this, 44), height: UI.u(this, 10),
+        // ⭐ REFONTE 08/08 : bouton refondu (ombre + arrondis + dégradé).
+        const sonBtn = WaggisUI.bouton(this, {
             label: "",
-            color: C.couleurs.bouton,
-            textColor: C.couleurs.texteClair,
+            couleur: C.couleurs.bouton,
             onClick: () => this.basculerSon(sonBtn)
         });
         this._majBoutonSon(sonBtn);
 
         // Retour au menu (comportement standard des écrans du menu).
-        const retour = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 9),
+        const retour = WaggisUI.bouton(this, {
             label: C.textes.retour,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(MenuScene.KEY)
+            couleur: "#141210",
+            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 
         UI.layout(this, (w, h) => {
+            WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.2)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
             sonBtn.redimensionner(UI.u(this, 44), UI.u(this, 10))
@@ -65,6 +81,9 @@ class SettingsScene extends Phaser.Scene {
             retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
                   .setPosition(w / 2, h * 0.6);
         });
+
+        // Transition d'arrivée : fondu depuis le noir (spec 709).
+        this.cameras.main.fadeIn(220, 0, 0, 0);
     }
 
     /** Libellé du bouton selon l'état courant du son (Activé/Désactivé). */
