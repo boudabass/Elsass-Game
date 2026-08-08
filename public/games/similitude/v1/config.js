@@ -37,13 +37,24 @@ window.SimilitudeConfig = {
     typesItems: 6,            // les 6 items alsaciens (spec §7)
     itemsParCoupRate: 2,      // nouveaux items après un coup raté (spec §3)
     tailleCasePct: 8,         // côté d'une case, en % du plus petit côté
+    margeCasePct: 0.4,        // espace entre deux cases, en % du plus petit côté
 
     // --- Énergie / chrono (spec §4, §5) ------------------------------------
     energieDepart: 25,        // ⚡ de départ
     tempsDepart: 120,         // chrono de départ, en secondes
+    energieDeplacement: 1,    // coût en ⚡ d'un déplacement (spec §3) — prélevé
+                              // AU DÉPLACEMENT, jamais à la sélection
     dureeDeplacementMs: 150,  // animation de translation d'un déplacement
     chronoAlerteS: 15,        // le chrono passe en rouge sous 15 s (spec §8)
     energieAlerte: 5,         // l'énergie passe en rouge sous 5 ⚡ (spec §8)
+
+    // --- Animation / affichage (spec §8) -----------------------------------
+    dureeDisparitionMs: 250,  // fondu + réduction des items fusionnés
+    tailleItemPct: 85,        // taille d'un item dans sa case, en % du côté
+    selectionAgrandissementPct: 15,  // agrandissement de l'item sélectionné
+    tailleTexteGainPct: 3,    // taille du texte flottant des gains, en % du
+                              // plus petit côté
+    dureeTexteGainMs: 700,    // durée de vie du texte flottant des gains
 
     // --- Barème (spec §5) ---------------------------------------------------
     bareme: {
@@ -76,6 +87,9 @@ window.SimilitudeConfig = {
         fond: "#1f3a2d",
         caseFond: "#2c4f3c",
         caseBordure: "#3d6b52",
+        surbrillance: "#fff3c4",   // teinte de l'item sélectionné (spec §3)
+        combo: "#F2B93D",          // bannière « Combo ×2 » (spec §5, §8)
+        texteContour: "#000000",   // contour du texte flottant des gains
         texte: "#141210",
         texteClair: "#f5f0e6",
         bouton: "#E31B23",
