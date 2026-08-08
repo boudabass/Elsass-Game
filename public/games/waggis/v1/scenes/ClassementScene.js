@@ -34,6 +34,16 @@
  *    (même correctif que l'écran Niveaux) ;
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
+ * ⭐ FIX 08/08/2026 (corrections John) : même correctif que l'écran
+ * Niveaux — la pagination (flèches ◀ / ▶ + « Page X / Y ») est EMPILÉE
+ * à la suite du tableau au lieu d'être posée à une hauteur fixe (h*0.86)
+ * sans lien avec lui : son Y est calculé depuis le bas de la dernière
+ * ligne (zoneHaut h*0.14 + 10 × hauteur de ligne, mêmes constantes que
+ * _dessinerListe) + une marge de 5.5u. Le bouton Retour est intégré au
+ * même empilement, juste sous la pagination (yPagination + 11u : flèche
+ * 9u + marge 2u + demi-bouton 4.5u) — plus aucune superposition.
+ * Règle UI John : tout est empilé, jamais superposé.
+ *
  * Scène propre à Waggis (article 709 : pas dans core/ tant qu'un 2e jeu
  * n'en a pas besoin), mobile-first (Arcade.UI.u), mise en page recalculée
  * à chaque rotation (Arcade.UI.layout).
@@ -97,14 +107,28 @@ class ClassementScene extends Phaser.Scene {
             WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.07)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            etat.setPosition(w / 2, h * 0.86)
+            // ⭐ FIX 08/08 (corrections John) : la pagination est EMPILÉE
+            // à la suite du tableau — son Y est calculé DEPUIS le bas de
+            // la dernière ligne (mêmes constantes que _dessinerListe :
+            // zoneHaut h*0.14, hauteur de ligne plafonnée à 6u) + une
+            // marge de 5.5u, plus de hauteur fixe (h*0.86) qui flottait
+            // sans lien avec le tableau. Le bouton Retour est intégré au
+            // même empilement, juste sous la pagination : flèche 9u + marge
+            // 2u + demi-bouton 4.5u = yPagination + 11u. Tout est empilé,
+            // jamais superposé (règle UI John).
+            const zoneHaut = h * 0.14;
+            const hauteurLigne = Math.min((h * 0.80 - zoneHaut) / this.parPage, UI.u(this, 6));
+            const basTable = zoneHaut + hauteurLigne * this.parPage;
+            const yPagination = basTable + UI.u(this, 5.5);
+            const yRetour = yPagination + UI.u(this, 11);
+            etat.setPosition(w / 2, yPagination)
                 .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
             prec.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 - UI.u(this, 19), h * 0.86);
+                .setPosition(w / 2 - UI.u(this, 19), yPagination);
             suiv.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 + UI.u(this, 19), h * 0.86);
+                .setPosition(w / 2 + UI.u(this, 19), yPagination);
             retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
-                  .setPosition(w / 2, h * 0.94);
+                  .setPosition(w / 2, yRetour);
             this._dessinerListe();
         });
 
