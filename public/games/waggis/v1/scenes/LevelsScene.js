@@ -22,6 +22,23 @@
  *    ◀ / ▶ pour changer de page (100 % clic/tap, article 409 — aucune
  *    autre gestuelle), « Retour » ramène au menu.
  *
+ * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
+ *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
+ *  - cartes niveaux : ombre portée + coins arrondis ; état verrouillé =
+ *    overlay semi-transparent + icône cadenas fine (plus le gris uni) ;
+ *    état complété = bordure/glow verte au lieu de l'aplat vert ;
+ *  - flèches de pagination redessinées, fines et arrondies (WaggisUI.
+ *    fleche), ÉCARTÉES du texte « Page X / Y » — le texte n'est plus
+ *    recouvert par les flèches (bug signalé John) ;
+ *  - ⭐ FIX 08/08 (corrections John) : la barre de pagination est
+ *    EMPILÉE à la suite de la grille (position calculée depuis le bas
+ *    du tableau, plus de hauteur fixe qui recouvrait la dernière ligne
+ *    de tuiles) et le cadenas d'un niveau verrouillé est EMPILÉ sur la
+ *    ligne du score (sous le chiffre, comme « ★ score » pour un niveau
+ *    complété) — plus aucune superposition. Règle UI John : tout est
+ *    empilé, jamais superposé.
+ *  - transitions animées fade entre écrans (WaggisUI.aller).
+ *
  * Le nombre de niveaux affichés = le repère de levels.json (niveauMaxRepere
  * = 100, 708 §1), étendu si la progression a dépassé le repère — le niveau
  * en cours est toujours visible.
@@ -41,8 +58,7 @@ class LevelsScene extends Phaser.Scene {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
         this.C = C;
-
-        this.cameras.main.setBackgroundColor(C.couleurs.ciel);
+        this.enTransition = false;
 
         // Données de la save v5 (appliquée au boot par Arcade.Save.apply) :
         // data.currentLevel (niveau le plus avancé débloqué) et
@@ -61,56 +77,67 @@ class LevelsScene extends Phaser.Scene {
         this.page = 0;
         this._tuiles = [];
 
-        // --- Titre ----------------------------------------------------------
-        const titre = UI.text(this, 0, 0, C.textes.niveaux, 9, C.couleurs.texte);
+        // --- Fond : dégradé de ciel (spec 709 révision 08/08) --------------
+        this.fond = this.add.graphics().setDepth(0);
+
+        // --- Titre (police Azimut + relief) --------------------------------
+        const titre = this.add.text(0, 0, C.textes.niveaux, {
+            fontFamily: C.police.famille,
+            color: "#ffffff",
+            align: "center"
+        })
+            .setOrigin(0.5)
+            .setDepth(20)
+            .setStroke("#141210", 3)
+            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
 
         // --- Pagination (100 % clic/tap, article 409) ----------------------
+        // ⭐ REFONTE 08/08 : flèches fines et arrondies (chevron Graphics),
+        // ÉCARTÉES du texte « Page X / Y » — plus de recouvrement (bug
+        // John). Le texte reste centré, les flèches en dehors de sa zone.
         const pageInfo = UI.text(this, 0, 0, "", 3.5, C.couleurs.texte);
         this.pageInfo = pageInfo;
-        const prec = UI.button(this, {
-            width: UI.u(this, 12), height: UI.u(this, 8),
-            label: C.textes.pagePrecedente,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => {
-                if (this.page > 0) { this.page--; this._dessinerGrille(); }
-            }
+        const prec = WaggisUI.fleche(this, "gauche", () => {
+            if (this.page > 0) { this.page--; this._dessinerGrille(); }
         });
-        const suiv = UI.button(this, {
-            width: UI.u(this, 12), height: UI.u(this, 8),
-            label: C.textes.pageSuivante,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => {
-                if (this.page < this._nbPages() - 1) { this.page++; this._dessinerGrille(); }
-            }
+        const suiv = WaggisUI.fleche(this, "droite", () => {
+            if (this.page < this._nbPages() - 1) { this.page++; this._dessinerGrille(); }
         });
 
-        // --- Retour au menu -------------------------------------------------
-        const retour = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 9),
+        // --- Retour au menu (bouton refondu : ombre + arrondis + dégradé) --
+        const retour = WaggisUI.bouton(this, {
             label: C.textes.retour,
-            color: "#141210",
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(MenuScene.KEY)
+            couleur: "#141210",
+            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 
         // Mise en page recalculée à chaque rotation : titre en haut, grille
-        // centrée, pagination et retour en bas.
+        // centrée, pagination EMPILÉE à la suite de la grille et retour en
+        // bas. Le texte « Page X / Y » est centré et les flèches écartées
+        // (± 19u). ⭐ FIX 08/08 (John) : la pagination n'est plus posée à une
+        // hauteur fixe (h*0.8) qui recouvrait le bas du tableau — son Y est
+        // calculé DEPUIS le bas de la grille (mêmes constantes que
+        // _dessinerGrille), elle est donc toujours empilée à sa suite.
         UI.layout(this, (w, h) => {
+            WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.08)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            pageInfo.setPosition(w / 2, h * 0.8)
+            const basGrille = h * 0.17 + (5 * UI.u(this, 10.5) + 4 * UI.u(this, 1.5));
+            const yPagination = basGrille + UI.u(this, 5.5);
+            pageInfo.setPosition(w / 2, yPagination)
                     .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
-            prec.redimensionner(UI.u(this, 12), UI.u(this, 8))
-                .setPosition(w / 2 - UI.u(this, 10), h * 0.8);
-            suiv.redimensionner(UI.u(this, 12), UI.u(this, 8))
-                .setPosition(w / 2 + UI.u(this, 10), h * 0.8);
+            prec.redimensionner(UI.u(this, 9))
+                .setPosition(w / 2 - UI.u(this, 19), yPagination);
+            suiv.redimensionner(UI.u(this, 9))
+                .setPosition(w / 2 + UI.u(this, 19), yPagination);
             retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
                   .setPosition(w / 2, h * 0.91);
             this._dessinerGrille();
         });
         this._majPageInfo();
+
+        // Transition d'arrivée : fondu depuis le noir (spec 709).
+        this.cameras.main.fadeIn(220, 0, 0, 0);
     }
 
     /** Nombre de pages de la grille (au moins 1). */
@@ -143,9 +170,11 @@ class LevelsScene extends Phaser.Scene {
      */
     _dessinerGrille() {
         this._tuiles.forEach((t) => {
+            t.ombre.destroy();
             t.fond.destroy();
             t.numero.destroy();
             t.score.destroy();
+            if (t.cadenas) t.cadenas.destroy();
             t.zone.destroy();
         });
         this._tuiles = [];
@@ -177,61 +206,109 @@ class LevelsScene extends Phaser.Scene {
     }
 
     /**
-     * Crée la tuile d'un niveau : fond coloré selon l'état, numéro,
-     * meilleur score (« ★ score ») ou cadenas si verrouillé. Zone tactile
-     * uniquement sur les niveaux débloqués (verrouillage linéaire, spec 709).
+     * Crée la tuile d'un niveau — ⭐ REFONTE 08/08 (spec 709) :
+     *  - ombre portée + coins arrondis sur TOUTES les tuiles ;
+     *  - complété : fond blanc + BORDURE/GLOW verte (plus l'aplat vert) ;
+     *  - en cours : fond rouge Waggis (accent) + bordure/glow claire ;
+     *  - verrouillé : fond clair + OVERLAY semi-transparent + cadenas FIN
+     *    (WaggisUI.cadenas) au lieu du gris uni ; ⭐ FIX 08/08 (John) : le
+     *    cadenas est EMPILÉ sur la ligne du score (sous le chiffre, comme
+     *    « ★ score » pour un niveau complété) — plus de superposition au
+     *    centre de la carte ;
+     *  - numéro, meilleur score (« ★ score ») ou rien si verrouillé. Zone
+     *    tactile uniquement sur les niveaux débloqués (verrouillage
+     *    linéaire, spec 709).
      */
     _creerTuile(niveau, x, y, cote) {
         const C = this.C;
         const UI = Arcade.UI;
         const etat = this._etatNiveau(niveau);
-        const couleur = etat === "verrouille"
-            ? C.couleurs.verrouille
-            : (etat === "encours" ? C.couleurs.bouton : C.couleurs.complete);
 
+        const hex = (s) => Phaser.Display.Color.HexStringToColor(s).color;
+        const r = cote * 0.18;
+
+        // Ombre portée (sous la tuile, décalée vers le bas).
+        const ombre = this.add.graphics();
+        ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
+        ombre.fillRoundedRect(x - cote / 2, y - cote / 2 + cote * 0.06, cote, cote, r);
+
+        // Corps de la tuile selon l'état.
         const fond = this.add.graphics();
-        fond.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, 1);
-        fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, cote * 0.18);
+        let couleurNumero = "#ffffff";
+        if (etat === "verrouille") {
+            // Fond clair + overlay sombre semi-transparent (spec 709).
+            fond.fillStyle(hex(C.couleurs.fondCarte), 1);
+            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+            fond.fillStyle(C.couleurs.ombrePortee, 0.45);
+            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+        } else if (etat === "encours") {
+            // Niveau à jouer : accent rouge Waggis + bordure claire.
+            fond.fillStyle(hex(C.couleurs.bouton), 1);
+            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), 0xffffff, 0.9);
+            fond.strokeRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+        } else {
+            // Complété : fond clair + BORDURE/GLOW verte (plus l'aplat vert).
+            fond.fillStyle(hex(C.couleurs.fondCarte), 1);
+            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+            const liseret = hex(C.couleurs.liseretActif);
+            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), liseret, 1);
+            fond.strokeRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
+            // Glow : second trait plus épais, très translucide.
+            fond.lineStyle(Math.max(4, Math.round(UI.u(this, 1.6))), liseret, 0.25);
+            fond.strokeRoundedRect(x - cote / 2 - UI.u(this, 0.4),
+                y - cote / 2 - UI.u(this, 0.4), cote + UI.u(this, 0.8), cote + UI.u(this, 0.8), r);
+            couleurNumero = "#141210";
+        }
 
         const numero = this.add
             .text(x, y - cote * 0.12, String(niveau), {
-                fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 5)) + "px",
-                color: "#ffffff",
+                color: couleurNumero,
                 align: "center"
             })
             .setOrigin(0.5);
 
         const score = this.add
             .text(x, y + cote * 0.18, "", {
-                fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 2.8)) + "px",
-                color: "#ffffff",
+                color: etat === "complete" ? hex(C.couleurs.liseretActif) : "#ffffff",
                 align: "center"
             })
             .setOrigin(0.5);
 
+        // Zone tactile : VRAIE sur les tuiles débloquées uniquement — un
+        // niveau verrouillé ne réagit à rien (spec 709). Créée dans tous les
+        // cas (détruite à la réécriture), interactive seulement si débloqué.
+        const zone = this.add
+            .rectangle(x, y, cote, cote, 0x000000, 0)
+            .setInteractive({ useHandCursor: true });
+
         if (etat === "verrouille") {
-            score.setText(C.textes.verrouille);
+            // ⭐ FIX 08/08 (corrections John) : le cadenas FINE est EMPILÉ
+            // dans la mise en page de la carte — posé sur la ligne du score
+            // (y + cote*0.18), exactement là où « ★ score » s'aligne sous le
+            // chiffre pour un niveau complété. Plus de superposition au
+            // centre (l'ancienne position y + cote*0.08). Taille ajustée
+            // (cote*0.32) pour tenir dans l'emplacement, sous le numéro.
+            const cadenas = this.add.graphics();
+            WaggisUI.cadenas(cadenas, x, y + cote * 0.18, cote * 0.32, 0xffffff);
+            this._tuiles.push({ ombre, fond, numero, score, cadenas, zone });
+            return;
         } else {
             const s = this.bestScores[String(niveau)];
             if (typeof s === "number") score.setText("★ " + s);
         }
 
-        // Zone tactile : VRAIE sur les tuiles débloquées uniquement —
-        // un niveau verrouillé ne réagit à rien (spec 709).
-        const zone = this.add
-            .rectangle(x, y, cote, cote, 0x000000, 0)
-            .setInteractive({ useHandCursor: true });
-        if (etat !== "verrouille") {
-            zone.on("pointerdown", () => fond.setAlpha(0.75));
-            zone.on("pointerout", () => fond.setAlpha(1));
-            zone.on("pointerup", () => {
-                fond.setAlpha(1);
-                this.jouerNiveau(niveau);
-            });
-        }
-        this._tuiles.push({ fond, numero, score, zone });
+        zone.on("pointerdown", () => fond.setAlpha(0.75));
+        zone.on("pointerout", () => fond.setAlpha(1));
+        zone.on("pointerup", () => {
+            fond.setAlpha(1);
+            this.jouerNiveau(niveau);
+        });
+        this._tuiles.push({ ombre, fond, numero, score, zone });
     }
 
     /**
@@ -240,9 +317,10 @@ class LevelsScene extends Phaser.Scene {
      * améliorer son meilleur score). Le monde repart à zéro (708 §9) ;
      * GameScene lit { niveau } (init) puis le garde dans niveauSession pour
      * la relance après mort (Rejouer — même niveau, même monde, 708 §8).
+     * ⭐ REFONTE 08/08 : transition animée (fade) vers le jeu.
      */
     jouerNiveau(niveau) {
         this.registry.set("generatedRows", null);
-        this.scene.start(GameScene.KEY, { niveau: niveau });
+        WaggisUI.aller(this, GameScene.KEY, { niveau: niveau });
     }
 }

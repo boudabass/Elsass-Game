@@ -58,7 +58,11 @@ window.WaggisConfig = {
         menu: "Menu",
         fin: "Partie terminée",
         score: "Score : {score}",
-        meilleurScore: "Meilleur score : {score}",
+        // ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08) : le record du
+        // menu passe en « 🏆 Meilleur score : X » (trophée) et une accroche
+        // est affichée sous le titre.
+        meilleurScore: "🏆 Meilleur score : {score}",
+        accroche: "Traverse Strasbourg sans te faire écraser !",
         nouveauRecord: "Nouveau record !",
 
         // Score affiché pendant la partie (en haut au centre).
@@ -106,7 +110,12 @@ window.WaggisConfig = {
         dejaDebloque: "Déjà débloqué",
         pasAssezPieces: "Pas assez de pièces",
         gratuit: "Gratuit",
-        aDebloquer: "À débloquer dans la Boutique",
+        // ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08) : le texte des
+        // personnages verrouillés passe de « À débloquer dans la Boutique »
+        // (répété à l'identique) à « 🔒 Débloque-le en Boutique » — l'icône
+        // 🔒 vient du préfixe textes.verrouille (CharactersScene concatène
+        // verrouille + aDebloquer).
+        aDebloquer: "Débloque-le en Boutique",
 
         // MENU-5 (spec 709 §7 boutons — écran Réglages, SettingsScene, et
         // Classement, ClassementScene) : le son (on/off UNIQUEMENT — pas de
@@ -374,6 +383,46 @@ window.WaggisConfig = {
         // le passage du train). Couleur NUMÉRIQUE obligatoire : le renderer
         // WebGL ne convertit pas les chaînes CSS pour les Graphics — une
         // chaîne '#ff2222' rend les cercles en noir (QA 06/08).
-        feuSignal: 0xff2222
+        feuSignal: 0xff2222,
+
+        // ⭐ REFONTE menu 08/08/2026 (spec 709 — révision 08/08) : visuel
+        // du menu principal — dégradé de ciel (deux teintes interpolées,
+        // cielHaut en haut → cielBas en bas), silhouette des toits
+        // alsaciens + bande de sol en bas d'écran, ombre portée des
+        // boutons, fond blanc des boutons ronds d'icônes (liseré rouge
+        // Waggis = couleur bouton).
+        cielHaut: "#4FA8E8",
+        cielBas: "#D9EFFC",
+        toits: "#8C3B42",
+        solMenu: "#7CB85C",
+        ombreBouton: "rgba(20, 18, 16, 0.28)",
+        iconeFond: "#FFFFFF",
+
+        // ⭐ REFONTE écrans secondaires 08/08/2026 (spec 709 — révision
+        // 08/08) : cartes niveaux/personnages avec ombre portée + coins
+        // arrondis, état verrouillé = overlay semi-transparent + cadenas
+        // fin, sélection active = bordure/glow au lieu de l'aplat vert.
+        // VALEURS NUMÉRIQUES OBLIGATOIRES pour les Graphics (le renderer
+        // WebGL ne convertit pas les chaînes CSS — QA 08/08, NC1) :
+        // ombrePortee s'utilise avec un alpha (ex. fillStyle(0x141210,
+        // 0.25)) ; fondCarte et liseretActif sont convertis par
+        // Phaser.Display.Color.HexStringToColor(...).color.
+        ombrePortee: 0x141210,
+        fondCarte: "#FFFFFF",
+        liseretActif: "#2E9E4F",
+    },
+
+    // --- Police (REFONTE 08/08/2026, spec 709 — révision 08/08) -----------
+    // « Police système par défaut → police ronde/friendly type jeu mobile ».
+    // Choix studio : Azimut, la police de marque The Elsassisch, déjà
+    // auto-hébergée dans public/fonts/azimut/ (licence CC BY-ND 4.0, voir
+    // src/lib/fonts.ts) — pas de CDN externe. Seul le Regular est chargé
+    // (règle marque : pas de graisse grasse — l'emphase se fait par la
+    // taille et les MAJUSCULES). Le @font-face est injecté par MenuScene ;
+    // repli silencieux sur les polices système si la police n'arrive pas
+    // (hors ligne).
+    police: {
+        famille: "'Azimut', 'Baloo 2', 'Nunito', system-ui, sans-serif",
+        url: "/fonts/azimut/Azimut-Regular.woff2"
     }
 };
