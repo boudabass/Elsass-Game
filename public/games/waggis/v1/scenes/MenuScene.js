@@ -8,8 +8,10 @@
  * page d'accueil de jeu mobile. Ce qui change :
  *  - UN SEUL bouton principal « Jouer » PLEINE LARGEUR, avec l'illustration
  *    du Waggis (placeholder p8city rouge, POINT OUVERT ASSETS — aucun
- *    sprite de Waggis dans l'atelier, cf. GameScene) en fond/centre. Il
- *    lance DIRECTEMENT le prochain niveau non terminé — data.currentLevel
+ *    sprite de Waggis dans l'atelier, cf. GameScene) collée au bord droit,
+ *    sur la même ligne que le titre + accroche (texte à gauche — correction
+ *    John 08/08). Il lance DIRECTEMENT le prochain niveau non terminé —
+ *    data.currentLevel
  *    (save v5, appliquée au boot par Arcade.Save.apply), comportement
  *    inchangé (spec 709) ;
  *  - grille 2×2 des boutons secondaires SOUS « Jouer » (correction John
@@ -22,7 +24,8 @@
  *    (correction John 08/08 — plus une icône discrète en coin haut-droit),
  *    même présentation 2 lignes (SettingsScene MENU-5 — son on/off) ;
  *  - score affiché en HUD (bandeau en haut), plus au centre de l'écran —
- *    le centre est libéré pour l'illustration du personnage ;
+ *    le titre + accroche passent À GAUCHE, le personnage est collé au bord
+ *    droit, les deux sur la MÊME LIGNE (correction John 08/08) ;
  *  - PAS de « Quitter » ni de « Plein écran » dans ce menu : chantier
  *    séparé (article 704 « Chantier B » — icônes haut-gauche/haut-droit
  *    persistantes sur toutes les scènes, remplacement de la barre
@@ -181,26 +184,35 @@ class MenuScene extends Phaser.Scene {
                 w / 2 - pillW / 2, recordY - pillH / 2, pillW, pillH, pillH / 2
             );
 
-            // Titre (avec relief) + accroche.
+            // Titre (avec relief) + accroche À GAUCHE (correction John
+            // 08/08) : le groupe de texte est aligné à gauche, le
+            // personnage est collé au bord droit — les deux sur la MÊME
+            // LIGNE, pour laisser le plus de place possible au texte.
             const tailleTitre = u(13.5);
+            const centreLigne = h * 0.26;
+            const margeGauche = u(5);
             this.titre
                 .setFontSize(Math.round(tailleTitre) + "px")
                 .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
                 .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
                     "rgba(20, 18, 16, 0.3)", 4, false, true)
-                .setPosition(w / 2, h * 0.165);
+                .setOrigin(0, 0.5)
+                .setPosition(margeGauche, centreLigne - u(6));
             this.accroche
                 .setFontSize(Math.round(u(4)) + "px")
-                .setPosition(w / 2, h * 0.245);
+                .setOrigin(0, 0.5)
+                .setPosition(margeGauche, centreLigne + u(7.5));
 
-            // Illustration du Waggis au centre (hauteur proportionnelle),
-            // ombre de sol sous ses pieds.
+            // Illustration du Waggis À DROITE, collée au bord droit
+            // (correction John 08/08), sur la même ligne que le titre +
+            // accroche ; ombre de sol sous ses pieds.
             const hWaggis = u(21);
-            const waggisY = h * 0.41;
+            const waggisY = centreLigne;
+            const waggisX = w - u(2) - hWaggis / 2;
             this.waggis
                 .setScale(hWaggis / this.waggis.height)
-                .setPosition(w / 2, waggisY);
-            this._dessinerSolOmbre(w / 2, waggisY + hWaggis / 2, hWaggis * 0.9);
+                .setPosition(waggisX, waggisY);
+            this._dessinerSolOmbre(waggisX, waggisY + hWaggis / 2, hWaggis * 0.9);
 
             // « Jouer » pleine largeur (80 % de la largeur d'écran).
             this.boutonJouer
