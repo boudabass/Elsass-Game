@@ -43,6 +43,11 @@ class OverScene extends Phaser.Scene {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
         // Encadré du record : dessiné AVANT le texte pour passer dessous.

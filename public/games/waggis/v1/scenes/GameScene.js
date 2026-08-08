@@ -92,6 +92,11 @@ class GameScene extends Phaser.Scene {
         const UI = Arcade.UI;
         this.C = C; // config accessible aux méthodes (bonds, score, layout)
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
         // --- État du joueur ------------------------------------------------
@@ -206,6 +211,13 @@ class GameScene extends Phaser.Scene {
         // latéral, en dessous → descend vers une case qui existe déjà).
         // Un clic sur le perso lui-même (zone morte) ne déclenche rien.
         this.input.on("pointerup", (p) => {
+            // ⭐ Chantier B : un clic sur une icône plateforme (Quitter /
+            // Plein écran) ne doit PAS déclencher de bond — le marqueur
+            // est posé par Arcade.UI.iconesPlateforme au pointerdown.
+            if (Arcade.UI._clicPlateforme) {
+                Arcade.UI._clicPlateforme = false;
+                return;
+            }
             const dx = p.x - this.perso.x;
             const dy = p.y - this.perso.y;
             const zone = this.perso.displayWidth * C.controles.zoneMorteClic;
@@ -231,7 +243,10 @@ class GameScene extends Phaser.Scene {
             );
             this._poserPerso(x, this.bandeJoueur.y);
             this.texteScore.setPosition(w / 2, h * 0.06);
-            this.texteNiveau.setPosition(w * 0.08, h * 0.06);
+            // ⭐ Chantier B : le niveau passe SOUS l'icône Quitter (en
+            // haut-gauche) — avant il était à w*0.08, h*0.06 et
+            // chevauchait l'icône en portrait (mobile-first).
+            this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 11));
         });
     }
 

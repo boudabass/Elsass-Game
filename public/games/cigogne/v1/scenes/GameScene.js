@@ -18,6 +18,11 @@ class GameScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         this.score = 0;
         this.enCours = false;   // la partie démarre au premier tap
         this.termine = false;

@@ -47,6 +47,11 @@ class ShopScene extends Phaser.Scene {
         this.C = C;
         this.enTransition = false;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         // Données de la save v5 (appliquée au boot par Arcade.Save.apply).
         this.debloques = this.registry.get("unlockedCharacters") || ["waggis"];
 

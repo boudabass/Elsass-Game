@@ -61,6 +61,11 @@ class ClassementScene extends Phaser.Scene {
         this.C = C;
         this.enTransition = false;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         // Fond : dégradé de ciel (spec 709 révision 08/08).
         this.fond = this.add.graphics().setDepth(0);
 

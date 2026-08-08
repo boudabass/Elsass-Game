@@ -12,6 +12,11 @@ class MenuScene extends Phaser.Scene {
         const C = window.CigogneConfig;
         const UI = Arcade.UI;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         // Fond du menu : ciel orange (crépuscule) — volontairement différent
         // du ciel bleu des autres scènes pour une vérification visuelle immédiate.
         this.cameras.main.setBackgroundColor("#f28c28");

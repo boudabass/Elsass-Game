@@ -59,6 +59,11 @@ class MenuScene extends Phaser.Scene {
 
         this.enTransition = false;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         // Police ronde Azimut (marque, auto-hébergée — spec 709 révision
         // 08/08 : « police ronde/friendly type jeu mobile »). Injection du
         // @font-face puis attente COURTE : si la police n'arrive pas (hors

@@ -16,6 +16,11 @@ class OverScene extends Phaser.Scene {
         const C = window.CigogneConfig;
         const UI = Arcade.UI;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         this.decor = new CigogneDecor(this);
         this.decor.creerFond();
 
