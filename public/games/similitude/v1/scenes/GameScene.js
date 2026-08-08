@@ -35,6 +35,13 @@
  *   - AUCUNE sauvegarde : core/save.js n'est pas câblé (session unique,
  *     spec §2) ; seul le score part au serveur via OverScene →
  *     Arcade.Score.submit.
+ *
+ * SIM-4 (polish, spec 473 §8) : états d'alerte du HUD — le chrono passe
+ *   en rouge et pulse sous chronoAlerteS s, l'énergie idem sous
+ *   energieAlerte ⚡ (valeurs dans config.js). La pulsation s'arrête et la
+ *   couleur normale revient si le joueur repasse au-dessus du seuil (gains
+ *   de temps / d'énergie). Les animations de sélection, translation,
+ *   disparition et textes flottants étaient déjà en place (SIM-2).
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -170,6 +177,49 @@ class GameScene extends Phaser.Scene {
         this.hudScore.setText(C.textes.hudScore.replace("{score}", this.grille.score));
         this.hudChrono.setText(C.textes.hudChrono.replace("{s}", Math.ceil(this.grille.temps)));
         this.hudEnergie.setText(C.textes.hudEnergie.replace("{e}", this.grille.energie));
+        this._majAlertesHUD();
+    }
+
+    /**
+     * États d'alerte du HUD (spec 473 §8, SIM-4) : le chrono passe en rouge
+     * et pulse sous chronoAlerteS s ; l'énergie idem sous energieAlerte ⚡.
+     * Si le joueur repasse au-dessus du seuil (gains de temps / d'énergie),
+     * la couleur normale revient et la pulsation s'arrête.
+     */
+    _majAlertesHUD() {
+        const C = window.SimilitudeConfig;
+        this._setAlerte("alerteChrono", this.hudChrono,
+            this.grille.temps < C.chronoAlerteS);
+        this._setAlerte("alerteEnergie", this.hudEnergie,
+            this.grille.energie < C.energieAlerte);
+    }
+
+    /**
+     * Applique (ou retire) l'état d'alerte d'un texte du HUD : couleur
+     * rouge + pulsation (scale yoyo répété). Le tween est conservé dans
+     * this[cle] pour pouvoir être arrêté proprement à la sortie d'alerte.
+     */
+    _setAlerte(cle, texte, enAlerte) {
+        const C = window.SimilitudeConfig;
+        const tween = this[cle];
+
+        if (enAlerte && !tween) {
+            texte.setColor(C.couleurs.alerte);
+            this[cle] = this.tweens.add({
+                targets: texte,
+                scaleX: 1 + C.amplitudePulseAlertePct / 100,
+                scaleY: 1 + C.amplitudePulseAlertePct / 100,
+                duration: C.dureePulseAlerteMs,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+            });
+        } else if (!enAlerte && tween) {
+            tween.stop();
+            this[cle] = null;
+            texte.setColor(C.couleurs.texteClair);
+            texte.setScale(1);
+        }
     }
 
     /** Un décompte de chrono par seconde ; à 0 → fin « Temps écoulé ». */

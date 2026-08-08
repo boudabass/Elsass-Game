@@ -68,10 +68,13 @@ window.SimilitudeConfig = {
 
     // --- HUD (spec §8) -----------------------------------------------------
     // Tout le HUD est en Phaser via Arcade.UI, tailles en % du plus petit
-    // côté (u) — jamais d'overlay DOM, jamais de pixels. Les états d'alerte
-    // (rouge + pulsation sous 15 s / 5 ⚡) arrivent en SIM-4 (article 704).
+    // côté (u) — jamais d'overlay DOM, jamais de pixels. États d'alerte
+    // (SIM-4) : sous chronoAlerteS s / energieAlerte ⚡, le texte concerné
+    // passe en rouge et pulse (agrandissement-réduction répété).
     hudTailleTextePct: 5,     // taille des textes Score / ⏱ / ⚡
     hudMargePct: 2,           // marge du HUD par rapport au bord haut
+    dureePulseAlerteMs: 300,  // durée d'un aller-retour de la pulsation
+    amplitudePulseAlertePct: 12,  // agrandissement max pendant la pulsation
 
     // --- Barème (spec §5) ---------------------------------------------------
     bareme: {
@@ -109,6 +112,7 @@ window.SimilitudeConfig = {
         texteContour: "#000000",   // contour du texte flottant des gains
         texte: "#141210",
         texteClair: "#f5f0e6",
+        alerte: "#E31B23",        // rouge des états d'alerte du HUD (spec §8)
         bouton: "#E31B23",
         boutonJouer: "#2E9E4F"
     }
