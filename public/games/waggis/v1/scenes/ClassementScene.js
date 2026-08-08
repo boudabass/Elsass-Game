@@ -34,15 +34,15 @@
  *    (même correctif que l'écran Niveaux) ;
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
- * ⭐ FIX 08/08/2026 (corrections John) : même correctif que l'écran
- * Niveaux — la pagination (flèches ◀ / ▶ + « Page X / Y ») est EMPILÉE
- * à la suite du tableau au lieu d'être posée à une hauteur fixe (h*0.86)
- * sans lien avec lui : son Y est calculé depuis le bas de la dernière
- * ligne (zoneHaut h*0.14 + 10 × hauteur de ligne, mêmes constantes que
- * _dessinerListe) + une marge de 5.5u. Le bouton Retour est intégré au
- * même empilement, juste sous la pagination (yPagination + 11u : flèche
- * 9u + marge 2u + demi-bouton 4.5u) — plus aucune superposition.
- * Règle UI John : tout est empilé, jamais superposé.
+ * ⭐ FIX 08/08/2026 (corrections John — même règle que l'écran Niveaux,
+ * commit 6e6b5a1) : le TABLEAU a une hauteur VARIABLE (plus de hauteur
+ * fixe ni de plafond) : la hauteur de ligne est recalculée pour que le
+ * tableau occupe TOUTE la hauteur disponible entre le titre et le bloc
+ * du bas. Pagination (flèches ◀ / ▶ + « Page X / Y ») et bouton retour
+ * EMPILÉS, ancrés EN BAS de l'écran : le retour posé sur le sol (ySol
+ * h*0.965), la pagination au-dessus, même espace u(4.5) qu'entre les
+ * étages du menu principal. Règle UI John : tout est empilé, jamais
+ * superposé.
  *
  * Scène propre à Waggis (article 709 : pas dans core/ tant qu'un 2e jeu
  * n'en a pas besoin), mobile-first (Arcade.UI.u), mise en page recalculée
@@ -60,6 +60,10 @@ class ClassementScene extends Phaser.Scene {
         const UI = Arcade.UI;
         this.C = C;
         this.enTransition = false;
+
+        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
+        // et Plein écran ne sont affichés QUE sur le menu principal — plus
+        // d'icônes plateforme sur les autres scènes.
 
         // Fond : dégradé de ciel (spec 709 révision 08/08).
         this.fond = this.add.graphics().setDepth(0);
@@ -107,28 +111,42 @@ class ClassementScene extends Phaser.Scene {
             WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.07)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            // ⭐ FIX 08/08 (corrections John) : la pagination est EMPILÉE
-            // à la suite du tableau — son Y est calculé DEPUIS le bas de
-            // la dernière ligne (mêmes constantes que _dessinerListe :
-            // zoneHaut h*0.14, hauteur de ligne plafonnée à 6u) + une
-            // marge de 5.5u, plus de hauteur fixe (h*0.86) qui flottait
-            // sans lien avec le tableau. Le bouton Retour est intégré au
-            // même empilement, juste sous la pagination : flèche 9u + marge
-            // 2u + demi-bouton 4.5u = yPagination + 11u. Tout est empilé,
-            // jamais superposé (règle UI John).
-            const zoneHaut = h * 0.14;
-            const hauteurLigne = Math.min((h * 0.80 - zoneHaut) / this.parPage, UI.u(this, 6));
-            const basTable = zoneHaut + hauteurLigne * this.parPage;
-            const yPagination = basTable + UI.u(this, 5.5);
-            const yRetour = yPagination + UI.u(this, 11);
+
+            // ⭐ FIX 08/08 (corrections John — même règle que l'écran
+            // Niveaux, commit 6e6b5a1) : plus aucune hauteur fixe — le
+            // bloc du bas est ancré au sol (retour posé sur le sol,
+            // pagination empilée au-dessus, même espace u(4.5) qu'entre
+            // les étages du menu principal) et le TABLEAU occupe toute la
+            // hauteur disponible entre le titre et ce bloc (hauteur de
+            // ligne recalculée par _calculerTable à chaque rotation, plus
+            // de plafond u(6) qui laissait un vide en bas).
+            const u = (n) => UI.u(this, n);
+            const espace = u(4.5);          // même espace qu'entre les étages du menu
+            const ySol = h * 0.965;         // ancrage bas (pattern MenuScene)
+            const hauteurRetour = u(9);
+            const yRetour = ySol - hauteurRetour / 2;
+            // Pagination EMPILÉE au-dessus du retour : les flèches font
+            // u(9) de diamètre, leur centre est donc à u(4.5) (demi-flèche)
+            // + u(4.5) (espace) au-dessus du haut du bouton retour.
+            const yPagination = yRetour - hauteurRetour / 2 - espace - u(4.5);
+
             etat.setPosition(w / 2, yPagination)
-                .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
-            prec.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 - UI.u(this, 19), yPagination);
-            suiv.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 + UI.u(this, 19), yPagination);
-            retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
+                .setFontSize(Math.round(u(3.5)) + "px");
+            prec.redimensionner(u(9))
+                .setPosition(w / 2 - u(19), yPagination);
+            suiv.redimensionner(u(9))
+                .setPosition(w / 2 + u(19), yPagination);
+            retour.redimensionner(u(40), hauteurRetour)
                   .setPosition(w / 2, yRetour);
+
+            // Bande du tableau : du dessous du titre (centre h*0.07 +
+            // demi-titre u(4.5) + espace) au-dessus de la pagination (haut
+            // des flèches − espace). La géométrie (hauteur de ligne) est
+            // recalculée ici, à chaque rotation — le tableau suit la
+            // hauteur disponible.
+            const hautTable = h * 0.07 + u(4.5) + espace;
+            const basTable = yPagination - u(4.5) - espace;
+            this._table = this._calculerTable(w, h, hautTable, basTable);
             this._dessinerListe();
         });
 
@@ -176,10 +194,34 @@ class ClassementScene extends Phaser.Scene {
     }
 
     /**
+     * ⭐ FIX 08/08 (correction John — même règle que l'écran Niveaux,
+     * commit 6e6b5a1) : géométrie du tableau à hauteur VARIABLE. La
+     * hauteur d'une ligne est recalculée pour que le tableau (10 entrées
+     * par page, spec 709) occupe TOUTE la hauteur disponible entre le
+     * titre et le bloc du bas (pagination + retour) — plus de hauteur
+     * fixe ni de plafond u(6). Les lignes partent du haut de la bande
+     * (pattern liste), chacune d'entre elles garde la même hauteur.
+     * @returns {{hauteurLigne:number, x:number, largeur:number, y0:number}}
+     *          centre de la PREMIÈRE ligne (haut du tableau)
+     */
+    _calculerTable(w, h, hautTable, basTable) {
+        const UI = Arcade.UI;
+        const hauteurLigne = Math.max(1, (basTable - hautTable) / this.parPage);
+        return {
+            hauteurLigne: hauteurLigne,
+            x: w / 2,
+            largeur: UI.u(this, 46),
+            y0: hautTable + hauteurLigne / 2
+        };
+    }
+
+    /**
      * (Re)dessine les lignes de la page courante — ⭐ REFONTE 08/08 : ombre
      * portée + coins arrondis (même langage que les cartes Niveaux/
      * Personnages). Détruit les lignes de la page précédente — objets
-     * Phaser non réutilisés (pattern LevelsScene).
+     * Phaser non réutilisés (pattern LevelsScene). ⭐ FIX 08/08 (John) :
+     * la géométrie (hauteur de ligne, position) vient de _calculerTable,
+     * rejouée à chaque rotation — le tableau suit la hauteur disponible.
      */
     _dessinerListe() {
         this._lignes.forEach((l) => {
@@ -194,26 +236,22 @@ class ClassementScene extends Phaser.Scene {
 
         const C = this.C;
         const UI = Arcade.UI;
-        const w = this.scale.width;
-        const h = this.scale.height;
         const entrees = this.entrees || [];   // null (chargement) = page vide
+        const t = this._table;                // géométrie recalculée à chaque rotation
+        if (!t) return;
 
         const debut = this.page * this.parPage;
         const fin = Math.min(debut + this.parPage, entrees.length);
 
-        // Hauteur d'une ligne : la zone 0.14 → 0.80 est découpée en 10
-        // lignes (défaut), moins si la page en contient moins.
-        const zoneHaut = h * 0.14;
-        const zoneBas = h * 0.80;
-        const hauteurLigne = Math.min((zoneBas - zoneHaut) / this.parPage, UI.u(this, 6));
-        const largeur = UI.u(this, 46);
+        const hauteurLigne = t.hauteurLigne;
+        const largeur = t.largeur;
         const r = hauteurLigne * 0.22;
 
         for (let i = debut; i < fin; i++) {
             const e = entrees[i];
             const rel = i - debut;
-            const y = zoneHaut + hauteurLigne * rel + hauteurLigne / 2;
-            const x = w / 2;
+            const y = t.y0 + hauteurLigne * rel;
+            const x = t.x;
 
             // Ombre portée sous la ligne.
             const ombre = this.add.graphics();

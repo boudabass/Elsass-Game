@@ -92,6 +92,9 @@ class GameScene extends Phaser.Scene {
         const UI = Arcade.UI;
         this.C = C; // config accessible aux méthodes (bonds, score, layout)
 
+        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
+        // et Plein écran ne sont affichés QUE sur le menu principal — plus
+        // d'icônes plateforme sur les autres scènes.
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
         // --- État du joueur ------------------------------------------------
@@ -206,6 +209,15 @@ class GameScene extends Phaser.Scene {
         // latéral, en dessous → descend vers une case qui existe déjà).
         // Un clic sur le perso lui-même (zone morte) ne déclenche rien.
         this.input.on("pointerup", (p) => {
+            // ⭐ Décision John 08/08 : les icônes plateforme ne sont plus
+            // affichées dans GameScene (Retour / Plein écran visibles QUE
+            // sur le menu principal) — le marqueur _clicPlateforme n'est
+            // plus posé, le garde-fou ci-dessous ne se déclenche plus
+            // (conservé par sécurité).
+            if (Arcade.UI._clicPlateforme) {
+                Arcade.UI._clicPlateforme = false;
+                return;
+            }
             const dx = p.x - this.perso.x;
             const dy = p.y - this.perso.y;
             const zone = this.perso.displayWidth * C.controles.zoneMorteClic;
@@ -231,7 +243,14 @@ class GameScene extends Phaser.Scene {
             );
             this._poserPerso(x, this.bandeJoueur.y);
             this.texteScore.setPosition(w / 2, h * 0.06);
-            this.texteNiveau.setPosition(w * 0.08, h * 0.06);
+            // ⭐ Chantier B : le niveau passe SOUS l'icône Quitter (en
+            // haut-gauche) — avant il était à w*0.08, h*0.06 et
+            // chevauchait l'icône en portrait (mobile-first). ⭐ FIX
+            // 08/08/2026 (style bouton Réglages) : le bouton Quitter est
+            // maintenant un VRAI bouton au style Réglages (hauteur u(10.5),
+            // calé à la marge u(2) → bas du bouton ≈ u(12.5)) — le niveau
+            // reste à u(15), sous le bouton, jamais superposé (règle John).
+            this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 15));
         });
     }
 

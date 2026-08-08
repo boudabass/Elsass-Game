@@ -89,6 +89,14 @@ window.WaggisConfig = {
         // Personnages, Boutique, Réglages, Classement).
         retour: "Retour",
 
+        // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
+        // art. 704 Chantier B) : libellés affichés SOUS les icônes
+        // persistantes Quitter (haut-gauche) et Plein écran (haut-droite) —
+        // lus par Arcade.UI.iconesPlateforme (core/ui.js) via les options de
+        // boot (main.js). Le bouton Quitter affiche « Retour » (même
+        // comportement que l'ancien lien Retour de la barre GameShell).
+        pleinEcran: "Plein écran",
+
         // MENU-3 (spec 709 §7 boutons — écran Niveaux, LevelsScene) :
         // pagination de la grille (5 × 5 = 25 niveaux par page, ◀ / ▶) et
         // cadenas des niveaux verrouillés (déverrouillage strictement
@@ -368,6 +376,13 @@ window.WaggisConfig = {
         texte: "#141210",
         texteClair: "#ffffff",
         bouton: "#E31B23",
+        // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08 —
+        // couleur PAR BOUTON dans le composant Arcade.UI.bouton) : NOIR
+        // par défaut pour les boutons secondaires (Niveaux, Personnages,
+        // Boutique, Classement — grille 2×2), ROUGE pour Retour / Plein
+        // écran / Réglages, VERT pour le bouton Jouer.
+        boutonSecondaire: "#141210",
+        boutonJouer: "#2E9E4F",
         // Encadré du record sur l'écran de fin : orange, texte noir à
         // l'intérieur (lisible sur le fond bleu ciel).
         encadreRecord: "#F2B93D",

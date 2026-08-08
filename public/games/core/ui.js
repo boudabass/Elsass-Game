@@ -172,6 +172,197 @@
             });
 
             return zone;
+        },
+
+        /**
+         * ⭐ Chantier B (art. 704 — suppression barre GameShell, contrat de
+         * plateforme) : les DEUX boutons persistants qui remplacent la
+         * barre du haut — Quitter (haut-gauche) et Plein écran
+         * (haut-droite). ⭐ DÉCISION JOHN 08/08 : ils ne sont VISIBLES QUE
+         * SUR LE MENU PRINCIPAL (plus d'affichage sur les autres scènes).
+         *
+         *  - Quitter : retour vers /games, même effet que le lien
+         *    « Retour » de l'ancienne barre (le jeu tourne dans l'iframe
+         *    du GameShell → navigation de la page parente) ;
+         *  - Plein écran : requestFullscreen du document du jeu (plus
+         *    géré par le wrapper Next.js), bascule agrandir/réduire selon
+         *    l'état réel ; cachée si le navigateur ne supporte pas le
+         *    plein écran (même règle que l'ancien canFullscreen).
+         *
+         * ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : les
+         * deux boutons sont construits avec LE COMPOSANT bouton
+         * réutilisable core/ui/button.js (Arcade.UI.bouton — dossier UI,
+         * décision John 08/08 : un seul composant, plus de code dupliqué
+         * avec des styles incohérents). Le style du bouton (fond arrondi
+         * rayon 0.3×h + ombre portée + voile clair + icône en haut +
+         * libellé en dessous + feedback clic rétricissement 10 % centré,
+         * Back.Out) est celui de la spec 709 révision 08/08, partagé
+         * avec le menu principal. Seuls l'ASSET (icône), le TEXTE et les
+         * COULEURS changent : le jeu transmet ses textes et son style via
+         * Arcade.boot → options.iconesPlateforme (config.js → main.js).
+         * L'icône est l'asset atelier copié dans assets/ui/ du jeu
+         * (flèche brune / écran désert), cadrée sur son contenu OPAQUE
+         * (bbox mesuré une fois par texture) pour que les deux icônes
+         * rendent à la MÊME taille visible. Repli dessiné si la texture
+         * n'est pas chargée (le libellé reste affiché).
+         *
+         * Mobile-first : tailles en % du plus petit côté (u), clic/tap
+         * uniquement. À appeler dans le create() du MENU PRINCIPAL
+         * uniquement (décision John 08/08).
+         */
+        iconesPlateforme: function (scene) {
+            Arcade.UI._clicPlateforme = false;
+            var profondeur = 1000;   // au-dessus de tout (UI, HUD, menu)
+
+            // Options du jeu (config.js → main.js → Arcade.boot({
+            // iconesPlateforme })) : libellés + style du bouton.
+            var opts = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
+            var style = opts.style || {};
+            var texteRetour = opts.retour || "Retour";
+            var textePleinEcran = opts.pleinEcran || "Plein écran";
+
+            // STYLE DU BOUTON — reprend EXACTEMENT le bouton Réglages
+            // (pattern _creerBoutonSecondaire, MenuScene — spec 709
+            // révision 08/08). Défauts du socle, surchargeables par le
+            // jeu (Waggis passe police.famille + couleurs.ombreBouton).
+            // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08
+            // — couleur PAR BOUTON) : Retour et Plein écran sont ROUGES —
+            // couleur passée EXPLICITEMENT (jamais le défaut noir du
+            // composant) : style.couleur du jeu (C.couleurs.bouton, rouge)
+            // ou défaut socle rouge ci-dessous.
+            var couleur = style.couleur || "#E31B23";      // rouge Waggis
+            var ombre = style.ombre || "rgba(20, 18, 16, 0.28)";
+            var police = style.police ||
+                "system-ui, -apple-system, Segoe UI, sans-serif";
+
+            // Options communes du composant (core/ui/button.js) : hauteur
+            // u(10.5) comme les boutons secondaires du menu, largeur
+            // adaptée au libellé (min u(15), marge u(4)). ⭐ FIX 08/08/2026
+            // (signalement John — responsive mobile) : les tailles sont
+            // passées EN u() (hauteurU / largeurMinU / margeLibelleU) et le
+            // composant les recalcule LUI-MÊME à chaque rotation /
+            // redimensionnement (Arcade.UI.layout) — comme Réglages / Jouer
+            // / secondaires, pilotés par le layout de leur scène. Avant :
+            // px convertis UNE SEULE FOIS à la création → Retour / Plein
+            // écran restaient figés sur mobile (rotation, plein écran).
+            // Pas de marqueur _clicPlateforme : il n'est plus posé (plus
+            // d'icônes dans GameScene Waggis — décision John 08/08 :
+            // Retour / Plein écran visibles QUE sur le menu principal).
+            var optionsBouton = {
+                couleur: couleur,
+                ombre: ombre,
+                police: police,
+                hauteurU: 10.5,
+                autoLargeur: true,
+                largeurMinU: 15,
+                margeLibelleU: 4,
+                profondeur: profondeur,
+                stroke: "#141210"
+            };
+
+            // --- Quitter (haut-gauche) : flèche retour vers /games --------
+            var quitter = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+                icone: "icone_retour",
+                repliDessin: function (g, r) {
+                    g.lineStyle(r * 0.22, 0xffffff, 1);
+                    g.lineBetween(-r * 0.35, 0, r * 0.4, 0);
+                    g.lineBetween(-r * 0.35, 0, -r * 0.08, -r * 0.26);
+                    g.lineBetween(-r * 0.35, 0, -r * 0.08, r * 0.26);
+                },
+                label: texteRetour,
+                onClick: function () {
+                    // Même effet que le lien « Retour » : on ramène la PAGE
+                    // PARENTE (l'arcade) vers /games — le jeu tourne dans
+                    // l'iframe du GameShell. Repli sur la fenêtre courante si
+                    // la page parente est inaccessible (cross-origin).
+                    try {
+                        if (window.top && window.top.location) {
+                            window.top.location.href = "/games";
+                        } else {
+                            window.location.href = "/games";
+                        }
+                    } catch (e) {
+                        window.location.href = "/games";
+                    }
+                }
+            }));
+
+            // --- Plein écran (haut-droite) : requestFullscreen du jeu ----
+            var pleinEcran = null;
+            var fullscreenOk = typeof document !== "undefined" &&
+                typeof document.documentElement !== "undefined" &&
+                !!document.documentElement.requestFullscreen;
+            if (fullscreenOk) {
+                // Repli dessiné : deux variantes — « agrandir » (angle du L
+                // au coin extérieur) et « réduire » (angle du L vers le
+                // centre).
+                var dessinerCoins = function (g, r, reduire) {
+                    var rc = r * 0.58;   // demi-côté du carré imaginaire
+                    var L = r * 0.34;    // longueur d'un segment de coin
+                    g.lineStyle(r * 0.2, 0xffffff, 1);
+                    if (!reduire) {
+                        g.lineBetween(-rc, -rc, -rc + L, -rc);
+                        g.lineBetween(-rc, -rc, -rc, -rc + L);
+                        g.lineBetween(rc, -rc, rc - L, -rc);
+                        g.lineBetween(rc, -rc, rc, -rc + L);
+                        g.lineBetween(-rc, rc, -rc + L, rc);
+                        g.lineBetween(-rc, rc, -rc, rc - L);
+                        g.lineBetween(rc, rc, rc - L, rc);
+                        g.lineBetween(rc, rc, rc, rc - L);
+                    } else {
+                        g.lineBetween(-rc + L, -rc, -rc + L, -rc + L);
+                        g.lineBetween(-rc, -rc + L, -rc + L, -rc + L);
+                        g.lineBetween(rc - L, -rc, rc - L, -rc + L);
+                        g.lineBetween(rc, -rc + L, rc - L, -rc + L);
+                        g.lineBetween(-rc + L, rc, -rc + L, rc - L);
+                        g.lineBetween(-rc, rc - L, -rc + L, rc - L);
+                        g.lineBetween(rc - L, rc, rc - L, rc - L);
+                        g.lineBetween(rc, rc - L, rc - L, rc - L);
+                    }
+                };
+                pleinEcran = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+                    icone: "icone_plein_ecran",
+                    repliDessin: function (g, r) {
+                        dessinerCoins(g, r, !!document.fullscreenElement);
+                    },
+                    label: textePleinEcran,
+                    onClick: function () {
+                        try {
+                            if (document.fullscreenElement) {
+                                document.exitFullscreen();
+                            } else {
+                                document.documentElement.requestFullscreen();
+                            }
+                        } catch (e) {
+                            console.error("[UI] Plein écran refusé :", e);
+                        }
+                    }
+                }));
+                // L'icône suit l'état réel du plein écran (touche Échap
+                // comprise) : redessin à chaque changement d'état.
+                var onFullscreenChange = function () {
+                    if (pleinEcran) pleinEcran.refresh();
+                };
+                document.addEventListener("fullscreenchange", onFullscreenChange);
+                scene.events.once("shutdown", function () {
+                    document.removeEventListener("fullscreenchange", onFullscreenChange);
+                });
+            }
+
+            // Positionnement aux coins, recalculé à chaque rotation /
+            // redimensionnement (Arcade.UI.layout) — marge ET tailles
+            // recalculées (le composant redimensionne en u() avant ce
+            // callback, même règle que les boutons du menu). Le bouton est
+            // calé sur les bords : son coin extérieur reste à la marge.
+            Arcade.UI.layout(scene, function (w) {
+                var marge = Arcade.UI.u(scene, 2);
+                quitter.setPosition(marge + quitter.largeur() / 2,
+                    marge + quitter.hauteur() / 2);
+                if (pleinEcran) {
+                    pleinEcran.setPosition(w - marge - pleinEcran.largeur() / 2,
+                        marge + pleinEcran.hauteur() / 2);
+                }
+            });
         }
     };
 })();

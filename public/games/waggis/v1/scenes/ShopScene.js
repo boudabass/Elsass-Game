@@ -47,6 +47,10 @@ class ShopScene extends Phaser.Scene {
         this.C = C;
         this.enTransition = false;
 
+        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
+        // et Plein écran ne sont affichés QUE sur le menu principal — plus
+        // d'icônes plateforme sur les autres scènes.
+
         // Données de la save v5 (appliquée au boot par Arcade.Save.apply).
         this.debloques = this.registry.get("unlockedCharacters") || ["waggis"];
 

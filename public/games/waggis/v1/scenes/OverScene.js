@@ -43,6 +43,9 @@ class OverScene extends Phaser.Scene {
         const C = window.WaggisConfig;
         const UI = Arcade.UI;
 
+        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
+        // et Plein écran ne sont affichés QUE sur le menu principal — plus
+        // d'icônes plateforme sur les autres scènes.
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
         // Encadré du record : dessiné AVANT le texte pour passer dessous.

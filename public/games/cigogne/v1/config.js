@@ -14,7 +14,15 @@ window.CigogneConfig = {
     // de l'affichage (voir MenuScene / OverScene).
     textes: {
         meilleurScore: "Meilleur score : {score}",
-        nouveauRecord: "Nouveau record !"
+        nouveauRecord: "Nouveau record !",
+
+        // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
+        // art. 704 Chantier B) : libellés affichés SOUS les icônes
+        // persistantes Quitter (haut-gauche) et Plein écran (haut-droite) —
+        // lus par Arcade.UI.iconesPlateforme (core/ui.js) via les options de
+        // boot (main.js).
+        retour: "Retour",
+        pleinEcran: "Plein écran"
     },
 
     // --- Vol ---------------------------------------------------------------
@@ -59,6 +67,11 @@ window.CigogneConfig = {
         texte: "#141210",
         texteClair: "#ffffff",
         bouton: "#E31B23",
+        // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08 —
+        // couleur PAR BOUTON dans le composant Arcade.UI.bouton) : VERT
+        // pour le bouton Commencer (le rouge reste la couleur des boutons
+        // Retour / Plein écran / Réglages).
+        boutonJouer: "#2E9E4F",
         // Encadré du record sur l'écran de fin : orange, texte noir à
         // l'intérieur (lisible sur le fond bleu ciel).
         encadreRecord: "#F2B93D"

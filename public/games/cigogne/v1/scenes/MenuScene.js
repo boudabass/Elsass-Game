@@ -12,6 +12,11 @@ class MenuScene extends Phaser.Scene {
         const C = window.CigogneConfig;
         const UI = Arcade.UI;
 
+        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
+        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
+        // barre GameShell, visibles sur toutes les scènes.
+        Arcade.UI.iconesPlateforme(this);
+
         // Fond du menu : ciel orange (crépuscule) — volontairement différent
         // du ciel bleu des autres scènes pour une vérification visuelle immédiate.
         this.cameras.main.setBackgroundColor("#f28c28");
@@ -24,10 +29,12 @@ class MenuScene extends Phaser.Scene {
 
         const titre = UI.text(this, 0, 0, C.titre, 11, C.couleurs.texte);
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texte);
-        const bouton = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 12),
+        // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : LE
+        // composant bouton réutilisable core/ui/button.js (Arcade.UI.bouton)
+        // — variante TEXTE SIMPLE, même style partagé que Waggis.
+        const bouton = Arcade.UI.bouton(this, {
             label: "Commencer",
-            color: C.couleurs.bouton,
+            couleur: C.couleurs.boutonJouer,  // VERT (Commencer — décision John 08/08)
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(GameScene.KEY)
         });
