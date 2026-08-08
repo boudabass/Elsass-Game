@@ -29,10 +29,12 @@ class MenuScene extends Phaser.Scene {
 
         const titre = UI.text(this, 0, 0, C.titre, 11, C.couleurs.texte);
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texte);
-        const bouton = UI.button(this, {
-            width: UI.u(this, 40), height: UI.u(this, 12),
+        // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : LE
+        // composant bouton réutilisable core/ui/button.js (Arcade.UI.bouton)
+        // — variante TEXTE SIMPLE, même style partagé que Waggis.
+        const bouton = Arcade.UI.bouton(this, {
             label: "Commencer",
-            color: C.couleurs.bouton,
+            couleur: C.couleurs.bouton,
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(GameScene.KEY)
         });

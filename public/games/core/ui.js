@@ -178,7 +178,8 @@
          * ⭐ Chantier B (art. 704 — suppression barre GameShell, contrat de
          * plateforme) : les DEUX boutons persistants qui remplacent la
          * barre du haut — Quitter (haut-gauche) et Plein écran
-         * (haut-droite) — visibles sur TOUTES les scènes de chaque jeu.
+         * (haut-droite). ⭐ DÉCISION JOHN 08/08 : ils ne sont VISIBLES QUE
+         * SUR LE MENU PRINCIPAL (plus d'affichage sur les autres scènes).
          *
          *  - Quitter : retour vers /games, même effet que le lien
          *    « Retour » de l'ancienne barre (le jeu tourne dans l'iframe
@@ -188,38 +189,26 @@
          *    l'état réel ; cachée si le navigateur ne supporte pas le
          *    plein écran (même règle que l'ancien canFullscreen).
          *
-         * ⭐ FIX 08/08/2026 (style bouton Réglages, décision John 08/08) :
-         * chaque bouton est un VRAI bouton reprenant EXACTEMENT le style
-         * du bouton Réglages (pattern _creerBoutonSecondaire, spec 709
-         * révision 08/08) : fond arrondi (rayon 0.3 × hauteur) + ombre
-         * portée décalée (+7 % hauteur) + voile clair sur la moitié
-         * haute (dégradé léger) + icône (asset atelier copié dans le
-         * dossier du jeu : ui/rogrpg_fleche_brun_gauche.png pour Quitter,
-         * ui/desert_ecran.png pour Plein écran) EN HAUT du bouton et
-         * libellé blanc EN DESSOUS, À L'INTÉRIEUR (« Retour » / « Plein
-         * écran » — textes du jeu, config.js, passés par Arcade.boot →
-         * options.iconesPlateforme) + feedback au clic (rétricissement
-         * 10 % centré, Back.Out). Si les textures ne sont pas chargées
-         * (jeu qui n'a pas encore copié les assets), repli sur le symbole
-         * dessiné (Graphics) — le libellé reste affiché.
-         *
-         * ⭐ FIX 08/08/2026 (taille d'affichage, signalement John) : les
-         * deux assets font 16×16 mais leur contenu OPAQUE diffère —
-         * l'écran occupe ~14×15 px, la flèche seulement ~8×10 px (le
-         * reste est transparent). À cadre d'affichage identique, la
-         * flèche rendait donc PLUS PETITE que l'écran (« minuscule »).
-         * Chaque icône est désormais cadrée sur son contenu opaque
-         * (bbox mesuré une fois par texture, cache) : origine centrée
-         * sur le bbox + échelle pour que la hauteur visible = coteIcone
-         * → MÊME TAILLE RENDUE pour les 2 icônes. Le feedback clic
-         * tweene la scale RELATIVE à cette base (ne l'écrase plus).
-         *
-         * Le style (couleur de fond, ombre, police) est surchargeable par
-         * le jeu via options.iconesPlateforme.style (Waggis passe sa
-         * police Azimut et son ombre — défauts du socle sinon).
+         * ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : les
+         * deux boutons sont construits avec LE COMPOSANT bouton
+         * réutilisable core/ui/button.js (Arcade.UI.bouton — dossier UI,
+         * décision John 08/08 : un seul composant, plus de code dupliqué
+         * avec des styles incohérents). Le style du bouton (fond arrondi
+         * rayon 0.3×h + ombre portée + voile clair + icône en haut +
+         * libellé en dessous + feedback clic rétricissement 10 % centré,
+         * Back.Out) est celui de la spec 709 révision 08/08, partagé
+         * avec le menu principal. Seuls l'ASSET (icône), le TEXTE et les
+         * COULEURS changent : le jeu transmet ses textes et son style via
+         * Arcade.boot → options.iconesPlateforme (config.js → main.js).
+         * L'icône est l'asset atelier copié dans assets/ui/ du jeu
+         * (flèche brune / écran désert), cadrée sur son contenu OPAQUE
+         * (bbox mesuré une fois par texture) pour que les deux icônes
+         * rendent à la MÊME taille visible. Repli dessiné si la texture
+         * n'est pas chargée (le libellé reste affiché).
          *
          * Mobile-first : tailles en % du plus petit côté (u), clic/tap
-         * uniquement. À appeler dans le create() de CHAQUE scène du jeu.
+         * uniquement. À appeler dans le create() du MENU PRINCIPAL
+         * uniquement (décision John 08/08).
          */
         iconesPlateforme: function (scene) {
             Arcade.UI._clicPlateforme = false;
@@ -242,264 +231,35 @@
             var police = style.police ||
                 "system-ui, -apple-system, Segoe UI, sans-serif";
 
-            // Feedback au clic : rétricissement 10 % AUTOUR DU CENTRE,
-            // micro-rebond Back.Out (pattern MenuScene — aucun
-            // déplacement, dessin en coordonnées centrées). La scale
-            // cible est RELATIVE à la base de chaque objet (l'icône
-            // image n'a pas une base de 1 : elle est cadrée sur son
-            // contenu opaque, voir creerBouton) — on ne l'écrase pas.
-            var enfoncer = function (cibles) {
-                for (var i = 0; i < cibles.length; i++) {
-                    var base = (cibles[i].getData &&
-                        cibles[i].getData("_baseScale")) || 1;
-                    scene.tweens.add({ targets: cibles[i], scale: base * 0.9, duration: 70, ease: "Linear" });
-                }
-            };
-            var relacher = function (cibles) {
-                for (var i = 0; i < cibles.length; i++) {
-                    var base = (cibles[i].getData &&
-                        cibles[i].getData("_baseScale")) || 1;
-                    scene.tweens.add({ targets: cibles[i], scale: base, duration: 170, ease: "Back.Out" });
-                }
-            };
-
-            /**
-             * Cadre l'image sur son contenu OPAQUE (bbox des pixels non
-             * transparents). Les assets des 2 icônes font tous les deux
-             * 16×16 mais leur contenu visible diffère (l'écran occupe
-             * ~14×15 px, la flèche ~8×10 px) : affichés au même cadre,
-             * la flèche rendait minuscule. Mesuré UNE FOIS par texture
-             * (cache), résultat exprimé en fractions de l'image source
-             * (indépendant de la taille d'affichage).
-             * @returns {object|null} {fx, fy, fw, fh, sw, sh} bbox du
-             *                         contenu opaque (fractions + taille
-             *                         source en px), null si non mesurable.
-             */
-            var bboxOpaque = (function () {
-                var cache = {};
-                return function (cleTexture) {
-                    if (Object.prototype.hasOwnProperty.call(cache, cleTexture)) {
-                        return cache[cleTexture];
-                    }
-                    var resultat = null;
-                    try {
-                        if (scene.textures.exists(cleTexture)) {
-                            var src = scene.textures.get(cleTexture).getSourceImage();
-                            if (src && src.width && src.height) {
-                                var cv = document.createElement("canvas");
-                                cv.width = src.width;
-                                cv.height = src.height;
-                                var ctx = cv.getContext("2d");
-                                ctx.drawImage(src, 0, 0);
-                                var d = ctx.getImageData(0, 0, cv.width, cv.height).data;
-                                var minX = cv.width, minY = cv.height, maxX = -1, maxY = -1;
-                                for (var y = 0; y < cv.height; y++) {
-                                    for (var x = 0; x < cv.width; x++) {
-                                        if (d[(y * cv.width + x) * 4 + 3] > 10) {
-                                            if (x < minX) minX = x;
-                                            if (x > maxX) maxX = x;
-                                            if (y < minY) minY = y;
-                                            if (y > maxY) maxY = y;
-                                        }
-                                    }
-                                }
-                                if (maxX >= 0) {
-                                    resultat = {
-                                        fx: minX / cv.width,
-                                        fy: minY / cv.height,
-                                        fw: (maxX - minX + 1) / cv.width,
-                                        fh: (maxY - minY + 1) / cv.height,
-                                        sw: cv.width,
-                                        sh: cv.height
-                                    };
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        resultat = null;
-                    }
-                    cache[cleTexture] = resultat;
-                    return resultat;
-                };
-            })();
-
-            /**
-             * VRAI bouton au style Réglages : fond arrondi + ombre portée
-             * + voile clair + icône en haut + libellé blanc en dessous,
-             * À L'INTÉRIEUR. La zone cliquable = le bouton entier.
-             * @param {string} cleTexture clé de l'image chargée par le jeu
-             *                            (ou null → symbole dessiné)
-             * @param {function} dessiner (g, r) — symbole de repli (r =
-             *                            demi-côté de la zone icône)
-             * @param {string} libelle texte affiché DANS le bouton
-             * @param {function} onClick — action au relâchement
-             */
-            var creerBouton = function (cleTexture, dessiner, libelle, onClick) {
-                var ombreG = scene.add.graphics()
-                    .setDepth(profondeur)
-                    .setScrollFactor(0);
-                var corps = scene.add.graphics()
-                    .setDepth(profondeur + 1)
-                    .setScrollFactor(0);
-                var icone = null;      // image asset OU Graphics de repli
-                var repliG = null;
-                if (cleTexture && scene.textures.exists(cleTexture)) {
-                    icone = scene.add.image(0, 0, cleTexture)
-                        .setDepth(profondeur + 2)
-                        .setScrollFactor(0);
-                } else {
-                    repliG = scene.add.graphics()
-                        .setDepth(profondeur + 2)
-                        .setScrollFactor(0);
-                    icone = repliG;
-                }
-                var txt = scene.add
-                    .text(0, 0, libelle, {
-                        fontFamily: police,
-                        color: "#ffffff",
-                        align: "center"
-                    })
-                    .setOrigin(0.5)
-                    .setDepth(profondeur + 2)
-                    .setScrollFactor(0)
-                    // Lisible sur ciel clair comme sur fond sombre.
-                    .setStroke("#141210", Math.max(2, Arcade.UI.u(scene, 0.35)));
-                var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
-                    .setInteractive({ useHandCursor: true })
-                    .setDepth(profondeur + 3)
-                    .setScrollFactor(0);
-                zone.setData("iconePlateforme", true);
-
-                // Dimensions du bouton : hauteur u(10.5) (MÊME que les
-                // boutons secondaires du menu — dont Réglages), largeur
-                // adaptée au libellé (au moins u(15), comme Réglages).
-                var hauteur = Arcade.UI.u(scene, 10.5);
-                var largeur = 0;
-                var x = 0, y = 0;
-                var coteIcone = hauteur * 0.45;  // même proportion que l'emoji Réglages
-                // Cadrage sur le contenu opaque (flèche 8×10, écran 14×15
-                // dans leurs cadres 16×16) : MÊME TAILLE RENDUE pour les
-                // deux icônes. Mesuré une fois par texture (cache).
-                var bbox = (cleTexture && scene.textures.exists(cleTexture))
-                    ? bboxOpaque(cleTexture)
-                    : null;
-
-                var dessinerTout = function () {
-                    txt.setFontSize(Math.round(hauteur * 0.23) + "px");
-                    largeur = Math.max(Arcade.UI.u(scene, 15),
-                        txt.width + Arcade.UI.u(scene, 4));
-                    var r = hauteur * 0.3;
-                    // Dessin centré sur (0,0) local + objet posé au centre
-                    // du bouton : le scale de l'appui garde le centre
-                    // (aucun déplacement — pattern MenuScene).
-                    // Ombre portée décalée vers le bas (+7 % hauteur).
-                    ombreG.clear();
-                    ombreG.fillStyle(ombre, 1);
-                    ombreG.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
-                        largeur, hauteur, r);
-                    ombreG.setPosition(x, y);
-                    // Corps du bouton (couleur du jeu — rouge Waggis).
-                    corps.clear();
-                    corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, 1);
-                    corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
-                    // Dégradé léger : voile clair sur la moitié haute (spec 709).
-                    corps.fillStyle(0xffffff, 0.16);
-                    corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                        largeur, hauteur * 0.52, r);
-                    corps.setPosition(x, y);
-                    // Icône EN HAUT du bouton (même emplacement que
-                    // l'emoji du bouton Réglages). ⭐ FIX 08/08 (taille
-                    // d'affichage, signalement John) : les deux icônes
-                    // rendent à la MÊME hauteur visible (coteIcone) —
-                    // l'image est cadrée sur son contenu OPAQUE (bbox
-                    // mesuré une fois par texture), sinon la flèche
-                    // (8×10 px dans son cadre 16×16) rendait minuscule
-                    // à côté de l'écran (14×15 px). Origine posée au
-                    // centre du bbox → le contenu visible est centré.
-                    if (repliG) {
-                        repliG.clear();
-                        dessiner(repliG, coteIcone / 2);
-                        repliG.setPosition(x, y - hauteur * 0.16);
-                    } else if (bbox) {
-                        var echelle = coteIcone / (bbox.fh * bbox.sh);
-                        icone.setOrigin(bbox.fx + bbox.fw / 2,
-                                bbox.fy + bbox.fh / 2)
-                            .setScale(echelle)
-                            .setPosition(x, y - hauteur * 0.16);
-                        // Base du feedback clic : la scale réelle de
-                        // l'icône (pas 1) — le tween y revient.
-                        icone.setData("_baseScale", echelle);
-                    } else {
-                        icone.setOrigin(0.5, 0.5)
-                            .setDisplaySize(coteIcone, coteIcone)
-                            .setPosition(x, y - hauteur * 0.16);
-                        icone.setData("_baseScale", icone.scaleX);
-                    }
-                    // Libellé BLANC EN DESSOUS, À L'INTÉRIEUR du bouton.
-                    txt.setPosition(x, y + hauteur * 0.28);
-                    zone.setPosition(x, y).setSize(largeur, hauteur);
-                    if (zone.input && zone.input.hitArea) {
-                        zone.input.hitArea.setSize(largeur, hauteur);
-                    }
-                };
-
-                var bouton = {
-                    setPosition: function (nx, ny) {
-                        x = nx; y = ny;
-                        dessinerTout();
-                        return this;
-                    },
-                    // Redessine SANS bouger (ex. état plein écran qui
-                    // change : touche Échap, appui système).
-                    refresh: function () {
-                        dessinerTout();
-                        return this;
-                    },
-                    setAlpha: function (a) {
-                        ombreG.setAlpha(a);
-                        corps.setAlpha(a);
-                        if (repliG) repliG.setAlpha(a);
-                        else icone.setAlpha(a);
-                        txt.setAlpha(a);
-                        zone.setAlpha(a);
-                        return this;
-                    },
-                    // Dimensions courantes du bouton (pour le positionnement).
-                    largeur: function () { return largeur; },
-                    hauteur: function () { return hauteur; }
-                };
-                bouton.setPosition(0, 0);
-
-                zone.on("pointerdown", function () {
-                    enfoncer([ombreG, corps, icone, txt, zone]);
-                    // Marqueur lu par les scènes qui écoutent le pointerup
-                    // GLOBAL (ex. GameScene de Waggis : un clic sur une icône
-                    // plateforme ne doit pas faire bondir le personnage).
-                    Arcade.UI._clicPlateforme = true;
-                });
-                var relacherBouton = function () {
-                    relacher([ombreG, corps, icone, txt, zone]);
-                };
-                zone.on("pointerout", relacherBouton);
-                zone.on("pointerup", function () {
-                    relacherBouton();
-                    if (typeof onClick === "function") onClick();
-                });
-
-                return bouton;
+            // Options communes du composant (core/ui/button.js) : hauteur
+            // u(10.5) comme les boutons secondaires du menu, largeur
+            // adaptée au libellé (min u(15), marge u(4)). Pas de marqueur
+            // _clicPlateforme : il n'est plus posé (plus d'icônes dans
+            // GameScene Waggis — décision John 08/08 : Retour / Plein
+            // écran visibles QUE sur le menu principal).
+            var optionsBouton = {
+                couleur: couleur,
+                ombre: ombre,
+                police: police,
+                hauteur: Arcade.UI.u(scene, 10.5),
+                autoLargeur: true,
+                largeurMin: Arcade.UI.u(scene, 15),
+                margeLibelle: Arcade.UI.u(scene, 4),
+                profondeur: profondeur,
+                stroke: "#141210"
             };
 
             // --- Quitter (haut-gauche) : flèche retour vers /games --------
-            var quitter = creerBouton(
-                "icone_retour",
-                function (g, r) {
+            var quitter = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+                icone: "icone_retour",
+                repliDessin: function (g, r) {
                     g.lineStyle(r * 0.22, 0xffffff, 1);
                     g.lineBetween(-r * 0.35, 0, r * 0.4, 0);
                     g.lineBetween(-r * 0.35, 0, -r * 0.08, -r * 0.26);
                     g.lineBetween(-r * 0.35, 0, -r * 0.08, r * 0.26);
                 },
-                texteRetour,
-                function () {
+                label: texteRetour,
+                onClick: function () {
                     // Même effet que le lien « Retour » : on ramène la PAGE
                     // PARENTE (l'arcade) vers /games — le jeu tourne dans
                     // l'iframe du GameShell. Repli sur la fenêtre courante si
@@ -514,7 +274,7 @@
                         window.location.href = "/games";
                     }
                 }
-            );
+            }));
 
             // --- Plein écran (haut-droite) : requestFullscreen du jeu ----
             var pleinEcran = null;
@@ -549,11 +309,13 @@
                         g.lineBetween(rc, rc - L, rc - L, rc - L);
                     }
                 };
-                pleinEcran = creerBouton(
-                    "icone_plein_ecran",
-                    function (g, r) { dessinerCoins(g, r, !!document.fullscreenElement); },
-                    textePleinEcran,
-                    function () {
+                pleinEcran = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+                    icone: "icone_plein_ecran",
+                    repliDessin: function (g, r) {
+                        dessinerCoins(g, r, !!document.fullscreenElement);
+                    },
+                    label: textePleinEcran,
+                    onClick: function () {
                         try {
                             if (document.fullscreenElement) {
                                 document.exitFullscreen();
@@ -564,7 +326,7 @@
                             console.error("[UI] Plein écran refusé :", e);
                         }
                     }
-                );
+                }));
                 // L'icône suit l'état réel du plein écran (touche Échap
                 // comprise) : redessin à chaque changement d'état.
                 var onFullscreenChange = function () {

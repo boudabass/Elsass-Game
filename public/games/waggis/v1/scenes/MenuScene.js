@@ -121,9 +121,15 @@ class MenuScene extends Phaser.Scene {
         this.waggis = this.add.image(0, 0, "pieton_rouge_1").setDepth(4);
 
         // --- Bouton principal « Jouer » (pleine largeur) -------------------
-        this.boutonJouer = this._creerBouton({
+        // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : LE
+        // composant bouton réutilisable core/ui/button.js (Arcade.UI.bouton)
+        // — variante TEXTE SIMPLE (sans icône), même style partagé (fond,
+        // coins arrondis, ombre, feedback clic). Plus de code dupliqué.
+        this.boutonJouer = Arcade.UI.bouton(this, {
             label: C.textes.jouer,
             couleur: C.couleurs.bouton,
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => this.jouer()
         });
 
@@ -154,9 +160,12 @@ class MenuScene extends Phaser.Scene {
                 onClick: () => this.aller(ClassementScene.KEY)
             }
         ].map((ic) => ({
-            bouton: this._creerBoutonSecondaire({
-                emoji: ic.emoji,
+            bouton: Arcade.UI.bouton(this, {
+                icone: ic.emoji,
                 label: ic.label,
+                couleur: C.couleurs.bouton,
+                ombre: C.couleurs.ombreBouton,
+                police: C.police.famille,
                 onClick: ic.onClick
             })
         }));
@@ -164,9 +173,12 @@ class MenuScene extends Phaser.Scene {
         // --- ⚙️ Réglages : VRAI bouton en bas à droite (correction John ----
         // 08/08) — plus une icône discrète en coin : même bouton 2 lignes
         // (icône + libellé) que les secondaires, placé en bas à droite.
-        this.boutonReglages = this._creerBoutonSecondaire({
-            emoji: "⚙️",
+        this.boutonReglages = Arcade.UI.bouton(this, {
+            icone: "⚙️",
             label: C.textes.reglages,
+            couleur: C.couleurs.bouton,
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => this.aller(SettingsScene.KEY)
         });
 
@@ -408,173 +420,14 @@ class MenuScene extends Phaser.Scene {
     }
 
     // --- Boutons -------------------------------------------------------------
-
-    /**
-     * Bouton rectangulaire (bouton principal) — spec 709 révision 08/08 :
-     * coins arrondis + ombre portée + dégradé léger + feedback au clic
-     * (scale-down à l'appui, micro-rebond au relâchement).
-     * @param {object} o {label, couleur, onClick}
-     */
-    _creerBouton(o) {
-        const C = window.WaggisConfig;
-        const ombre = this.add.graphics().setDepth(49);
-        const corps = this.add.graphics().setDepth(50);
-        const label = this.add.text(0, 0, o.label, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        }).setOrigin(0.5).setDepth(51);
-        const zone = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
-            .setInteractive({ useHandCursor: true })
-            .setDepth(52);
-
-        // Feedback au clic : scale-down à l'appui…
-        zone.on("pointerdown", () => this._enfoncer([ombre, corps, label, zone]));
-        // …et micro-rebond (Back.Out) au relâchement / sortie.
-        const relacher = () => this._relacher([ombre, corps, label, zone]);
-        zone.on("pointerout", relacher);
-        zone.on("pointerup", () => {
-            relacher();
-            if (typeof o.onClick === "function") o.onClick();
-        });
-
-        let x = 0, y = 0, largeur = 10, hauteur = 10;
-        const dessiner = () => {
-            const r = hauteur * 0.3;
-            // Dessin en coordonnées CENTRÉES sur (0,0) local + objet posé au
-            // centre du bouton : le feedback clic (scale) se fait autour du
-            // centre — plus aucun déplacement du bouton à l'appui
-            // (correction John 08/08).
-            ombre.clear();
-            ombre.fillStyle(C.couleurs.ombreBouton, 1);
-            ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
-                largeur, hauteur, r);
-            ombre.setPosition(x, y);
-            corps.clear();
-            corps.fillStyle(o.couleur || C.couleurs.bouton, 1);
-            corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
-            // Dégradé léger : voile clair sur la moitié haute (spec 709 —
-            // « dégradé léger au lieu du noir mat uniforme »).
-            corps.fillStyle(0xffffff, 0.16);
-            corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                largeur, hauteur * 0.52, r);
-            corps.setPosition(x, y);
-            label.setFontSize(Math.round(hauteur * 0.4) + "px");
-            label.setPosition(x, y);
-            zone.setPosition(x, y).setSize(largeur, hauteur);
-            if (zone.input && zone.input.hitArea) {
-                zone.input.hitArea.setSize(largeur, hauteur);
-            }
-        };
-
-        return {
-            setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
-            redimensionner: function (nw, nh) { largeur = nw; hauteur = nh; dessiner(); return this; },
-            setDepth: function (d) {
-                ombre.setDepth(d); corps.setDepth(d + 1);
-                label.setDepth(d + 2); zone.setDepth(d + 3);
-                return this;
-            },
-            destroy: function () {
-                ombre.destroy(); corps.destroy(); label.destroy(); zone.destroy();
-            }
-        };
-    }
-
-    /**
-     * Bouton secondaire sur DEUX LIGNES (grille 2×2 + Réglages bas-droite,
-     * correction John 08/08) : icône en haut, texte BLANC en dessous, le
-     * tout centré DANS le bouton. Fond rouge Waggis + voile clair (même
-     * habillage que le bouton principal — le texte blanc doit rester
-     * lisible, fini le fond blanc avec libellé sombre hors du bouton).
-     * Feedback au clic : rétricissement 10 % autour du centre, aucun
-     * déplacement (dessin en coordonnées centrées + objet posé au centre).
-     * @param {object} o {emoji, label, onClick}
-     */
-    _creerBoutonSecondaire(o) {
-        const C = window.WaggisConfig;
-        const ombre = this.add.graphics().setDepth(49);
-        const corps = this.add.graphics().setDepth(50);
-        const emoji = this.add.text(0, 0, o.emoji, {
-            fontFamily: C.police.famille,
-            align: "center"
-        }).setOrigin(0.5).setDepth(51);
-        const label = this.add.text(0, 0, o.label, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        }).setOrigin(0.5).setDepth(51);
-        const zone = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
-            .setInteractive({ useHandCursor: true })
-            .setDepth(52);
-
-        zone.on("pointerdown", () => this._enfoncer([ombre, corps, emoji, label, zone]));
-        const relacher = () => this._relacher([ombre, corps, emoji, label, zone]);
-        zone.on("pointerout", relacher);
-        zone.on("pointerup", () => {
-            relacher();
-            if (typeof o.onClick === "function") o.onClick();
-        });
-
-        let x = 0, y = 0, largeur = 10, hauteur = 10;
-        const dessiner = () => {
-            const r = hauteur * 0.3;
-            // Dessin centré sur (0,0) local + objet posé au centre : le
-            // scale de l'appui garde le centre (aucun déplacement).
-            ombre.clear();
-            ombre.fillStyle(C.couleurs.ombreBouton, 1);
-            ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
-                largeur, hauteur, r);
-            ombre.setPosition(x, y);
-            corps.clear();
-            corps.fillStyle(C.couleurs.bouton, 1);
-            corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
-            // Dégradé léger : voile clair sur la moitié haute (spec 709).
-            corps.fillStyle(0xffffff, 0.16);
-            corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                largeur, hauteur * 0.52, r);
-            corps.setPosition(x, y);
-            emoji.setFontSize(Math.round(hauteur * 0.45) + "px");
-            emoji.setPosition(x, y - hauteur * 0.16);
-            label.setFontSize(Math.round(hauteur * 0.23) + "px");
-            label.setPosition(x, y + hauteur * 0.28);
-            zone.setPosition(x, y).setSize(largeur, hauteur);
-            if (zone.input && zone.input.hitArea) {
-                zone.input.hitArea.setSize(largeur, hauteur);
-            }
-        };
-
-        return {
-            setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
-            redimensionner: function (nw, nh) { largeur = nw; hauteur = nh; dessiner(); return this; },
-            setDepth: function (d) {
-                ombre.setDepth(d); corps.setDepth(d + 1);
-                emoji.setDepth(d + 2); label.setDepth(d + 2); zone.setDepth(d + 3);
-                return this;
-            },
-            destroy: function () {
-                ombre.destroy(); corps.destroy(); emoji.destroy();
-                label.destroy(); zone.destroy();
-            }
-        };
-    }
-
-    /** Appui : le bouton se RÉTRÉCIT de 10 % autour de son centre (effet de
-     * recul, correction John 08/08) — plus aucun déplacement. Le dessin en
-     * coordonnées centrées (voir _creerBouton / _creerBoutonSecondaire)
-     * garantit que le scale se fait bien autour du centre du bouton. */
-    _enfoncer(cibles) {
-        this.tweens.add({
-            targets: cibles, scale: 0.9, duration: 70, ease: "Linear"
-        });
-    }
-
-    /** Relâchement : retour à la taille normale avec un micro-rebond. */
-    _relacher(cibles) {
-        this.tweens.add({
-            targets: cibles, scale: 1, duration: 170, ease: "Back.Out"
-        });
-    }
+    // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : tous les
+    // boutons du menu utilisent LE composant bouton réutilisable
+    // core/ui/button.js (Arcade.UI.bouton — dossier UI) : Jouer (variante
+    // texte simple), la grille 2×2 et Réglages (variante icône + texte).
+    // Le style (fond, coins arrondis, ombre portée, feedback au clic) est
+    // partagé par le socle — plus aucune copie locale dans la scène.
+    // (L'ancien code _creerBouton / _creerBoutonSecondaire / _enfoncer /
+    // _relacher a été supprimé : il dupliquait le composant.)
 
     // --- Décor de fond --------------------------------------------------------
 

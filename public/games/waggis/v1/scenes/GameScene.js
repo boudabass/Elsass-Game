@@ -92,11 +92,9 @@ class GameScene extends Phaser.Scene {
         const UI = Arcade.UI;
         this.C = C; // config accessible aux méthodes (bonds, score, layout)
 
-        // ⭐ Chantier B (art. 704) : icônes plateforme persistantes
-        // (Quitter haut-gauche / Plein écran haut-droite) — remplacent la
-        // barre GameShell, visibles sur toutes les scènes.
-        Arcade.UI.iconesPlateforme(this);
-
+        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
+        // et Plein écran ne sont affichés QUE sur le menu principal — plus
+        // d'icônes plateforme sur les autres scènes.
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
         // --- État du joueur ------------------------------------------------
@@ -211,9 +209,11 @@ class GameScene extends Phaser.Scene {
         // latéral, en dessous → descend vers une case qui existe déjà).
         // Un clic sur le perso lui-même (zone morte) ne déclenche rien.
         this.input.on("pointerup", (p) => {
-            // ⭐ Chantier B : un clic sur une icône plateforme (Quitter /
-            // Plein écran) ne doit PAS déclencher de bond — le marqueur
-            // est posé par Arcade.UI.iconesPlateforme au pointerdown.
+            // ⭐ Décision John 08/08 : les icônes plateforme ne sont plus
+            // affichées dans GameScene (Retour / Plein écran visibles QUE
+            // sur le menu principal) — le marqueur _clicPlateforme n'est
+            // plus posé, le garde-fou ci-dessous ne se déclenche plus
+            // (conservé par sécurité).
             if (Arcade.UI._clicPlateforme) {
                 Arcade.UI._clicPlateforme = false;
                 return;
