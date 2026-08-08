@@ -114,6 +114,7 @@
             };
 
             return {
+                label: label,
                 setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
                 redimensionner: function (nw, nh) { largeur = nw; hauteur = nh; dessiner(); return this; },
                 setDepth: function (d) {
