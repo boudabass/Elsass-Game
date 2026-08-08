@@ -82,6 +82,14 @@
         }
 
         /**
+         * true si la grille est SATURÉE : aucune case vide (spec §6, fin de
+         * partie « Grille pleine »). Plus aucun déplacement n'est possible.
+         */
+        estPleine() {
+            return this.compterItems() === this.taille * this.taille;
+        }
+
+        /**
          * true si poser `type` en (l, c) NE crée AUCUN alignement ≥ 3 en
          * ligne ou en colonne avec les items déjà posés. C'est la règle du
          * re-tirage : on n'autorise jamais un placement fautif.

@@ -268,7 +268,32 @@ poses.forEach((p) => {
     assert.notStrictEqual(rate.get(p.l, p.c), null, "la case contient bien un item");
 });
 
-// --- 11. Séquence de fusions enchaînées : le score monte (spec §3, §5) -----
+// --- 11. Grille pleine : aucune case vide (spec §6, fin de partie) ---------
+const pleine = new Grille(CFG);
+for (let l = 0; l < CFG.grilleTaille; l++) {
+    for (let c = 0; c < CFG.grilleTaille; c++) {
+        pleine.set(l, c, (l + c) % CFG.typesItems);
+    }
+}
+assert.strictEqual(
+    pleine.estPleine(), true,
+    "81 cases remplies → grille saturée (fin « Grille pleine »)"
+);
+const presquePleine = new Grille(CFG);
+for (let l = 0; l < CFG.grilleTaille; l++) {
+    for (let c = 0; c < CFG.grilleTaille; c++) {
+        if (l === 4 && c === 4) continue;   // une seule case vide
+        presquePleine.set(l, c, (l + c) % CFG.typesItems);
+    }
+}
+assert.strictEqual(
+    presquePleine.estPleine(), false,
+    "une case vide suffit pour que la partie continue"
+);
+const neuve = new Grille(CFG);
+assert.strictEqual(neuve.estPleine(), false, "grille neuve : pas saturée");
+
+// --- 12. Séquence de fusions enchaînées : le score monte (spec §3, §5) -----
 const seq = new Grille(CFG);
 
 // Fusion 1 : on assemble une ligne (3, 0..2) en déplaçant un item.

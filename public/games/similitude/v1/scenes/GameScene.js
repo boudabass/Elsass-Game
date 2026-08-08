@@ -19,9 +19,22 @@
  *     rien sauté → itemsParCoupRate nouveaux items sur cases vides (spawn).
  *
  * Toute la règle vit dans Grille.js (logique pure) ; cette scène ne fait que
- * traduire les clics en appels Grille et animer le résultat. Le HUD
- * (score / chrono / énergie persistants) et la fin de partie arrivent en
- * SIM-3.
+ * traduire les clics en appels Grille et animer le résultat.
+ *
+ * SIM-3 (énergie, chrono, fin de partie — spec 473 §6, §8) :
+ *   - HUD Phaser via Arcade.UI (u = % du plus petit côté, PAS d'overlay
+ *     DOM) : Score (gauche), ⏱ chrono (centre), ⚡ énergie (droite), mis à
+ *     jour en jeu ;
+ *   - le chrono décompte chaque seconde (120 s au départ, non plafonné — les
+ *     gains s'ajoutent) ; le premier épuisé entre chrono et énergie termine
+ *     la partie (spec §2) ;
+ *   - 3 causes de fin → même écran OverScene avec le motif : « Temps
+ *     écoulé » (chrono à 0), « Plus d'énergie » (énergie à 0, déclenché
+ *     APRÈS la résolution du dernier coup pour laisser les points tomber),
+ *     « Grille pleine » (aucune case vide) ;
+ *   - AUCUNE sauvegarde : core/save.js n'est pas câblé (session unique,
+ *     spec §2) ; seul le score part au serveur via OverScene →
+ *     Arcade.Score.submit.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -49,6 +62,7 @@ class GameScene extends Phaser.Scene {
         this.fonds = [];
         this.sprites = [];
         this.anime = false;         // verrou pendant les animations (mouvement / résolution)
+        this.finAttente = null;     // fin de partie différée (chrono à 0 pendant une animation)
         this.tailleCase = 0;
         this.x0 = 0; this.y0 = 0;   // coin haut-gauche de la grille (recalculé au layout)
 
@@ -67,6 +81,22 @@ class GameScene extends Phaser.Scene {
                 this.sprites[l][c] = this._creerSprite(l, c);
             }
         }
+
+        // --- HUD Phaser (spec §8) ----------------------------------------
+        // Score (gauche), ⏱ chrono (centre), ⚡ énergie (droite) — textes
+        // Arcade.UI, tailles en % du plus petit côté, PAS d'overlay DOM.
+        this.hudScore = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
+        this.hudChrono = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
+        this.hudEnergie = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
+        this._majHUD();   // valeurs de départ : 0 pt, 120 s, 25 ⚡ (spec §4)
+
+        // Chrono : 1 décompte par seconde (spec §4 — 120 s, non plafonné).
+        // Le premier épuisé entre chrono et énergie termine la partie (§2).
+        this.chronoTimer = this.time.addEvent({
+            delay: 1000,
+            loop: true,
+            callback: () => this._tickChrono()
+        });
 
         // Clic / tap uniquement (spec §2 : jamais de glisser-déposer).
         this.input.on("pointerdown", (pointeur) => this._clic(pointeur));
@@ -119,6 +149,55 @@ class GameScene extends Phaser.Scene {
                 }
             }
         }
+
+        // HUD : une ligne en haut de l'écran — Score à gauche, ⏱ au centre,
+        // ⚡ à droite (spec §8). Tailles en % du plus petit côté.
+        const tailleTexte = UI.u(this, C.hudTailleTextePct) + "px";
+        const yHud = UI.u(this, C.hudMargePct) + UI.u(this, C.hudTailleTextePct) / 2;
+
+        this.hudScore.setFontSize(tailleTexte);
+        this.hudChrono.setFontSize(tailleTexte);
+        this.hudEnergie.setFontSize(tailleTexte);
+
+        this.hudScore.setOrigin(0, 0.5).setPosition(UI.u(this, C.hudMargePct), yHud);
+        this.hudChrono.setOrigin(0.5, 0.5).setPosition(w / 2, yHud);
+        this.hudEnergie.setOrigin(1, 0.5).setPosition(w - UI.u(this, C.hudMargePct), yHud);
+    }
+
+    /** Rafraîchit les trois valeurs du HUD depuis l'état de la grille. */
+    _majHUD() {
+        const C = window.SimilitudeConfig;
+        this.hudScore.setText(C.textes.hudScore.replace("{score}", this.grille.score));
+        this.hudChrono.setText(C.textes.hudChrono.replace("{s}", Math.ceil(this.grille.temps)));
+        this.hudEnergie.setText(C.textes.hudEnergie.replace("{e}", this.grille.energie));
+    }
+
+    /** Un décompte de chrono par seconde ; à 0 → fin « Temps écoulé ». */
+    _tickChrono() {
+        if (this.finAttente) return;
+        this.grille.temps -= 1;
+        if (this.grille.temps <= 0) {
+            this.grille.temps = 0;
+            this._majHUD();
+            // On laisse le coup en cours (animation) se terminer pour que le
+            // joueur voie ses derniers points tomber (spec §6), puis on finit.
+            if (this.anime) this.finAttente = "finChrono";
+            else this._finir("finChrono");
+            return;
+        }
+        this._majHUD();
+    }
+
+    /**
+     * Fin de partie (spec §6) : la scène OverScene reçoit le score final et
+     * le motif (clé textes.finChrono / finEnergie / finGrillePleine).
+     * AUCUNE sauvegarde : session unique (spec §2).
+     */
+    _finir(motif) {
+        if (this.finAttente === "fini") return;
+        this.finAttente = "fini";   // garde-fou : on ne finit qu'une fois
+        if (this.chronoTimer) this.chronoTimer.remove(false);
+        this.scene.start(OverScene.KEY, { score: this.grille.score, motif: motif });
     }
 
     /** Taille (et surbrillance éventuelle) de l'item (l, c). */
@@ -164,7 +243,16 @@ class GameScene extends Phaser.Scene {
         if (!sel || this.anime) return;
 
         const r = this.grille.deplacer(sel.l, sel.c, l, c);
-        if (!r.ok) return;   // plus d'énergie : la partie s'arrêtera (fin en SIM-3)
+        if (!r.ok) {
+            // Plus d'énergie : la partie s'arrête (spec §6 — « Plus
+            // d'énergie », après la résolution du dernier coup déjà joué).
+            if (r.raison === "plus-energie" && this.finAttente !== "fini") {
+                this._finir("finEnergie");
+            }
+            return;
+        }
+
+        this._majHUD();   // le coût du déplacement a fait baisser l'énergie
 
         const spr = this.sprites[sel.l][sel.c];
         this.sprites[l][c] = spr;          // le sprite suit l'item dans la grille
@@ -189,6 +277,7 @@ class GameScene extends Phaser.Scene {
     _apresDeplacement() {
         const C = window.SimilitudeConfig;
         const res = this.grille.resoudre();
+        this._majHUD();   // gains appliqués : score, énergie, temps à jour
 
         if (res.aucun) {
             // Coup raté : 2 nouveaux items sur des cases vides tirées au
@@ -199,6 +288,7 @@ class GameScene extends Phaser.Scene {
             });
             this.redessiner(this.largeur, this.hauteur);
             this.anime = false;
+            this._verifierFin();
             return;
         }
 
@@ -214,7 +304,7 @@ class GameScene extends Phaser.Scene {
 
         this._afficherGains(res);
 
-        if (!disparus.length) { this.anime = false; return; }
+        if (!disparus.length) { this.anime = false; this._verifierFin(); return; }
 
         this.tweens.add({
             targets: disparus,
@@ -224,8 +314,25 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 disparus.forEach((s) => s.destroy());
                 this.anime = false;
+                this._verifierFin();
             }
         });
+    }
+
+    /**
+     * Fin de tour : on vérifie si la partie doit s'arrêter (spec §6).
+     *  - chrono déjà à 0 pendant l'animation → « Temps écoulé » (différé) ;
+     *  - aucune case vide → « Grille pleine » ;
+     *  - énergie à 0 → « Plus d'énergie » (le joueur a vu ses points tomber).
+     */
+    _verifierFin() {
+        if (this.finAttente === "fini") return;
+        if (this.finAttente) {          // « Temps écoulé » différé pendant l'animation
+            this._finir(this.finAttente);
+            return;
+        }
+        if (this.grille.estPleine()) { this._finir("finGrillePleine"); return; }
+        if (this.grille.energie <= 0) { this._finir("finEnergie"); return; }
     }
 
     /** Texte flottant des gains à l'endroit de la fusion (spec §8). */

@@ -17,6 +17,16 @@ window.SimilitudeConfig = {
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
 
+        // Écran de fin (spec §6) — affichés par OverScene.
+        partieTerminee: "Partie terminée",
+        scoreFinal: "Score : {score}",
+
+        // HUD en jeu (spec §8) — affichés par GameScene. {score}, {s} et {e}
+        // sont des emplacements : la valeur est insérée à chaque mise à jour.
+        hudScore: "Score : {score}",
+        hudChrono: "⏱ {s}",
+        hudEnergie: "⚡ {e}",
+
         // Règle en une phrase (spec §1), affichée sur le menu.
         regle: "Alignez 3 items identiques ou plus en ligne ou en colonne pour les faire disparaître !",
 
@@ -55,6 +65,13 @@ window.SimilitudeConfig = {
     tailleTexteGainPct: 3,    // taille du texte flottant des gains, en % du
                               // plus petit côté
     dureeTexteGainMs: 700,    // durée de vie du texte flottant des gains
+
+    // --- HUD (spec §8) -----------------------------------------------------
+    // Tout le HUD est en Phaser via Arcade.UI, tailles en % du plus petit
+    // côté (u) — jamais d'overlay DOM, jamais de pixels. Les états d'alerte
+    // (rouge + pulsation sous 15 s / 5 ⚡) arrivent en SIM-4 (article 704).
+    hudTailleTextePct: 5,     // taille des textes Score / ⏱ / ⚡
+    hudMargePct: 2,           // marge du HUD par rapport au bord haut
 
     // --- Barème (spec §5) ---------------------------------------------------
     bareme: {
