@@ -29,7 +29,8 @@
  *    même présentation 2 lignes (SettingsScene MENU-5 — son on/off) ;
  *  - score affiché en HUD (bandeau en haut), plus au centre de l'écran —
  *    le titre + accroche passent À GAUCHE, le personnage est collé au bord
- *    droit, les deux sur la MÊME LIGNE (correction John 08/08) ;
+ *    droit, les deux sur la MÊME LIGNE en PAYSAGE ; en PORTRAIT, texte et
+ *    personnage sont EMPILÉS (jamais superposés — correction John 08/08) ;
  *  - PAS de « Quitter » ni de « Plein écran » dans ce menu : chantier
  *    séparé (article 704 « Chantier B » — icônes haut-gauche/haut-droit
  *    persistantes sur toutes les scènes, remplacement de la barre
@@ -188,35 +189,77 @@ class MenuScene extends Phaser.Scene {
                 w / 2 - pillW / 2, recordY - pillH / 2, pillW, pillH, pillH / 2
             );
 
-            // Titre (avec relief) + accroche À GAUCHE (correction John
-            // 08/08) : le groupe de texte est aligné à gauche, le
-            // personnage est collé au bord droit — les deux sur la MÊME
-            // LIGNE, pour laisser le plus de place possible au texte.
+            // Titre (avec relief) + accroche + personnage — layout
+            // ADAPTATIF selon l'orientation (correction John 08/08) :
+            //  - PAYSAGE (largeur > hauteur) : texte À GAUCHE, personnage
+            //    collé au bord droit, les deux sur la MÊME LIGNE
+            //    (comportement actuel, conservé) ;
+            //  - PORTRAIT (hauteur > largeur) : EMPILÉS — titre, accroche,
+            //    puis personnage, centrés horizontalement — le texte et le
+            //    perso ne se superposent JAMAIS (règle John : tout est
+            //    empilé, jamais superposé).
+            const estPaysage = w > h;
             const tailleTitre = u(13.5);
-            const centreLigne = h * 0.26;
-            const margeGauche = u(5);
-            this.titre
-                .setFontSize(Math.round(tailleTitre) + "px")
-                .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
-                .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
-                    "rgba(20, 18, 16, 0.3)", 4, false, true)
-                .setOrigin(0, 0.5)
-                .setPosition(margeGauche, centreLigne - u(6));
-            this.accroche
-                .setFontSize(Math.round(u(4)) + "px")
-                .setOrigin(0, 0.5)
-                .setPosition(margeGauche, centreLigne + u(7.5));
-
-            // Illustration du Waggis À DROITE, collée au bord droit
-            // (correction John 08/08), sur la même ligne que le titre +
-            // accroche ; ombre de sol sous ses pieds.
             const hWaggis = u(21);
-            const waggisY = centreLigne;
-            const waggisX = w - u(2) - hWaggis / 2;
-            this.waggis
-                .setScale(hWaggis / this.waggis.height)
-                .setPosition(waggisX, waggisY);
-            this._dessinerSolOmbre(waggisX, waggisY + hWaggis / 2, hWaggis * 0.9);
+
+            if (estPaysage) {
+                // PAYSAGE : le groupe de texte est aligné à gauche, le
+                // personnage est collé au bord droit — les deux sur la
+                // MÊME LIGNE, pour laisser le plus de place au texte.
+                const centreLigne = h * 0.26;
+                const margeGauche = u(5);
+                this.titre
+                    .setFontSize(Math.round(tailleTitre) + "px")
+                    .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
+                    .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
+                        "rgba(20, 18, 16, 0.3)", 4, false, true)
+                    .setOrigin(0, 0.5)
+                    .setPosition(margeGauche, centreLigne - u(6));
+                this.accroche
+                    .setFontSize(Math.round(u(4)) + "px")
+                    .setOrigin(0, 0.5)
+                    .setPosition(margeGauche, centreLigne + u(7.5));
+
+                // Illustration du Waggis À DROITE, collée au bord droit,
+                // sur la même ligne que le titre + accroche ; ombre de sol
+                // sous ses pieds.
+                const waggisY = centreLigne;
+                const waggisX = w - u(2) - hWaggis / 2;
+                this.waggis
+                    .setScale(hWaggis / this.waggis.height)
+                    .setPosition(waggisX, waggisY);
+                this._dessinerSolOmbre(waggisX, waggisY + hWaggis / 2, hWaggis * 0.9);
+            } else {
+                // PORTRAIT : EMPILEMENT centré, sous le HUD (départ
+                // h*0.14), espace u(5) entre chaque étage — le texte
+                // (titre puis accroche) et le personnage occupent des
+                // lignes distinctes, plus aucune superposition possible.
+                const tailleAccroche = u(4);
+                const espace = u(5);
+                const hautBloc = h * 0.14;
+                const yTitre = hautBloc + tailleTitre / 2;
+                const yAccroche = yTitre + tailleTitre / 2 + espace + tailleAccroche / 2;
+                const yWaggis = yAccroche + tailleAccroche / 2 + espace + hWaggis / 2;
+
+                this.titre
+                    .setFontSize(Math.round(tailleTitre) + "px")
+                    .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
+                    .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
+                        "rgba(20, 18, 16, 0.3)", 4, false, true)
+                    .setOrigin(0.5)
+                    .setPosition(w / 2, yTitre);
+                this.accroche
+                    .setFontSize(Math.round(tailleAccroche) + "px")
+                    .setOrigin(0.5)
+                    .setPosition(w / 2, yAccroche);
+
+                // Personnage centré, sous l'accroche ; ombre de sol sous
+                // ses pieds (même règle qu'en paysage).
+                this.waggis
+                    .setScale(hWaggis / this.waggis.height)
+                    .setPosition(w / 2, yWaggis);
+                this._dessinerSolOmbre(w / 2, yWaggis + hWaggis / 2, hWaggis * 0.9);
+            }
 
             // « Jouer » pleine largeur (80 % de la largeur d'écran). Sa
             // largeur est la RÉFÉRENCE de la page : chaque ligne de la
