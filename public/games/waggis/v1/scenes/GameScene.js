@@ -245,8 +245,12 @@ class GameScene extends Phaser.Scene {
             this.texteScore.setPosition(w / 2, h * 0.06);
             // ⭐ Chantier B : le niveau passe SOUS l'icône Quitter (en
             // haut-gauche) — avant il était à w*0.08, h*0.06 et
-            // chevauchait l'icône en portrait (mobile-first).
-            this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 11));
+            // chevauchait l'icône en portrait (mobile-first). ⭐ FIX
+            // 08/08/2026 (assets icônes) : le bouton Quitter affiche
+            // maintenant son libellé « Retour » SOUS le cercle (bloc haut
+            // ≈ u(14)) — le niveau descend à u(15) pour rester sous le
+            // libellé, jamais superposé (règle John).
+            this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 15));
         });
     }
 

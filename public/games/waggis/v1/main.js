@@ -127,9 +127,30 @@
         scenes: [MenuScene, GameScene, OverScene, LevelsScene, CharactersScene, ShopScene, SettingsScene, ClassementScene],
         firstScene: MenuScene.KEY,
 
+        // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
+        // art. 704 Chantier B) : libellés affichés SOUS les icônes
+        // persistantes Quitter / Plein écran — lus par
+        // Arcade.UI.iconesPlateforme (core/ui.js). Les textes vivent dans
+        // config.js (textes.retour / textes.pleinEcran), c'est ici qu'ils
+        // sont transmis au socle.
+        iconesPlateforme: {
+            retour: C.textes.retour,
+            pleinEcran: C.textes.pleinEcran
+        },
+
         // Chargement : sols, véhicules, flottants, train et décor des bandes
         // générées.
         preload: function (scene) {
+            // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John
+            // 08/08 — art. 704 Chantier B) : vraies images des boutons
+            // persistants Quitter (haut-gauche) et Plein écran (haut-droite)
+            // — assets atelier copiés dans assets/ui/ (flèche BRUN, tons
+            // terre/bois du jeu ; écran du désert). Chargées ici pour être
+            // disponibles dans TOUTES les scènes (iconesPlateforme les
+            // affiche dans chaque create()).
+            scene.load.image("icone_retour", "assets/ui/rogrpg_fleche_brun_gauche.png");
+            scene.load.image("icone_plein_ecran", "assets/ui/desert_ecran.png");
+
             // D2-3 (spec 708 §1/§3/§5/§6) : config par niveau (lignes(niveau)
             // = 42 + niveau, types autorisés, densité, vitesse, max
             // consécutifs) — consultée par LaneGenerator via

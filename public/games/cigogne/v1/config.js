@@ -14,7 +14,15 @@ window.CigogneConfig = {
     // de l'affichage (voir MenuScene / OverScene).
     textes: {
         meilleurScore: "Meilleur score : {score}",
-        nouveauRecord: "Nouveau record !"
+        nouveauRecord: "Nouveau record !",
+
+        // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
+        // art. 704 Chantier B) : libellés affichés SOUS les icônes
+        // persistantes Quitter (haut-gauche) et Plein écran (haut-droite) —
+        // lus par Arcade.UI.iconesPlateforme (core/ui.js) via les options de
+        // boot (main.js).
+        retour: "Retour",
+        pleinEcran: "Plein écran"
     },
 
     // --- Vol ---------------------------------------------------------------

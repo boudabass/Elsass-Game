@@ -188,110 +188,191 @@
          *    l'état réel ; cachée si le navigateur ne supporte pas le
          *    plein écran (même règle que l'ancien canFullscreen).
          *
+         * ⭐ FIX 08/08/2026 (assets icônes, décision John 08/08) : chaque
+         * bouton affiche désormais une VRAIE IMAGE (asset atelier copié
+         * dans le dossier du jeu : ui/rogrpg_fleche_brun_gauche.png pour
+         * Quitter, ui/desert_ecran.png pour Plein écran) posée sur le
+         * cercle, avec son LIBELLÉ EN DESSOUS (« Retour » / « Plein
+         * écran » — textes du jeu, config.js, passés par Arcade.boot →
+         * options.iconesPlateforme). La zone cliquable englobe le cercle
+         * ET le libellé. Si les textures ne sont pas chargées (jeu qui
+         * n'a pas encore copié les assets), repli sur le symbole dessiné
+         * (Graphics) — le libellé reste affiché.
+         *
          * Mobile-first : tailles en % du plus petit côté (u), clic/tap
          * uniquement. À appeler dans le create() de CHAQUE scène du jeu.
          */
         iconesPlateforme: function (scene) {
             Arcade.UI._clicPlateforme = false;
             var marge = Arcade.UI.u(scene, 2);
-            var taille = Arcade.UI.u(scene, 8);
+            var taille = Arcade.UI.u(scene, 8);      // diamètre du cercle
             var rayon = taille / 2;
             var profondeur = 1000;   // au-dessus de tout (UI, HUD, menu)
 
+            // Libellés sous les icônes : textes du jeu (config.js → textes.
+            // retour / pleinEcran), transmis par main.js via Arcade.boot({
+            // iconesPlateforme: {...} }). Repli générique si le jeu ne les
+            // fournit pas.
+            var libelles = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
+            var texteRetour = libelles.retour || "Retour";
+            var textePleinEcran = libelles.pleinEcran || "Plein écran";
+
             // Feedback de clic : l'icône se ternit à l'appui.
-            var pointerdown = function (g, zone) {
+            var pointerdown = function (g, img, txt, zone) {
                 g.setAlpha(0.6);
+                if (img) img.setAlpha(0.6);
+                if (txt) txt.setAlpha(0.6);
                 zone.setAlpha(0.6);
                 // Marqueur lu par les scènes qui écoutent le pointerup
                 // GLOBAL (ex. GameScene de Waggis : un clic sur une icône
                 // plateforme ne doit pas faire bondir le personnage).
                 Arcade.UI._clicPlateforme = true;
             };
-            var relacher = function (g, zone) {
+            var relacher = function (g, img, txt, zone) {
                 g.setAlpha(1);
+                if (img) img.setAlpha(1);
+                if (txt) txt.setAlpha(1);
                 zone.setAlpha(1);
             };
 
             /**
-             * Icône ronde : fond sombre translucide + symbole DESSINÉ
-             * (Graphics — aucune dépendance à une police d'icônes).
-             * @param {function} dessiner (g, r) — trace le symbole
+             * Bouton plateforme : cercle sombre translucide + liseré clair,
+             * IMAGE (asset) au centre si la texture est chargée (sinon
+             * symbole dessiné — repli), LIBELLÉ EN DESSOUS du cercle.
+             * La zone cliquable englobe cercle + libellé.
+             * @param {string} cleTexture clé de l'image chargée par le jeu
+             *                            (ou null → symbole dessiné)
+             * @param {function} dessiner (g, r) — symbole de repli
+             * @param {string} libelle texte affiché sous l'icône
              * @param {function} onClick — action au relâchement
              */
-            var creerIcone = function (dessiner, onClick) {
+            var creerBouton = function (cleTexture, dessiner, libelle, onClick) {
                 var g = scene.add.graphics()
                     .setDepth(profondeur)
                     .setScrollFactor(0);
-                var zone = scene.add.rectangle(0, 0, taille, taille, 0x000000, 0)
-                    .setInteractive({ useHandCursor: true })
+                var img = null;
+                if (cleTexture && scene.textures.exists(cleTexture)) {
+                    img = scene.add.image(0, 0, cleTexture)
+                        .setDepth(profondeur + 1)
+                        .setScrollFactor(0);
+                }
+                var txt = scene.add
+                    .text(0, 0, libelle, {
+                        fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+                        color: "#ffffff",
+                        align: "center"
+                    })
+                    .setOrigin(0.5)
                     .setDepth(profondeur + 1)
+                    .setScrollFactor(0)
+                    // Lisible sur ciel clair comme sur fond sombre.
+                    .setStroke("#141210", Math.max(2, Arcade.UI.u(scene, 0.35)));
+                var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
+                    .setInteractive({ useHandCursor: true })
+                    .setDepth(profondeur + 2)
                     .setScrollFactor(0);
                 zone.setData("iconePlateforme", true);
 
+                // Dimensions du bloc : cercle en HAUT, libellé en DESSOUS.
+                var tailleTexte = Arcade.UI.u(scene, 2.6);
+                var espace = Arcade.UI.u(scene, 0.8);
+                var hauteurTexte = 0;
+                var largeurBloc = 0;
+                var hauteurBloc = 0;
+                var x = 0, y = 0;
+
                 var dessinerTout = function () {
+                    txt.setFontSize(Math.round(tailleTexte) + "px");
+                    hauteurTexte = txt.height;
+                    // Largeur du bloc : le cercle ou le libellé, le plus large.
+                    largeurBloc = Math.max(taille, txt.width + Arcade.UI.u(scene, 2));
+                    hauteurBloc = taille + espace + hauteurTexte;
+
+                    // Le cercle occupe le HAUT du bloc, le libellé le bas.
+                    var cy = y - hauteurBloc / 2 + rayon;
                     g.clear();
-                    // Fond : cercle sombre translucide + liseré clair —
-                    // lisible sur ciel clair comme sur fond sombre.
+                    g.setPosition(x, cy);
                     g.fillStyle(0x141210, 0.55);
                     g.fillCircle(0, 0, rayon);
                     g.lineStyle(Math.max(2, rayon * 0.12), 0xffffff, 0.45);
                     g.strokeCircle(0, 0, rayon);
-                    dessiner(g, rayon);
+                    if (img) {
+                        // Image au centre du cercle, 70 % de son diamètre
+                        // (pixel art 16×16 agrandi sans flou : pixelArt
+                        // activé par boot.js).
+                        var cote = taille * 0.7;
+                        img.setDisplaySize(cote, cote).setPosition(x, cy);
+                    } else {
+                        dessiner(g, rayon);
+                    }
+                    txt.setPosition(x, y + hauteurBloc / 2 - hauteurTexte / 2);
+                    zone.setPosition(x, y).setSize(largeurBloc, hauteurBloc);
+                    if (zone.input && zone.input.hitArea) {
+                        zone.input.hitArea.setSize(largeurBloc, hauteurBloc);
+                    }
                 };
 
-                var x = 0, y = 0;
-                var icone = {
+                var bouton = {
                     setPosition: function (nx, ny) {
                         x = nx; y = ny;
-                        g.setPosition(x, y);
-                        zone.setPosition(x, y);
                         dessinerTout();
                         return this;
                     },
-                    // Redessine le symbole SANS bouger (ex. état plein
-                    // écran qui change : touche Échap, appui système).
+                    // Redessine SANS bouger (ex. état plein écran qui
+                    // change : touche Échap, appui système).
                     refresh: function () {
                         dessinerTout();
                         return this;
                     },
                     setAlpha: function (a) {
-                        g.setAlpha(a); zone.setAlpha(a);
+                        g.setAlpha(a);
+                        if (img) img.setAlpha(a);
+                        txt.setAlpha(a);
+                        zone.setAlpha(a);
                         return this;
-                    }
+                    },
+                    // Dimensions courantes du bloc (pour le positionnement).
+                    largeur: function () { return largeurBloc; },
+                    hauteur: function () { return hauteurBloc; }
                 };
-                icone.setPosition(0, 0);
+                bouton.setPosition(0, 0);
 
-                zone.on("pointerdown", function () { pointerdown(g, zone); });
-                zone.on("pointerout", function () { relacher(g, zone); });
+                zone.on("pointerdown", function () { pointerdown(g, img, txt, zone); });
+                zone.on("pointerout", function () { relacher(g, img, txt, zone); });
                 zone.on("pointerup", function () {
-                    relacher(g, zone);
+                    relacher(g, img, txt, zone);
                     if (typeof onClick === "function") onClick();
                 });
 
-                return icone;
+                return bouton;
             };
 
             // --- Quitter (haut-gauche) : flèche retour vers /games --------
-            var quitter = creerIcone(function (g, r) {
-                g.lineStyle(r * 0.22, 0xffffff, 1);
-                g.lineBetween(-r * 0.35, 0, r * 0.4, 0);
-                g.lineBetween(-r * 0.35, 0, -r * 0.08, -r * 0.26);
-                g.lineBetween(-r * 0.35, 0, -r * 0.08, r * 0.26);
-            }, function () {
-                // Même effet que le lien « Retour » : on ramène la PAGE
-                // PARENTE (l'arcade) vers /games — le jeu tourne dans
-                // l'iframe du GameShell. Repli sur la fenêtre courante si
-                // la page parente est inaccessible (cross-origin).
-                try {
-                    if (window.top && window.top.location) {
-                        window.top.location.href = "/games";
-                    } else {
+            var quitter = creerBouton(
+                "icone_retour",
+                function (g, r) {
+                    g.lineStyle(r * 0.22, 0xffffff, 1);
+                    g.lineBetween(-r * 0.35, 0, r * 0.4, 0);
+                    g.lineBetween(-r * 0.35, 0, -r * 0.08, -r * 0.26);
+                    g.lineBetween(-r * 0.35, 0, -r * 0.08, r * 0.26);
+                },
+                texteRetour,
+                function () {
+                    // Même effet que le lien « Retour » : on ramène la PAGE
+                    // PARENTE (l'arcade) vers /games — le jeu tourne dans
+                    // l'iframe du GameShell. Repli sur la fenêtre courante si
+                    // la page parente est inaccessible (cross-origin).
+                    try {
+                        if (window.top && window.top.location) {
+                            window.top.location.href = "/games";
+                        } else {
+                            window.location.href = "/games";
+                        }
+                    } catch (e) {
                         window.location.href = "/games";
                     }
-                } catch (e) {
-                    window.location.href = "/games";
                 }
-            });
+            );
 
             // --- Plein écran (haut-droite) : requestFullscreen du jeu ----
             var pleinEcran = null;
@@ -299,8 +380,9 @@
                 typeof document.documentElement !== "undefined" &&
                 !!document.documentElement.requestFullscreen;
             if (fullscreenOk) {
-                // Deux variantes : « agrandir » (angle du L au coin
-                // extérieur) et « réduire » (angle du L vers le centre).
+                // Repli dessiné : deux variantes — « agrandir » (angle du L
+                // au coin extérieur) et « réduire » (angle du L vers le
+                // centre).
                 var dessinerCoins = function (g, r, reduire) {
                     var rc = r * 0.58;   // demi-côté du carré imaginaire
                     var L = r * 0.34;    // longueur d'un segment de coin
@@ -325,8 +407,10 @@
                         g.lineBetween(rc, rc - L, rc - L, rc - L);
                     }
                 };
-                pleinEcran = creerIcone(
+                pleinEcran = creerBouton(
+                    "icone_plein_ecran",
                     function (g, r) { dessinerCoins(g, r, !!document.fullscreenElement); },
+                    textePleinEcran,
                     function () {
                         try {
                             if (document.fullscreenElement) {
@@ -351,11 +435,15 @@
             }
 
             // Positionnement aux coins, recalculé à chaque rotation /
-            // redimensionnement (Arcade.UI.layout).
+            // redimensionnement (Arcade.UI.layout). Le bloc (cercle +
+            // libellé) est calé sur les bords : son coin extérieur reste à
+            // la marge.
             Arcade.UI.layout(scene, function (w) {
-                quitter.setPosition(marge + rayon, marge + rayon);
+                quitter.setPosition(marge + quitter.largeur() / 2,
+                    marge + quitter.hauteur() / 2);
                 if (pleinEcran) {
-                    pleinEcran.setPosition(w - marge - rayon, marge + rayon);
+                    pleinEcran.setPosition(w - marge - pleinEcran.largeur() / 2,
+                        marge + pleinEcran.hauteur() / 2);
                 }
             });
         }
