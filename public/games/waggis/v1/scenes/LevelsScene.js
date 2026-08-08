@@ -30,6 +30,13 @@
  *  - flèches de pagination redessinées, fines et arrondies (WaggisUI.
  *    fleche), ÉCARTÉES du texte « Page X / Y » — le texte n'est plus
  *    recouvert par les flèches (bug signalé John) ;
+ *  - ⭐ FIX 08/08 (corrections John) : la barre de pagination est
+ *    EMPILÉE à la suite de la grille (position calculée depuis le bas
+ *    du tableau, plus de hauteur fixe qui recouvrait la dernière ligne
+ *    de tuiles) et le cadenas d'un niveau verrouillé est EMPILÉ sur la
+ *    ligne du score (sous le chiffre, comme « ★ score » pour un niveau
+ *    complété) — plus aucune superposition. Règle UI John : tout est
+ *    empilé, jamais superposé.
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
  * Le nombre de niveaux affichés = le repère de levels.json (niveauMaxRepere
@@ -105,19 +112,24 @@ class LevelsScene extends Phaser.Scene {
         });
 
         // Mise en page recalculée à chaque rotation : titre en haut, grille
-        // centrée, pagination et retour en bas. Le texte « Page X / Y » est
-        // centré et les flèches sont écartées (± 19u) : lisible, non
-        // recouvert (fix 08/08).
+        // centrée, pagination EMPILÉE à la suite de la grille et retour en
+        // bas. Le texte « Page X / Y » est centré et les flèches écartées
+        // (± 19u). ⭐ FIX 08/08 (John) : la pagination n'est plus posée à une
+        // hauteur fixe (h*0.8) qui recouvrait le bas du tableau — son Y est
+        // calculé DEPUIS le bas de la grille (mêmes constantes que
+        // _dessinerGrille), elle est donc toujours empilée à sa suite.
         UI.layout(this, (w, h) => {
             WaggisUI.ciel(this.fond, w, h);
             titre.setPosition(w / 2, h * 0.08)
                  .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            pageInfo.setPosition(w / 2, h * 0.8)
+            const basGrille = h * 0.17 + (5 * UI.u(this, 10.5) + 4 * UI.u(this, 1.5));
+            const yPagination = basGrille + UI.u(this, 5.5);
+            pageInfo.setPosition(w / 2, yPagination)
                     .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
             prec.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 - UI.u(this, 19), h * 0.8);
+                .setPosition(w / 2 - UI.u(this, 19), yPagination);
             suiv.redimensionner(UI.u(this, 9))
-                .setPosition(w / 2 + UI.u(this, 19), h * 0.8);
+                .setPosition(w / 2 + UI.u(this, 19), yPagination);
             retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
                   .setPosition(w / 2, h * 0.91);
             this._dessinerGrille();
@@ -199,7 +211,10 @@ class LevelsScene extends Phaser.Scene {
      *  - complété : fond blanc + BORDURE/GLOW verte (plus l'aplat vert) ;
      *  - en cours : fond rouge Waggis (accent) + bordure/glow claire ;
      *  - verrouillé : fond clair + OVERLAY semi-transparent + cadenas FIN
-     *    (WaggisUI.cadenas) au lieu du gris uni ;
+     *    (WaggisUI.cadenas) au lieu du gris uni ; ⭐ FIX 08/08 (John) : le
+     *    cadenas est EMPILÉ sur la ligne du score (sous le chiffre, comme
+     *    « ★ score » pour un niveau complété) — plus de superposition au
+     *    centre de la carte ;
      *  - numéro, meilleur score (« ★ score ») ou rien si verrouillé. Zone
      *    tactile uniquement sur les niveaux débloqués (verrouillage
      *    linéaire, spec 709).
@@ -272,11 +287,14 @@ class LevelsScene extends Phaser.Scene {
             .setInteractive({ useHandCursor: true });
 
         if (etat === "verrouille") {
-            // Icône cadenas FINE au centre (spec 709 révision 08/08),
-            // au-dessus de l'overlay — le numéro reste visible en haut de
-            // tuile. Stocké dans this._tuiles (détruit à la réécriture).
+            // ⭐ FIX 08/08 (corrections John) : le cadenas FINE est EMPILÉ
+            // dans la mise en page de la carte — posé sur la ligne du score
+            // (y + cote*0.18), exactement là où « ★ score » s'aligne sous le
+            // chiffre pour un niveau complété. Plus de superposition au
+            // centre (l'ancienne position y + cote*0.08). Taille ajustée
+            // (cote*0.32) pour tenir dans l'emplacement, sous le numéro.
             const cadenas = this.add.graphics();
-            WaggisUI.cadenas(cadenas, x, y + cote * 0.08, cote * 0.38, 0xffffff);
+            WaggisUI.cadenas(cadenas, x, y + cote * 0.18, cote * 0.32, 0xffffff);
             this._tuiles.push({ ombre, fond, numero, score, cadenas, zone });
             return;
         } else {
