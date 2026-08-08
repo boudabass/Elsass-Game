@@ -47,9 +47,13 @@
  *  - le niveau joué vient de la save (registry data.currentLevel), il
  *    n'est plus dérivé du score ; lignesNiveau = lignes(niveau) = 42 +
  *    niveau (708 §1, levels.json) ;
- *  - FIN DE NIVEAU (708 §10) : quand l'index du joueur atteint
- *    lignes(niveau) → victoire (gagner()), passage au niveau suivant via
- *    l'écran de fin (OverScene en mode victoire, qui écrit la save) ;
+ *  - ⭐ FIN DE NIVEAU (Décision John 08/08/2026, art. 704) : le pattern
+ *    VISUEL FIXE remplace la fin « nue » de la spec 708 §10 — chaque
+ *    niveau se termine par 3 lignes de BÉTON puis 4 lignes d'HERBE avec
+ *    une MAISON posée sur la dernière ; le joueur TRAVERSE les 3 lignes
+ *    de béton puis l'herbe, et ATTEINT LA MAISON = victoire (indexFin(),
+ *    précision John : pas d'arrêt à la 1ʳᵉ ligne de béton). La victoire
+ *    ouvre OverScene en mode victoire (écrit la save) ;
  *  - MORT (708 §8) : relance le MÊME niveau avec le MÊME generatedRows
  *    tant que la session est en cours (Rejouer de l'écran de fin ne touche
  *    pas au monde), aucun système de vies — tentatives illimitées ;
@@ -102,8 +106,9 @@ class GameScene extends Phaser.Scene {
         // Niveaux peut lancer un niveau précis ({ niveau }, init) ; la
         // relance après mort (Rejouer, 708 §8) reprend le même niveau via
         // niveauSession ; « Jouer » du menu repart de data.currentLevel.
-        // lignesNiveau = lignes(niveau) = 42 + niveau (levels.json) : c'est
-        // le bornage de la fin de niveau.
+        // lignesNiveau = lignes(niveau) = 42 + niveau (levels.json) : la
+        // longueur du monde généré AVANT le pattern de fin (voir indexFin
+        // ci-dessous — c'est lui le bornage de la victoire, art. 704).
         if (this._niveauDemande) {
             this.niveau = this._niveauDemande;
         } else {
@@ -125,6 +130,12 @@ class GameScene extends Phaser.Scene {
         // découlent), avant la génération initiale.
         this.lanes.niveau = this.niveau;
         this.lignesNiveau = this.lanes.lignesNiveau(this.niveau);
+        // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : index de
+        // la MAISON (dernière ligne du pattern 3 béton + 4 herbe) — c'est
+        // le NOUVEAU bornage de la victoire : le joueur traverse les 3
+        // lignes de béton puis l'herbe et ATTEINT LA MAISON = fin de
+        // partie (précision John : pas d'arrêt à la 1ʳᵉ ligne de béton).
+        this.indexFin = this.lanes.indexFin();
         this.lanes.genererInitiales(0);
         // Le monde généré reste accessible aux prochaines scènes (mort →
         // rejouer) : c'est lui qui sera persisté dans la save (v2, D2-1).
@@ -281,9 +292,13 @@ class GameScene extends Phaser.Scene {
                 this.lanes.avancer(this.score);
                 this._poserPerso(this.perso.x, this.bandeJoueur.y);
             }
-            // D2-3 (spec 708 §10) : fin de niveau — quand l'index du joueur
-            // atteint lignes(niveau) (42 + niveau, levels.json), victoire.
-            if (this.bandeJoueur.index >= this.lignesNiveau) this.gagner();
+            // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : le
+            // pattern VISUEL FIXE (3 lignes de béton + 4 lignes d'herbe +
+            // maison) remplace la fin « nue » de la spec 708 §10 — la
+            // victoire se déclenche quand le joueur ATTEINT LA MAISON
+            // (indexFin(), dernière ligne du pattern), PAS à la 1ʳᵉ ligne
+            // de béton (précision John).
+            if (this.bandeJoueur.index >= this.indexFin) this.gagner();
         });
     }
 
@@ -522,14 +537,15 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * D2-3 (spec 708 §10) : fin de niveau — l'index du joueur a atteint
-     * lignes(niveau) (42 + niveau) → victoire, passage au niveau suivant.
-     * L'écran de fin s'ouvre en mode victoire (OverScene) : c'est là que la
-     * save est écrite (UNIQUEMENT à la victoire, spec 708 §9) et que le
-     * bouton « Niveau suivant » lance le niveau suivant avec un monde neuf.
-     * Le score (bonds vers l'avant réussis) est passé à l'écran de fin
-     * comme à la mort (CDC 706 §Score — envoyé à core/score.js par
-     * OverScene).
+     * ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : le joueur a
+     * ATTEINT LA MAISON — dernière ligne du pattern de fin (indexFin(),
+     * 3 lignes de béton + 4 lignes d'herbe + maison) → victoire, passage
+     * au niveau suivant. L'écran de fin s'ouvre en mode victoire
+     * (OverScene) : c'est là que la save est écrite (UNIQUEMENT à la
+     * victoire, spec 708 §9) et que le bouton « Niveau suivant » lance le
+     * niveau suivant avec un monde neuf. Le score (bonds vers l'avant
+     * réussis) est passé à l'écran de fin comme à la mort (CDC 706
+     * §Score — envoyé à core/score.js par OverScene).
      */
     gagner() {
         if (this._finEnCours) return;

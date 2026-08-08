@@ -30,9 +30,17 @@
  *
  * ⭐ D2-3 (spec 708 §1/§7/§9/§10) — niveaux finis + save à la victoire :
  *  - la CONFIG PAR NIVEAU est chargée ici depuis levels.json (lignes(niveau)
- *    = 42 + niveau, types autorisés, densité, vitesse, max consécutifs) et
- *    exposée sur WaggisConfig.levels — LaneGenerator la consulte (repli
- *    sur les défauts de config.js si le fichier ne charge pas) ;
+ *    = 42 + niveau, types autorisés, densité, vitesse, max consécutifs,
+ *    finNiveau) et exposée sur WaggisConfig.levels — LaneGenerator la
+ *    consulte (repli sur les défauts de config.js si le fichier ne charge
+ *    pas) ;
+ *  - ⭐ FIN DE NIVEAU (Décision John 08/08/2026, art. 704) : le pattern
+ *    VISUEL FIXE remplace la fin « nue » de la spec 708 §10 — chaque
+ *    niveau se termine par 3 lignes de BÉTON puis 4 lignes d'HERBE avec
+ *    une MAISON posée sur la dernière ; le joueur traverse et ATTEINT LA
+ *    MAISON = victoire (précision John : pas d'arrêt à la 1ʳᵉ ligne de
+ *    béton). Textures chargées ici : beton/beton_v2 (pave) + maison
+ *    (medrts_maison_toit_rouge, atelier batiment/) ;
  *  - le contrat de save passe en VERSION 4 avec data.currentLevel (le
  *    niveau en cours, CDC 706 §Score/save ; migration 3→4 : défaut 1) ;
  *  - la save n'intervient QU'À LA VICTOIRE du niveau (708 §9) :
@@ -143,6 +151,14 @@
             scene.load.image("piste", "assets/sol/p8city_pave.png");
             scene.load.image("piste_v2", "assets/sol/p8city_pave_v2.png");
             scene.load.image("piste_v3", "assets/sol/p8city_pave_v3.png");
+
+            // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : sol de
+            // béton des 3 lignes de fin (pave atelier, tuilé) et MAISON
+            // posée sur la dernière ligne d'herbe (medrts_maison_toit_rouge,
+            // atelier batiment/ — copiée dans assets/decor/).
+            scene.load.image("beton", "assets/sol/p8city_pave_v4.png");
+            scene.load.image("beton_v2", "assets/sol/p8city_pave_v6.png");
+            scene.load.image("maison", "assets/decor/medrts_maison_toit_rouge.png");
 
             // Eau des bandes eau (4 variantes de texture, tuilées).
             scene.load.image("eau", "assets/eau/p8city_eau.png");
