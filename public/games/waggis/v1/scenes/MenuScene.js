@@ -19,7 +19,11 @@
  *    Boutique · Classement — petits boutons sur DEUX LIGNES (icône en
  *    haut, texte BLANC en dessous, centré DANS le bouton), chacun ouvre
  *    son écran (LevelsScene MENU-3, CharactersScene + ShopScene MENU-4,
- *    ClassementScene MENU-5) ;
+ *    ClassementScene MENU-5) ; espacements verticaux UNIFORMES entre
+ *    tous les boutons — le même espace u(4.5) qu'entre les 2 lignes de
+ *    la grille — plus UNE LIGNE VIDE (hauteur d'un bouton secondaire)
+ *    sous la grille, respiration avant le bas de l'écran (correction
+ *    John 08/08) ;
  *  - « Réglages » en VRAI bouton (⚙️ + libellé) placé EN BAS À DROITE
  *    (correction John 08/08 — plus une icône discrète en coin haut-droit),
  *    même présentation 2 lignes (SettingsScene MENU-5 — son on/off) ;
@@ -219,52 +223,67 @@ class MenuScene extends Phaser.Scene {
             // grille 2×2 des boutons secondaires reprend exactement cette
             // largeur (correction John 08/08).
             const largeurJouer = w * 0.8;
-            this.boutonJouer
-                .redimensionner(largeurJouer, u(11.5))
-                .setPosition(w / 2, h * 0.635);
+            const hauteurJouer = u(11.5);
 
             // Grille 2×2 des boutons secondaires (correction John 08/08) :
             // ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
             // Classement. CHAQUE LIGNE a la MÊME LARGEUR TOTALE que le
             // bouton « Jouer » (largeurJouer) : les 2 boutons d'une ligne
             // se partagent cette largeur, séparés par un espace de u(4.5).
-            // Centrée horizontalement, et verticalement entre le bas du
-            // bouton « Jouer » et le sol (avec un garde-fou pour les
-            // écrans très courts).
+            // Centrée horizontalement.
             const largeurSec = (largeurJouer - u(4.5)) / 2;
             const hauteurSec = u(10.5);
             const pasX = largeurSec + u(4.5);
             const pasY = hauteurSec + u(4.5);
             const xCol0 = w / 2 - pasX / 2;
             const xCol1 = w / 2 + pasX / 2;
-            const basJouer = h * 0.635 + u(11.5) / 2;
             const ySol = h * 0.965;
             const hauteurGrille = hauteurSec + pasY;
-            const hautGrille = Math.max(
-                h * 0.6,
-                basJouer + (ySol - basJouer - hauteurGrille) / 2
-            );
+
+            // Empilement vertical UNIFORME (correction John 08/08 — test
+            // GATE menu) : le MÊME espace u(4.5) — celui d'entre les 2
+            // lignes de la grille — partout, entre TOUS les boutons, et
+            // une LIGNE VIDE (hauteur d'un bouton secondaire, u(10.5))
+            // sous la grille, respiration avant le bas de l'écran. Tout
+            // est empilé, jamais superposé (règle John) — l'empilement est
+            // ancré EN BAS (départ du sol) :
+            //   [Jouer]
+            //   u(4.5)
+            //   [ligne 1 : Niveaux · Personnages]
+            //   u(4.5)
+            //   [ligne 2 : Boutique · Classement]
+            //   u(4.5)
+            //   [ligne VIDE u(10.5) — Réglages calé à droite dans cette
+            //    ligne]
+            // Le bas de la grille est calculé depuis le sol : ligne vide
+            // u(10.5) + espace u(4.5), puis chaque étage remonte d'un
+            // u(4.5), « Jouer » fermant l'empilement au-dessus.
+            const yReglages = ySol - hauteurSec / 2;
+            const basGrille = yReglages - hauteurSec / 2 - u(4.5);
+            const hautGrille = basGrille - hauteurGrille;
+            const basJouer = hautGrille - u(4.5);
+            const yJouer = basJouer - hauteurJouer / 2;
             const yLigne1 = hautGrille + hauteurSec / 2;
             const yLigne2 = yLigne1 + pasY;
+
+            this.boutonJouer
+                .redimensionner(largeurJouer, hauteurJouer)
+                .setPosition(w / 2, yJouer);
+
             this.icones.forEach((ic, i) => {
                 const x = i % 2 === 0 ? xCol0 : xCol1;
                 const y = i < 2 ? yLigne1 : yLigne2;
                 ic.bouton.redimensionner(largeurSec, hauteurSec).setPosition(x, y);
             });
 
-            // ⚙️ Réglages : vrai bouton en bas à droite. La grille occupant
-            // désormais TOUTE la largeur de « Jouer », il ne peut plus
-            // s'aligner sur la ligne 2 sans chevaucher la grille (surtout
-            // sur mobile) : il garde sa taille compacte (u(15), découplée
-            // de largeurSec) et est placé SOUS la grille, calé à droite —
-            // ou posé sur le sol si l'écran est trop court (desktop), en
-            // restant toujours à l'écart de la grille (jamais superposé,
-            // règle John).
+            // ⚙️ Réglages : vrai bouton en bas à droite, dans la ligne vide
+            // sous la grille (correction John 08/08). La grille occupant
+            // TOUTE la largeur de « Jouer », il ne peut plus s'aligner sur
+            // une ligne sans la chevaucher (surtout sur mobile) : il garde
+            // sa taille compacte (u(15), découplée de largeurSec), est
+            // posé sur le sol et séparé de la grille par le MÊME espace
+            // u(4.5) que partout — jamais superposé (règle John).
             const largeurReglages = u(15);
-            const yReglages = Math.min(
-                yLigne2 + hauteurSec / 2 + u(2) + hauteurSec / 2,
-                ySol - hauteurSec / 2
-            );
             this.boutonReglages
                 .redimensionner(largeurReglages, hauteurSec)
                 .setPosition(w - u(8.5), yReglages);
