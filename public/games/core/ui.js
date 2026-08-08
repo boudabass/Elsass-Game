@@ -203,6 +203,17 @@
          * (jeu qui n'a pas encore copié les assets), repli sur le symbole
          * dessiné (Graphics) — le libellé reste affiché.
          *
+         * ⭐ FIX 08/08/2026 (taille d'affichage, signalement John) : les
+         * deux assets font 16×16 mais leur contenu OPAQUE diffère —
+         * l'écran occupe ~14×15 px, la flèche seulement ~8×10 px (le
+         * reste est transparent). À cadre d'affichage identique, la
+         * flèche rendait donc PLUS PETITE que l'écran (« minuscule »).
+         * Chaque icône est désormais cadrée sur son contenu opaque
+         * (bbox mesuré une fois par texture, cache) : origine centrée
+         * sur le bbox + échelle pour que la hauteur visible = coteIcone
+         * → MÊME TAILLE RENDUE pour les 2 icônes. Le feedback clic
+         * tweene la scale RELATIVE à cette base (ne l'écrase plus).
+         *
          * Le style (couleur de fond, ombre, police) est surchargeable par
          * le jeu via options.iconesPlateforme.style (Waggis passe sa
          * police Azimut et son ombre — défauts du socle sinon).
@@ -233,17 +244,84 @@
 
             // Feedback au clic : rétricissement 10 % AUTOUR DU CENTRE,
             // micro-rebond Back.Out (pattern MenuScene — aucun
-            // déplacement, dessin en coordonnées centrées).
+            // déplacement, dessin en coordonnées centrées). La scale
+            // cible est RELATIVE à la base de chaque objet (l'icône
+            // image n'a pas une base de 1 : elle est cadrée sur son
+            // contenu opaque, voir creerBouton) — on ne l'écrase pas.
             var enfoncer = function (cibles) {
                 for (var i = 0; i < cibles.length; i++) {
-                    scene.tweens.add({ targets: cibles[i], scale: 0.9, duration: 70, ease: "Linear" });
+                    var base = (cibles[i].getData &&
+                        cibles[i].getData("_baseScale")) || 1;
+                    scene.tweens.add({ targets: cibles[i], scale: base * 0.9, duration: 70, ease: "Linear" });
                 }
             };
             var relacher = function (cibles) {
                 for (var i = 0; i < cibles.length; i++) {
-                    scene.tweens.add({ targets: cibles[i], scale: 1, duration: 170, ease: "Back.Out" });
+                    var base = (cibles[i].getData &&
+                        cibles[i].getData("_baseScale")) || 1;
+                    scene.tweens.add({ targets: cibles[i], scale: base, duration: 170, ease: "Back.Out" });
                 }
             };
+
+            /**
+             * Cadre l'image sur son contenu OPAQUE (bbox des pixels non
+             * transparents). Les assets des 2 icônes font tous les deux
+             * 16×16 mais leur contenu visible diffère (l'écran occupe
+             * ~14×15 px, la flèche ~8×10 px) : affichés au même cadre,
+             * la flèche rendait minuscule. Mesuré UNE FOIS par texture
+             * (cache), résultat exprimé en fractions de l'image source
+             * (indépendant de la taille d'affichage).
+             * @returns {object|null} {fx, fy, fw, fh, sw, sh} bbox du
+             *                         contenu opaque (fractions + taille
+             *                         source en px), null si non mesurable.
+             */
+            var bboxOpaque = (function () {
+                var cache = {};
+                return function (cleTexture) {
+                    if (Object.prototype.hasOwnProperty.call(cache, cleTexture)) {
+                        return cache[cleTexture];
+                    }
+                    var resultat = null;
+                    try {
+                        if (scene.textures.exists(cleTexture)) {
+                            var src = scene.textures.get(cleTexture).getSourceImage();
+                            if (src && src.width && src.height) {
+                                var cv = document.createElement("canvas");
+                                cv.width = src.width;
+                                cv.height = src.height;
+                                var ctx = cv.getContext("2d");
+                                ctx.drawImage(src, 0, 0);
+                                var d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+                                var minX = cv.width, minY = cv.height, maxX = -1, maxY = -1;
+                                for (var y = 0; y < cv.height; y++) {
+                                    for (var x = 0; x < cv.width; x++) {
+                                        if (d[(y * cv.width + x) * 4 + 3] > 10) {
+                                            if (x < minX) minX = x;
+                                            if (x > maxX) maxX = x;
+                                            if (y < minY) minY = y;
+                                            if (y > maxY) maxY = y;
+                                        }
+                                    }
+                                }
+                                if (maxX >= 0) {
+                                    resultat = {
+                                        fx: minX / cv.width,
+                                        fy: minY / cv.height,
+                                        fw: (maxX - minX + 1) / cv.width,
+                                        fh: (maxY - minY + 1) / cv.height,
+                                        sw: cv.width,
+                                        sh: cv.height
+                                    };
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        resultat = null;
+                    }
+                    cache[cleTexture] = resultat;
+                    return resultat;
+                };
+            })();
 
             /**
              * VRAI bouton au style Réglages : fond arrondi + ombre portée
@@ -299,6 +377,12 @@
                 var largeur = 0;
                 var x = 0, y = 0;
                 var coteIcone = hauteur * 0.45;  // même proportion que l'emoji Réglages
+                // Cadrage sur le contenu opaque (flèche 8×10, écran 14×15
+                // dans leurs cadres 16×16) : MÊME TAILLE RENDUE pour les
+                // deux icônes. Mesuré une fois par texture (cache).
+                var bbox = (cleTexture && scene.textures.exists(cleTexture))
+                    ? bboxOpaque(cleTexture)
+                    : null;
 
                 var dessinerTout = function () {
                     txt.setFontSize(Math.round(hauteur * 0.23) + "px");
@@ -324,14 +408,32 @@
                         largeur, hauteur * 0.52, r);
                     corps.setPosition(x, y);
                     // Icône EN HAUT du bouton (même emplacement que
-                    // l'emoji du bouton Réglages).
+                    // l'emoji du bouton Réglages). ⭐ FIX 08/08 (taille
+                    // d'affichage, signalement John) : les deux icônes
+                    // rendent à la MÊME hauteur visible (coteIcone) —
+                    // l'image est cadrée sur son contenu OPAQUE (bbox
+                    // mesuré une fois par texture), sinon la flèche
+                    // (8×10 px dans son cadre 16×16) rendait minuscule
+                    // à côté de l'écran (14×15 px). Origine posée au
+                    // centre du bbox → le contenu visible est centré.
                     if (repliG) {
                         repliG.clear();
                         dessiner(repliG, coteIcone / 2);
                         repliG.setPosition(x, y - hauteur * 0.16);
-                    } else {
-                        icone.setDisplaySize(coteIcone, coteIcone)
+                    } else if (bbox) {
+                        var echelle = coteIcone / (bbox.fh * bbox.sh);
+                        icone.setOrigin(bbox.fx + bbox.fw / 2,
+                                bbox.fy + bbox.fh / 2)
+                            .setScale(echelle)
                             .setPosition(x, y - hauteur * 0.16);
+                        // Base du feedback clic : la scale réelle de
+                        // l'icône (pas 1) — le tween y revient.
+                        icone.setData("_baseScale", echelle);
+                    } else {
+                        icone.setOrigin(0.5, 0.5)
+                            .setDisplaySize(coteIcone, coteIcone)
+                            .setPosition(x, y - hauteur * 0.16);
+                        icone.setData("_baseScale", icone.scaleX);
                     }
                     // Libellé BLANC EN DESSOUS, À L'INTÉRIEUR du bouton.
                     txt.setPosition(x, y + hauteur * 0.28);
