@@ -49,6 +49,19 @@
  * REPLI sur les défauts de config.js (valeurs identiques) si levels.json
  * ne charge pas — le jeu ne casse jamais.
  *
+ * ⭐ FIN DE NIVEAU (Décision John 08/08/2026, art. 704) : le pattern
+ * VISUEL FIXE remplace la fin « nue » de la spec 708 §10 (victoire à
+ * lignes(niveau)). Chaque niveau se termine par 3 lignes de BÉTON puis
+ * 4 lignes d'HERBE avec une MAISON posée sur la dernière ligne d'herbe —
+ * pattern IDENTIQUE sur tous les niveaux (levels.json finNiveau fait foi,
+ * repli config.js). Le joueur TRAVERSE les 3 lignes de béton (lignes
+ * SÛRES, aucun danger) puis l'herbe, et la victoire se déclenche quand il
+ * ATTEINT LA MAISON — l'index de la maison est exposé via indexFin()
+ * (lignesNiveau + beton + herbe − 1) et consommé par GameScene. Les
+ * lignes de fin sont générées LAZY comme toutes les autres (elles
+ * n'apparaissent que quand le joueur approche, jamais dès le début du
+ * niveau) et restent déterministes dans generatedRows (relues au retour).
+ *
  * ⭐ D2-1 (Décisions 2/3/4, articles 704 + 708 §7 — le monde ne se
  * régénère JAMAIS) : toute ligne générée est une DÉFINITION sérialisable
  * { index, type, obstacles[], vitesse } stockée dans `generatedRows`
@@ -131,7 +144,14 @@ class LaneGenerator {
         EAU: "eau",            // plantes (plateformes) + bateaux
         TRAIN: "train",        // voie ferrée, tampon terre devant/derrière
         TERRE: "terre",        // tampon du train
-        PISTE: "piste"         // piste d'atterrissage, véhicules volants
+        PISTE: "piste",        // piste d'atterrissage, véhicules volants
+        // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : BÉTON —
+        // 8e type RÉSERVÉ au pattern de fin (3 lignes avant l'herbe de la
+        // maison). Ligne SÛRE sans danger (le joueur la traverse) : elle
+        // n'est JAMAIS tirée par _choisirLibre (absente des candidats et
+        // de levels.json typesAutorisés) — seul _choisirType la produit,
+        // dans la zone de fin du niveau.
+        BETON: "beton"
     });
 
     /**
@@ -213,6 +233,38 @@ class LaneGenerator {
         const base = (typeof l.base === "number") ? l.base : 42;
         const parNiveau = (typeof l.parNiveau === "number") ? l.parNiveau : 1;
         return base + parNiveau * n;
+    }
+
+    /**
+     * ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : le pattern
+     * VISUEL FIXE de fin — 3 lignes de BÉTON puis 4 lignes d'HERBE avec
+     * une MAISON posée sur la dernière. levels.json finNiveau fait foi,
+     * repli silencieux sur config.js lanes.finNiveau (valeurs identiques)
+     * si le fichier ne charge pas — le jeu ne casse jamais.
+     * @returns {{beton: number, herbe: number}}
+     */
+    _finNiveau() {
+        const f = this._niveaux().finNiveau || {};
+        const repli = this.C.lanes.finNiveau || {};
+        return {
+            beton: (typeof f.beton === "number") ? f.beton : (repli.beton || 3),
+            herbe: (typeof f.herbe === "number") ? f.herbe : (repli.herbe || 4)
+        };
+    }
+
+    /**
+     * ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : index de la
+     * ligne de la MAISON — la DERNIÈRE ligne du pattern de fin
+     * (lignesNiveau + beton + herbe − 1). C'est le nouveau bornage de la
+     * victoire (spec 708 §10) : le joueur traverse les 3 lignes de béton
+     * puis les 4 lignes d'herbe et ATTEINT LA MAISON = fin de partie
+     * (précision John : pas d'arrêt à la 1ʳᵉ ligne de béton). Consommé
+     * par GameScene (bondAvant → gagner()).
+     * @returns {number} index absolu de la ligne de la maison
+     */
+    indexFin() {
+        const fin = this._finNiveau();
+        return this.lignesNiveau(this.niveau) + fin.beton + fin.herbe - 1;
     }
 
     /**
@@ -623,11 +675,20 @@ class LaneGenerator {
         const choix = this._choisirType(index, cote);
         const type = choix.type;
 
+        // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : détection
+        // de la zone de fin (index ≥ lignesNiveau) pour le RENDU — les
+        // herbes du pattern sont des prairies SANS vigne (pattern identique
+        // sur tous les niveaux) et la DERNIÈRE porte la maison.
+        const debutFin = this.lignesNiveau(this.niveau);
+        const dansFin = index - debutFin;
+        const estZoneFin = index >= debutFin;
+        const fin = this._finNiveau();
+
         let sousType = null;
         if (type === T.HERBE) {
             // La bande de départ (index 0/1) est toujours une prairie :
             // comportement historique, gardé pour la stabilité visuelle.
-            sousType = (index > 1 && Math.random() < C.probVigne) ? "vigne" : "prairie";
+            sousType = (index > 1 && !estZoneFin && Math.random() < C.probVigne) ? "vigne" : "prairie";
         }
 
         const def = {
@@ -676,10 +737,26 @@ class LaneGenerator {
             def.sol = this._textureHerbe();
             def.solTileX = Math.floor(Math.random() * w);
             this._definirBuisson(def);
+        } else if (type === T.BETON) {
+            // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : le
+            // béton est une ligne SÛRE sans danger (le joueur la
+            // TRAVERSE) — sol pave, aucun obstacle, aucun décor. Les 3
+            // lignes de béton marquent visuellement l'approche de la fin.
+            def.sol = this._textureBeton();
+            def.solTileX = Math.floor(Math.random() * w);
         } else {
             def.sol = this._textureHerbe();
             def.solTileX = Math.floor(Math.random() * w);
-            if (sousType === "vigne") {
+            if (estZoneFin) {
+                // ⭐ Fin de niveau (art. 704) : les herbes du pattern de fin
+                // sont des prairies NUE (aucun arbre — la maison est le
+                // seul décor, pattern identique sur tous les niveaux) ; la
+                // MAISON est posée sur la DERNIÈRE ligne d'herbe (celle
+                // d'index indexFin(), qui déclenche la victoire).
+                if (dansFin === fin.beton + fin.herbe - 1) {
+                    def.decor.push(this._definirMaison());
+                }
+            } else if (sousType === "vigne") {
                 this._definirVigne(def);
             } else {
                 this._definirPrairie(def);
@@ -717,6 +794,27 @@ class LaneGenerator {
         // Départ en douceur (comportement historique) : index 0 et 1
         // toujours herbe — aucun danger si tôt, le joueur prend ses marques.
         if (index <= 1) return { type: T.HERBE, tampon: null };
+
+        // ⭐ FIN DE NIVEAU (Décision John 08/08/2026, art. 704) : le
+        // pattern VISUEL FIXE remplace la fin « nue » de la spec 708 §10.
+        // Dès que l'index atteint lignes(niveau), le monde entre dans la
+        // zone de fin — 3 lignes de BÉTON puis 4 lignes d'HERBE, une
+        // MAISON posée sur la dernière (indexFin()). Aucun tirage
+        // aléatoire, aucun tampon : le pattern est IDENTIQUE sur tous les
+        // niveaux. Au-delà du pattern, herbe neutre (marge d'avance
+        // seulement — le joueur gagne à la maison, jamais plus loin).
+        const debutFin = this.lignesNiveau(this.niveau);
+        if (index >= debutFin) {
+            const fin = this._finNiveau();
+            const dansFin = index - debutFin;
+            if (dansFin >= fin.beton + fin.herbe) {
+                return { type: T.HERBE, tampon: null };
+            }
+            if (dansFin < fin.beton) {
+                return { type: T.BETON, tampon: null };
+            }
+            return { type: T.HERBE, tampon: null };
+        }
 
         // 1) Tampon en cours (spec 708 §4) : ligne déjà posée qui impose
         // son tampon (ou la fin d'un tampon route→train : train forcé).
@@ -1188,6 +1286,16 @@ class LaneGenerator {
     /** Texture de sol de la piste d'atterrissage (pave atelier, tuilé). */
     _texturePisteSol() {
         const variantes = ["piste", "piste_v2", "piste_v3"];
+        return variantes[Math.floor(Math.random() * variantes.length)];
+    }
+
+    /**
+     * ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : texture de
+     * sol des lignes de BÉTON de fin (pave atelier, 2 variantes, tuilées).
+     * @returns {string} clé de texture ("beton" / "beton_v2")
+     */
+    _textureBeton() {
+        const variantes = ["beton", "beton_v2"];
         return variantes[Math.floor(Math.random() * variantes.length)];
     }
 
@@ -1862,6 +1970,26 @@ class LaneGenerator {
             x: x,
             offsetY: 0.5 + (Math.random() - 0.5) * 0.5, // centre ± 25 % de la bande
             taille: buissonForce ? 0.55 : (0.7 + Math.random() * 0.3)
+        };
+    }
+
+    /**
+     * ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : définition de
+     * la MAISON posée sur la dernière ligne d'herbe du pattern de fin
+     * (indexFin()). Même format sérialisable qu'un décor (texture, x,
+     * offsetY, taille) — rendue par _rendreZoneSure et rejouée à
+     * l'identique au retour (D2-1, jamais régénérée). Posée au CENTRE de
+     * la ligne (x 0.5, là où le joueur monte), plus grande que les
+     * décors (1.4 × bande) et légèrement aval (offsetY 0.55) pour
+     * paraître posée sur l'herbe : marqueur visuel clair de fin de niveau.
+     * @returns {{texture: string, x: number, offsetY: number, taille: number}}
+     */
+    _definirMaison() {
+        return {
+            texture: "maison",
+            x: 0.5,
+            offsetY: 0.55,
+            taille: 1.4
         };
     }
 

@@ -34,8 +34,14 @@
  * LaneGenerator : lignes(niveau) = 42 + niveau, types autorisés, densité,
  * vitesse, max consécutifs — spec 708 §1/§2/§3/§5/§6) ; les valeurs de la
  * section `lanes` ci-dessous deviennent les REPLIS (défauts identiques)
- * si levels.json ne charge pas. Fin de niveau : quand l'index du joueur
- * atteint lignes(niveau) → victoire, passage au niveau suivant (708 §10).
+ * si levels.json ne charge pas.
+ * ⭐ FIN DE NIVEAU (Décision John 08/08/2026, art. 704) : le pattern
+ * VISUEL FIXE remplace la fin « nue » de la spec 708 §10 — chaque niveau
+ * se termine par 3 lignes de BÉTON puis 4 lignes d'HERBE avec une MAISON
+ * posée sur la dernière ; le joueur traverse les 3 lignes de béton puis
+ * l'herbe et ATTEINT LA MAISON = victoire (pas d'arrêt à la 1ʳᵉ ligne de
+ * béton, précision John). Pattern identique sur tous les niveaux
+ * (levels.json finNiveau fait foi, repli ci-dessous).
  * Mort : relance le même niveau avec le même generatedRows, pas de vies
  * (708 §8). Save : uniquement à la victoire du niveau (708 §9).
  */
@@ -202,6 +208,15 @@ window.WaggisConfig = {
         // tampons (une route ne suit qu'un buisson, un train qu'une terre,
         // une eau qu'une herbe, spec 708 §4).
         poidsSains: { herbe: 0.6, buisson: 0.2, terre: 0.2 },
+
+        // ⭐ Fin de niveau (Décision John 08/08/2026, art. 704) : pattern
+        // VISUEL FIXE de fin — 3 lignes de BÉTON puis 4 lignes d'HERBE avec
+        // une MAISON posée sur la dernière (voir levels.json finNiveau,
+        // qui fait foi ; ce bloc est le repli si le fichier ne charge pas).
+        // Le béton est une ligne SÛRE (le joueur la traverse sans danger),
+        // simple marqueur visuel d'approche de la fin ; la victoire se
+        // déclenche quand le joueur ATTEINT LA MAISON (GameScene).
+        finNiveau: { beton: 3, herbe: 4 },
 
         // --- Train (comportement étape 4 conservé) ------------------------
         // Durée (en secondes) que le train met à traverser l'écran. Rapide

@@ -1,9 +1,14 @@
 {
     "version": 1,
-    "_comment": "Config par niveau de Waggis — consultée par LaneGenerator (spec 708, article Odoo 708 : elle fait foi pour tous les chiffres). Les valeurs par niveau sont exprimées en fonction du numéro de niveau (1-based) ; la progression de difficulté suit les courbes ci-dessous sur les niveaux 1 → 100 (repère vitesse, PAS un plafond — 708 §1).",
+    "_comment": "Config par niveau de Waggis — consultée par LaneGenerator (spec 708, article Odoo 708 : elle fait foi pour tous les chiffres). Les valeurs par niveau sont exprimées en fonction du numéro de niveau (1-based) ; la progression de difficulté suit les courbes ci-dessous sur les niveaux 1 → 100 (repère vitesse, PAS un plafond — 708 §1). finNiveau (Décision John 08/08/2026, art. 704) : chaque niveau se termine par 3 lignes de béton puis 4 lignes d'herbe avec une maison posée sur la dernière — pattern visuel FIXE, identique sur tous les niveaux ; atteindre la maison = victoire.",
     "lignes": {
         "base": 42,
         "parNiveau": 1
+    },
+    "finNiveau": {
+        "_comment": "Pattern de fin de niveau (Décision John 08/08/2026, art. 704) : 3 lignes de BÉTON puis 4 lignes d'HERBE, une MAISON posée sur la dernière ligne d'herbe. Le joueur traverse les 3 lignes de béton puis l'herbe — atteindre la maison = fin de partie. Identique sur tous les niveaux.",
+        "beton": 3,
+        "herbe": 4
     },
     "niveauMaxRepere": 100,
     "typesAutorises": [
