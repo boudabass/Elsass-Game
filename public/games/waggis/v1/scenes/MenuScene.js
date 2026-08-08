@@ -12,12 +12,15 @@
  *    lance DIRECTEMENT le prochain niveau non terminé — data.currentLevel
  *    (save v5, appliquée au boot par Arcade.Save.apply), comportement
  *    inchangé (spec 709) ;
- *  - rangée d'icônes secondaires CÔTE À CÔTE sous « Jouer » (plus rien
- *    d'empilé) : Niveaux / Personnages / Boutique / Classement — petits
- *    boutons ronds, chacun ouvre son écran (LevelsScene MENU-3,
- *    CharactersScene + ShopScene MENU-4, ClassementScene MENU-5) ;
- *  - « Réglages » en icône discrète (⚙️) dans le coin haut-droit, hors de
- *    la rangée principale (SettingsScene MENU-5 — son on/off) ;
+ *  - grille 2×2 des boutons secondaires SOUS « Jouer » (correction John
+ *    08/08, test GATE menu) : ligne 1 = Niveaux · Personnages, ligne 2 =
+ *    Boutique · Classement — petits boutons sur DEUX LIGNES (icône en
+ *    haut, texte BLANC en dessous, centré DANS le bouton), chacun ouvre
+ *    son écran (LevelsScene MENU-3, CharactersScene + ShopScene MENU-4,
+ *    ClassementScene MENU-5) ;
+ *  - « Réglages » en VRAI bouton (⚙️ + libellé) placé EN BAS À DROITE
+ *    (correction John 08/08 — plus une icône discrète en coin haut-droit),
+ *    même présentation 2 lignes (SettingsScene MENU-5 — son on/off) ;
  *  - score affiché en HUD (bandeau en haut), plus au centre de l'écran —
  *    le centre est libéré pour l'illustration du personnage ;
  *  - PAS de « Quitter » ni de « Plein écran » dans ce menu : chantier
@@ -111,10 +114,11 @@ class MenuScene extends Phaser.Scene {
             onClick: () => this.jouer()
         });
 
-        // --- Rangée d'icônes secondaires (côte à côte, spec 709) -----------
-        // Niveaux / Personnages / Boutique / Classement : petits boutons
-        // ronds, libellé sous chaque icône. Réglages est VOLONTAIREMENT
-        // absent de la rangée (icône discrète en coin, plus bas).
+        // --- Grille 2×2 des boutons secondaires (correction John 08/08, ---
+        // test GATE menu) : ligne 1 = Niveaux · Personnages, ligne 2 =
+        // Boutique · Classement. Chaque bouton est sur DEUX LIGNES — icône
+        // en haut, texte BLANC en dessous, le tout centré DANS le bouton
+        // (fini le libellé sombre posé hors du bouton).
         this.icones = [
             {
                 emoji: "🗺️",
@@ -137,26 +141,19 @@ class MenuScene extends Phaser.Scene {
                 onClick: () => this.aller(ClassementScene.KEY)
             }
         ].map((ic) => ({
-            bouton: this._creerBoutonIcone({
+            bouton: this._creerBoutonSecondaire({
                 emoji: ic.emoji,
+                label: ic.label,
                 onClick: ic.onClick
-            }),
-            label: this.add.text(0, 0, ic.label, {
-                fontFamily: C.police.famille,
-                color: "#141210",
-                align: "center"
             })
-                .setOrigin(0.5)
-                .setDepth(40)
-                .setStroke("#ffffff", 2)
         }));
 
-        // --- ⚙️ Réglages : icône discrète dans un coin (spec 709) ----------
-        // Hors de la rangée principale. Zone tactile un peu plus grande que
-        // le dessin (cible confortable, visuel discret).
-        this.boutonReglages = this._creerBoutonIcone({
+        // --- ⚙️ Réglages : VRAI bouton en bas à droite (correction John ----
+        // 08/08) — plus une icône discrète en coin : même bouton 2 lignes
+        // (icône + libellé) que les secondaires, placé en bas à droite.
+        this.boutonReglages = this._creerBoutonSecondaire({
             emoji: "⚙️",
-            discret: true,
+            label: C.textes.reglages,
             onClick: () => this.aller(SettingsScene.KEY)
         });
 
@@ -184,9 +181,6 @@ class MenuScene extends Phaser.Scene {
                 w / 2 - pillW / 2, recordY - pillH / 2, pillW, pillH, pillH / 2
             );
 
-            // ⚙️ Réglages, coin haut-droit (aligné sur la pillule du score).
-            this.boutonReglages.setPosition(w - u(7.5), recordY);
-
             // Titre (avec relief) + accroche.
             const tailleTitre = u(13.5);
             this.titre
@@ -213,18 +207,37 @@ class MenuScene extends Phaser.Scene {
                 .redimensionner(w * 0.8, u(11.5))
                 .setPosition(w / 2, h * 0.635);
 
-            // Rangée d'icônes côte à côte, centrée, libellé sous chaque.
-            const d = u(13);
-            const pas = d + u(4.5);
-            const total = pas * (this.icones.length - 1) + d;
-            const yIcones = h * 0.8;
+            // Grille 2×2 des boutons secondaires (correction John 08/08) :
+            // ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
+            // Classement. Centrée horizontalement, et verticalement entre
+            // le bas du bouton « Jouer » et le sol (avec un garde-fou pour
+            // les écrans très courts).
+            const largeurSec = u(15);
+            const hauteurSec = u(10.5);
+            const pasX = largeurSec + u(4.5);
+            const pasY = hauteurSec + u(4.5);
+            const xCol0 = w / 2 - pasX / 2;
+            const xCol1 = w / 2 + pasX / 2;
+            const basJouer = h * 0.635 + u(11.5) / 2;
+            const ySol = h * 0.965;
+            const hauteurGrille = hauteurSec + pasY;
+            const hautGrille = Math.max(
+                h * 0.6,
+                basJouer + (ySol - basJouer - hauteurGrille) / 2
+            );
+            const yLigne1 = hautGrille + hauteurSec / 2;
+            const yLigne2 = yLigne1 + pasY;
             this.icones.forEach((ic, i) => {
-                const x = w / 2 - total / 2 + pas * i + d / 2;
-                ic.bouton.redimensionner(d, d).setPosition(x, yIcones);
-                ic.label
-                    .setFontSize(Math.round(u(2.6)) + "px")
-                    .setPosition(x, yIcones + d / 2 + u(3.1));
+                const x = i % 2 === 0 ? xCol0 : xCol1;
+                const y = i < 2 ? yLigne1 : yLigne2;
+                ic.bouton.redimensionner(largeurSec, hauteurSec).setPosition(x, y);
             });
+
+            // ⚙️ Réglages : bouton en bas à droite, aligné sur la ligne 2
+            // de la grille (correction John 08/08).
+            this.boutonReglages
+                .redimensionner(largeurSec, hauteurSec)
+                .setPosition(w - u(8.5), yLigne2);
         };
 
         UI.layout(this, this._miseEnPage);
@@ -331,18 +344,24 @@ class MenuScene extends Phaser.Scene {
         let x = 0, y = 0, largeur = 10, hauteur = 10;
         const dessiner = () => {
             const r = hauteur * 0.3;
+            // Dessin en coordonnées CENTRÉES sur (0,0) local + objet posé au
+            // centre du bouton : le feedback clic (scale) se fait autour du
+            // centre — plus aucun déplacement du bouton à l'appui
+            // (correction John 08/08).
             ombre.clear();
             ombre.fillStyle(C.couleurs.ombreBouton, 1);
-            ombre.fillRoundedRect(x - largeur / 2, y - hauteur / 2 + hauteur * 0.07,
+            ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
                 largeur, hauteur, r);
+            ombre.setPosition(x, y);
             corps.clear();
             corps.fillStyle(o.couleur || C.couleurs.bouton, 1);
-            corps.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+            corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
             // Dégradé léger : voile clair sur la moitié haute (spec 709 —
             // « dégradé léger au lieu du noir mat uniforme »).
             corps.fillStyle(0xffffff, 0.16);
-            corps.fillRoundedRect(x - largeur / 2, y - hauteur / 2,
+            corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
                 largeur, hauteur * 0.52, r);
+            corps.setPosition(x, y);
             label.setFontSize(Math.round(hauteur * 0.4) + "px");
             label.setPosition(x, y);
             zone.setPosition(x, y).setSize(largeur, hauteur);
@@ -366,73 +385,90 @@ class MenuScene extends Phaser.Scene {
     }
 
     /**
-     * Bouton rond d'icône (rangée secondaire + ⚙️ Réglages) : fond blanc,
-     * liseré rouge Waggis, ombre portée, même feedback au clic. La zone
-     * tactile couvre au moins ~9,5 % du petit côté (cible confortable),
-     * même quand le dessin est discret (Réglages).
-     * @param {object} o {emoji, discret, onClick}
+     * Bouton secondaire sur DEUX LIGNES (grille 2×2 + Réglages bas-droite,
+     * correction John 08/08) : icône en haut, texte BLANC en dessous, le
+     * tout centré DANS le bouton. Fond rouge Waggis + voile clair (même
+     * habillage que le bouton principal — le texte blanc doit rester
+     * lisible, fini le fond blanc avec libellé sombre hors du bouton).
+     * Feedback au clic : rétricissement 10 % autour du centre, aucun
+     * déplacement (dessin en coordonnées centrées + objet posé au centre).
+     * @param {object} o {emoji, label, onClick}
      */
-    _creerBoutonIcone(o) {
+    _creerBoutonSecondaire(o) {
         const C = window.WaggisConfig;
-        const UI = Arcade.UI;
         const ombre = this.add.graphics().setDepth(49);
         const corps = this.add.graphics().setDepth(50);
         const emoji = this.add.text(0, 0, o.emoji, {
             fontFamily: C.police.famille,
             align: "center"
         }).setOrigin(0.5).setDepth(51);
+        const label = this.add.text(0, 0, o.label, {
+            fontFamily: C.police.famille,
+            color: "#ffffff",
+            align: "center"
+        }).setOrigin(0.5).setDepth(51);
         const zone = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
             .setInteractive({ useHandCursor: true })
             .setDepth(52);
 
-        zone.on("pointerdown", () => this._enfoncer([ombre, corps, emoji, zone]));
-        const relacher = () => this._relacher([ombre, corps, emoji, zone]);
+        zone.on("pointerdown", () => this._enfoncer([ombre, corps, emoji, label, zone]));
+        const relacher = () => this._relacher([ombre, corps, emoji, label, zone]);
         zone.on("pointerout", relacher);
         zone.on("pointerup", () => {
             relacher();
             if (typeof o.onClick === "function") o.onClick();
         });
 
-        let x = 0, y = 0, diametre = 10;
+        let x = 0, y = 0, largeur = 10, hauteur = 10;
         const dessiner = () => {
-            const r = diametre / 2;
+            const r = hauteur * 0.3;
+            // Dessin centré sur (0,0) local + objet posé au centre : le
+            // scale de l'appui garde le centre (aucun déplacement).
             ombre.clear();
             ombre.fillStyle(C.couleurs.ombreBouton, 1);
-            ombre.fillCircle(x, y + diametre * 0.06, r);
+            ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
+                largeur, hauteur, r);
+            ombre.setPosition(x, y);
             corps.clear();
-            corps.fillStyle(C.couleurs.iconeFond, 1);
-            corps.fillCircle(x, y, r);
-            corps.lineStyle(Math.max(2, Math.round(UI.u(this, 0.5))), C.couleurs.bouton, 1);
-            corps.strokeCircle(x, y, r - 1);
-            emoji.setFontSize(Math.round(diametre * 0.5) + "px");
-            emoji.setPosition(x, y);
-            // Zone tactile : au moins ~9,5 % du petit côté (cible
-            // confortable) — le visuel peut rester discret (⚙️ Réglages).
-            const z = Math.max(diametre, UI.u(this, o.discret ? 10 : 9.5));
-            zone.setPosition(x, y).setSize(z, z);
+            corps.fillStyle(C.couleurs.bouton, 1);
+            corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
+            // Dégradé léger : voile clair sur la moitié haute (spec 709).
+            corps.fillStyle(0xffffff, 0.16);
+            corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
+                largeur, hauteur * 0.52, r);
+            corps.setPosition(x, y);
+            emoji.setFontSize(Math.round(hauteur * 0.45) + "px");
+            emoji.setPosition(x, y - hauteur * 0.16);
+            label.setFontSize(Math.round(hauteur * 0.23) + "px");
+            label.setPosition(x, y + hauteur * 0.28);
+            zone.setPosition(x, y).setSize(largeur, hauteur);
             if (zone.input && zone.input.hitArea) {
-                zone.input.hitArea.setSize(z, z);
+                zone.input.hitArea.setSize(largeur, hauteur);
             }
         };
 
         return {
             setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
-            redimensionner: function (d) { diametre = d; dessiner(); return this; },
+            redimensionner: function (nw, nh) { largeur = nw; hauteur = nh; dessiner(); return this; },
             setDepth: function (d) {
                 ombre.setDepth(d); corps.setDepth(d + 1);
-                emoji.setDepth(d + 2); zone.setDepth(d + 3);
+                emoji.setDepth(d + 2); label.setDepth(d + 2); zone.setDepth(d + 3);
                 return this;
             },
             destroy: function () {
-                ombre.destroy(); corps.destroy(); emoji.destroy(); zone.destroy();
+                ombre.destroy(); corps.destroy(); emoji.destroy();
+                label.destroy(); zone.destroy();
             }
         };
     }
 
-    /** Appui : le bouton se compresse légèrement (scale-down). */
+    /** Appui : le bouton se RÉTRÉCIT de 10 % autour de son centre (effet de
+     * recul, correction John 08/08) — plus aucun déplacement. Le dessin en
+     * coordonnées centrées (voir _creerBouton / _creerBoutonSecondaire)
+     * garantit que le scale se fait bien autour du centre du bouton. */
     _enfoncer(cibles) {
         this.tweens.add({
-            targets: cibles, scale: 0.95, duration: 70, ease: "Linear"
+            targets: cibles, scale: 0.9, duration: 70, ease: "Linear"
         });
     }
 

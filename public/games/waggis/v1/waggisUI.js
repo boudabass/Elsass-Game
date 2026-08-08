@@ -8,8 +8,8 @@
  *  - WaggisUI.ciel(g, w, h) : dégradé de ciel (même rendu que
  *    MenuScene._dessinerCiel — cielHaut en haut → cielBas en bas) ;
  *  - WaggisUI.bouton(scene, o) : bouton refondu (coins arrondis + ombre
- *    portée + dégradé léger + feedback clic scale-down / micro-rebond,
- *    pattern MenuScene) ;
+ *    portée + dégradé léger + feedback clic rétricissement 10 % CENTRÉ /
+ *    micro-rebond, pattern MenuScene) ;
  *  - WaggisUI.fleche(scene, sens, onClick) : bouton rond de pagination
  *    avec chevron FIN et ARRONDI (Graphics, lineCap/lineJoin round) —
  *    remplace les boutons carrés ◀▶ de l'ancien menu ;
@@ -57,8 +57,9 @@
         /**
          * Bouton rectangulaire refondu — pattern MenuScene (spec 709
          * révision 08/08) : coins arrondis + ombre portée + voile clair sur
-         * la moitié haute (dégradé léger) + feedback au clic (scale-down à
-         * l'appui, micro-rebond Back.Out au relâchement).
+         * la moitié haute (dégradé léger) + feedback au clic (rétricissement
+         * de 10 % AUTOUR DU CENTRE à l'appui — correction John 08/08, plus
+         * aucun déplacement ; micro-rebond Back.Out au relâchement).
          * @param {object} o {label, couleur, onClick}
          */
         bouton: function (scene, o) {
@@ -76,7 +77,7 @@
 
             zone.on("pointerdown", function () {
                 [ombre, corps, label, zone].forEach(function (c) {
-                    scene.tweens.add({ targets: c, scale: 0.95, duration: 70, ease: "Linear" });
+                    scene.tweens.add({ targets: c, scale: 0.9, duration: 70, ease: "Linear" });
                 });
             });
             var relacher = function () {
@@ -94,17 +95,22 @@
             var couleur = hex(o.couleur || C.couleurs.bouton);
             var dessiner = function () {
                 var r = hauteur * 0.3;
+                // Dessin centré sur (0,0) local + objet posé au centre du
+                // bouton : le feedback clic (scale 10 %) garde le centre,
+                // aucun déplacement (correction John 08/08).
                 ombre.clear();
                 ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-                ombre.fillRoundedRect(x - largeur / 2, y - hauteur / 2 + hauteur * 0.07,
+                ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
                     largeur, hauteur, r);
+                ombre.setPosition(x, y);
                 corps.clear();
                 corps.fillStyle(couleur, 1);
-                corps.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+                corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
                 // Dégradé léger : voile clair sur la moitié haute (spec 709).
                 corps.fillStyle(0xffffff, 0.16);
-                corps.fillRoundedRect(x - largeur / 2, y - hauteur / 2,
+                corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
                     largeur, hauteur * 0.52, r);
+                corps.setPosition(x, y);
                 label.setFontSize(Math.round(hauteur * 0.4) + "px");
                 label.setPosition(x, y);
                 zone.setPosition(x, y).setSize(largeur, hauteur);
@@ -148,7 +154,7 @@
 
             zone.on("pointerdown", function () {
                 [ombre, corps, chevron, zone].forEach(function (c) {
-                    scene.tweens.add({ targets: c, scale: 0.95, duration: 70, ease: "Linear" });
+                    scene.tweens.add({ targets: c, scale: 0.9, duration: 70, ease: "Linear" });
                 });
             });
             var relacher = function () {
@@ -166,14 +172,18 @@
             var rouge = hex(C.couleurs.bouton);
             var dessiner = function () {
                 var r = diametre / 2;
+                // Dessin centré sur (0,0) local + objet posé au centre :
+                // le scale de l'appui garde le centre (aucun déplacement).
                 ombre.clear();
                 ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-                ombre.fillCircle(x, y + diametre * 0.06, r);
+                ombre.fillCircle(0, diametre * 0.06, r);
+                ombre.setPosition(x, y);
                 corps.clear();
                 corps.fillStyle(hex(C.couleurs.iconeFond), 1);
-                corps.fillCircle(x, y, r);
+                corps.fillCircle(0, 0, r);
                 corps.lineStyle(Math.max(2, Math.round(UI.u(scene, 0.5))), rouge, 1);
-                corps.strokeCircle(x, y, r - 1);
+                corps.strokeCircle(0, 0, r - 1);
+                corps.setPosition(x, y);
                 // Chevron fin et arrondi (lineCap/lineJoin round), sombre sur
                 // le fond blanc (lisible, accent rouge réservé au liseré).
                 chevron.clear();
@@ -181,15 +191,16 @@
                 chevron.lineStyle(ep, 0x141210, 1, 1, 1);
                 chevron.beginPath();
                 if (sens === "gauche") {
-                    chevron.moveTo(x + r * 0.32, y - r * 0.35);
-                    chevron.lineTo(x - r * 0.16, y);
-                    chevron.lineTo(x + r * 0.32, y + r * 0.35);
+                    chevron.moveTo(r * 0.32, -r * 0.35);
+                    chevron.lineTo(-r * 0.16, 0);
+                    chevron.lineTo(r * 0.32, r * 0.35);
                 } else {
-                    chevron.moveTo(x - r * 0.32, y - r * 0.35);
-                    chevron.lineTo(x + r * 0.16, y);
-                    chevron.lineTo(x - r * 0.32, y + r * 0.35);
+                    chevron.moveTo(-r * 0.32, -r * 0.35);
+                    chevron.lineTo(r * 0.16, 0);
+                    chevron.lineTo(-r * 0.32, r * 0.35);
                 }
                 chevron.strokePath();
+                chevron.setPosition(x, y);
                 // Zone tactile : au moins ~9,5 % du petit côté (cible
                 // confortable, même sur mobile).
                 var z = Math.max(diametre, UI.u(scene, 9.5));
