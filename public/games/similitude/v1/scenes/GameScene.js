@@ -42,6 +42,20 @@
  *   couleur normale revient si le joueur repasse au-dessus du seuil (gains
  *   de temps / d'énergie). Les animations de sélection, translation,
  *   disparition et textes flottants étaient déjà en place (SIM-2).
+ *
+ * SIM-6 (jokers en partie, spec 728 §3) : la barre de jokers en bas de
+ *   l'écran (une icône par joker + sa quantité, grisée à zéro), copiée de
+ *   l'inventaire du profil au début de partie (jokers achetés emportés,
+ *   SIM-8). Clic sur une icône = arme (l'icône s'éclaire) ; les 3 jokers à
+ *   effet immédiat (Mélange / Sablier / Foudre) s'appliquent au clic, le
+ *   Marteau attend le clic suivant sur un item ; re-clic = désarme, rien
+ *   n'est consommé. Un joker n'est décompté qu'au moment où son effet
+ *   s'applique réellement. Utiliser un joker ne coûte jamais d'énergie et
+ *   ne compte pas comme un déplacement. RÈGLE D'OR : aucun joker ne
+ *   rapporte jamais de point (la résolution du Mélange se fait à 0 gain).
+ *   Un alignement de 5+ offre 1 joker aléatoire, ajouté immédiatement à la
+ *   barre. Les EFFETS vivent dans Grille.js (logique pure, testée en
+ *   headless) ; cette scène ne fait que traduire les clics et animer.
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -62,6 +76,17 @@ class GameScene extends Phaser.Scene {
         // Tirage initial : 30 items, garantie aucun alignement ≥ 3 (spec §4).
         this.grille = new Grille(C);
         this.grille.tirageInitial(C.itemsDepart);
+
+        // Barre de jokers (spec 728 §3) : au début de partie, elle reprend
+        // l'inventaire du profil persistant (les jokers achetés en boutique
+        // — SIM-8 — sont « emportés au début de la partie suivante ») ; les
+        // jokers gagnés EN PARTIE (alignement 5+) s'y ajoutent ensuite sans
+        // toucher à l'inventaire.
+        const etatProfil = window.SimilitudeProfil;
+        if (etatProfil && etatProfil.profil) {
+            this.grille.initialiserJokers(etatProfil.profil.inventaire);
+        }
+        this._creerBarreJokers();
 
         // --- Rendu de la grille ------------------------------------------
         // Un rectangle par case (fond visible de la grille 9×9), un sprite
@@ -169,6 +194,27 @@ class GameScene extends Phaser.Scene {
         this.hudScore.setOrigin(0, 0.5).setPosition(UI.u(this, C.hudMargePct), yHud);
         this.hudChrono.setOrigin(0.5, 0.5).setPosition(w / 2, yHud);
         this.hudEnergie.setOrigin(1, 0.5).setPosition(w - UI.u(this, C.hudMargePct), yHud);
+
+        // Barre de jokers (spec 728 §3) : en bas de l'écran, centrée.
+        if (this.barreJokers) {
+            const B = C.barreJokers;
+            const tailleIcone = UI.u(this, B.tailleIconePct);
+            const marge = UI.u(this, B.margePct);
+            const yBarre = h - marge - tailleIcone / 2;
+            const espace = tailleIcone + marge;
+            const x0Barre = w / 2 - (C.jokers.length - 1) * espace / 2;
+
+            C.jokers.forEach((j, i) => {
+                const ic = this.barreJokers[j.cle];
+                const x = x0Barre + i * espace;
+                ic.fond.setPosition(x, yBarre).setSize(tailleIcone, tailleIcone);
+                ic.emoji.setPosition(x, yBarre - tailleIcone * 0.06)
+                    .setFontSize(Math.round(UI.u(this, B.tailleEmojiPct)) + "px");
+                ic.quantite.setPosition(x, yBarre + tailleIcone * 0.32)
+                    .setFontSize(Math.round(UI.u(this, B.tailleQuantitePct)) + "px");
+                ic.zone.setPosition(x, yBarre).setSize(tailleIcone, tailleIcone);
+            });
+        }
     }
 
     /** Rafraîchit les trois valeurs du HUD depuis l'état de la grille. */
@@ -273,8 +319,51 @@ class GameScene extends Phaser.Scene {
         const l = Math.floor((pointeur.y - this.y0) / this.tailleCase);
         if (l < 0 || c < 0 || l >= C.grilleTaille || c >= C.grilleTaille) return;
 
+        // Marteau armé (spec 728 §3) : le clic suivant sur un item l'applique
+        // (suppression, 0 point, 0 ⚡) ; un clic dans le vide ne coûte rien et
+        // ne déplace pas (le marteau reste armé).
+        if (this.grille.jokerArme === "marteau") {
+            this._appliquerMarteau(l, c);
+            return;
+        }
+
         if (this.grille.get(l, c) === null) this._deplacerVers(l, c);
         else this._selectionner(l, c);
+    }
+
+    /**
+     * Marteau (spec 728 §3) : supprime l'item cliqué. Ne coûte pas d'énergie,
+     * ne rapporte AUCUN point, ne compte pas comme un déplacement. Le joker
+     * n'est décompté que si un item est réellement retiré (clic dans le vide :
+     * rien ne se passe, le marteau reste armé).
+     */
+    _appliquerMarteau(l, c) {
+        const C = window.SimilitudeConfig;
+        const r = this.grille.appliquerMarteau(l, c);
+        if (!r.ok) return;   // case vide : rien consommé, marteau toujours armé
+
+        const spr = this.sprites[l][c];
+        this.sprites[l][c] = null;
+
+        this._consommerInventaire("marteau");
+        this._majBarreJokers();
+        this._majHUD();
+
+        if (!spr) { this._verifierFin(); return; }
+
+        // Disparition de l'item supprimé (fondu + réduction, spec §8).
+        this.anime = true;
+        this.tweens.add({
+            targets: spr,
+            alpha: 0, scaleX: 0, scaleY: 0,
+            duration: C.dureeDisparitionMs,
+            ease: "Sine.easeIn",
+            onComplete: () => {
+                spr.destroy();
+                this.anime = false;
+                this._verifierFin();
+            }
+        });
     }
 
     /** Clic 1 sur un item : sélection / désélection / déplacement de sélection. */
@@ -343,8 +432,27 @@ class GameScene extends Phaser.Scene {
         }
 
         // Alignement(s) : disparition SIMULTANÉE (fondu + réduction, spec §8).
+        this._afficherGains(res);
+
+        // Joker offert par un alignement de 5+ (spec 728 §3) : ajouté
+        // immédiatement à la barre de jokers de la partie en cours.
+        if (res.jokerGagne) {
+            this._majBarreJokers();
+            this._annoncerJoker(res.jokerGagne);
+        }
+
+        this._disparaitrePositions(res.retires);
+    }
+
+    /**
+     * Fait disparaître les sprites des positions données (fondu + réduction
+     * simultanés, spec §8). Verrouille les clics pendant l'animation puis
+     * vérifie la fin de partie (spec §6).
+     */
+    _disparaitrePositions(positions) {
+        const C = window.SimilitudeConfig;
         const disparus = [];
-        res.retires.forEach((p) => {
+        positions.forEach((p) => {
             const spr = this.sprites[p.l][p.c];
             if (spr) {
                 this.sprites[p.l][p.c] = null;
@@ -352,10 +460,9 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        this._afficherGains(res);
-
         if (!disparus.length) { this.anime = false; this._verifierFin(); return; }
 
+        this.anime = true;
         this.tweens.add({
             targets: disparus,
             alpha: 0, scaleX: 0, scaleY: 0,
@@ -442,5 +549,174 @@ class GameScene extends Phaser.Scene {
                 onComplete: () => txt.destroy()
             });
         }
+    }
+
+    // =====================================================================
+    // Barre de jokers (spec 728 §3, SIM-6) — affichage + clics. Les EFFETS
+    // vivent dans Grille.js (logique pure, testée en headless) ; ici on ne
+    // fait que traduire les clics en appels Grille et animer le résultat.
+    // =====================================================================
+
+    /**
+     * Barre de jokers en bas de l'écran : une icône par joker (emoji) avec
+     * sa quantité, grisée à zéro. Clic sur une icône = arme (l'icône
+     * s'éclaire) ; re-clic = désarme (rien n'est consommé) ; les jokers à
+     * effet immédiat (Mélange / Sablier / Foudre) s'appliquent au clic, le
+     * Marteau attend le clic suivant sur un item. Clic/tap uniquement,
+     * tailles en % du plus petit côté (config barreJokers).
+     */
+    _creerBarreJokers() {
+        const C = window.SimilitudeConfig;
+        this.barreJokers = {};
+
+        C.jokers.forEach((j) => {
+            const fond = this.add.rectangle(0, 0, 0, 0, this._hex(C.couleurs.caseFond), 1)
+                .setStrokeStyle(1, this._hex(C.couleurs.caseBordure));
+            const emoji = this.add.text(0, 0, j.emoji, {
+                fontFamily: "system-ui, sans-serif",
+                fontSize: "0px"
+            }).setOrigin(0.5);
+            const quantite = this.add.text(0, 0, "0", {
+                fontFamily: "system-ui, sans-serif",
+                fontSize: "0px",
+                color: C.couleurs.texteClair
+            }).setOrigin(0.5);
+            const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true });
+            zone.on("pointerdown", (pointeur, localX, localY, event) => {
+                event.stopPropagation();   // le clic ne doit pas atteindre la grille
+                this._clicJoker(j.cle);
+            });
+
+            this.barreJokers[j.cle] = { j: j, fond: fond, emoji: emoji, quantite: quantite, zone: zone };
+        });
+
+        this._majBarreJokers();
+    }
+
+    /** Rafraîchit la barre : quantités, grisée à zéro, icône armée éclairée. */
+    _majBarreJokers() {
+        const C = window.SimilitudeConfig;
+        const B = C.barreJokers;
+        const arme = this.grille.jokerArme;
+
+        Object.keys(this.barreJokers).forEach((cle) => {
+            const ic = this.barreJokers[cle];
+            const q = this.grille.quantiteJoker(cle);
+            ic.quantite.setText(String(q));
+
+            const estArme = arme === cle;
+            ic.fond.setFillStyle(estArme ? this._hex(B.eclatCouleur) : this._hex(C.couleurs.caseFond), 1);
+            const alpha = (q <= 0 && !estArme) ? B.grisAlpha : 1;
+            ic.fond.setAlpha(alpha);
+            ic.emoji.setAlpha(alpha);
+            ic.quantite.setAlpha(alpha);
+        });
+    }
+
+    /**
+     * Clic sur une icône de joker (spec 728 §3) : arme / désarme, ou
+     * applique immédiatement pour les jokers à effet immédiat.
+     */
+    _clicJoker(cle) {
+        if (this.anime) return;   // pas de joker pendant une animation
+        const r = this.grille.armerJoker(cle);
+        if (!r.ok) return;        // quantité 0 : icône grisée, rien ne se passe
+        if (!r.applique) {
+            this._majBarreJokers();   // Marteau armé / désarmé : éclairage
+            return;
+        }
+        this._appliquerEffetJoker(cle, r);
+    }
+
+    /**
+     * Effet immédiat d'un joker (Mélange / Sablier / Foudre) : application
+     * sur la grille, synchro de l'inventaire persistant (l'utilisation d'un
+     * joker est un moment explicite de save, spec 728 §2), animations.
+     */
+    _appliquerEffetJoker(cle, r) {
+        const C = window.SimilitudeConfig;
+
+        this._consommerInventaire(cle);
+        this._majBarreJokers();
+        this._majHUD();
+
+        if (cle === "sablier") {
+            this._texteFlottantCentre("+" + C.effetsJokers.sablierSecondes + " s ⏳", C.couleurs.texteClair);
+        } else if (cle === "foudre") {
+            this._texteFlottantCentre("+" + C.effetsJokers.foudreEnergie + " ⚡", C.couleurs.texteClair);
+        } else if (cle === "melange") {
+            // Les alignements formés par le mélange sont résolus mais
+            // rapportent 0 (règle d'or, spec 728 §3) : les items sautent,
+            // rien n'est gagné.
+            this._texteFlottantCentre("🌀 Mélange !", C.couleurs.combo);
+            this._disparaitrePositions(r.retires);
+        }
+    }
+
+    /**
+     * Utilisation d'un joker = moment explicite de save (spec 728 §2) :
+     * l'inventaire persistant du profil est décompté si le joker consommé
+     * EN VENAIT (acheté, emporté au début de partie) — jamais pour un joker
+     * gagné EN PARTIE (alignement 5+), qui n'a jamais touché à l'inventaire.
+     */
+    _consommerInventaire(cle) {
+        const etat = window.SimilitudeProfil;
+        if (!etat || !etat.profil) return;
+        const inv = etat.profil.inventaire;
+        if (typeof inv[cle] === "number" && inv[cle] > 0) {
+            inv[cle] -= 1;
+            Arcade.Save.saveLocal();
+            Arcade.Save.saveCloud();
+        }
+    }
+
+    /** Annonce visuelle d'un joker gagné en partie (spec 728 §3). */
+    _annoncerJoker(cle) {
+        const C = window.SimilitudeConfig;
+        const UI = Arcade.UI;
+        const j = C.jokers.find((x) => x.cle === cle);
+        const ic = this.barreJokers[cle];
+        const taille = UI.u(this, C.tailleTexteGainPct);
+
+        const txt = this.add.text(ic.fond.x, ic.fond.y - ic.fond.displayHeight / 2 - UI.u(this, 3), "+1 " + (j ? j.emoji : cle), {
+            fontFamily: "system-ui, sans-serif",
+            fontSize: `${Math.round(taille)}px`,
+            color: C.couleurs.combo,
+            stroke: C.couleurs.texteContour,
+            strokeThickness: Math.max(1, Math.round(taille * 0.12))
+        }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: txt,
+            y: txt.y - UI.u(this, 4),
+            alpha: 0,
+            duration: C.dureeTexteGainMs,
+            ease: "Sine.easeOut",
+            onComplete: () => txt.destroy()
+        });
+    }
+
+    /** Texte flottant au centre de l'écran (retours des jokers). */
+    _texteFlottantCentre(texte, couleur) {
+        const C = window.SimilitudeConfig;
+        const UI = Arcade.UI;
+        const taille = UI.u(this, C.tailleTexteGainPct) * 1.6;
+
+        const txt = this.add.text(this.largeur / 2, this.hauteur * 0.35, texte, {
+            fontFamily: "system-ui, sans-serif",
+            fontSize: `${Math.round(taille)}px`,
+            color: couleur,
+            stroke: C.couleurs.texteContour,
+            strokeThickness: Math.max(1, Math.round(taille * 0.12))
+        }).setOrigin(0.5);
+
+        this.tweens.add({
+            targets: txt,
+            y: txt.y - UI.u(this, 6),
+            alpha: 0,
+            duration: C.dureeTexteGainMs,
+            ease: "Sine.easeOut",
+            onComplete: () => txt.destroy()
+        });
     }
 }

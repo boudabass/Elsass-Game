@@ -46,6 +46,21 @@
             this.score = 0;
             this.energie = cfg.energieDepart !== undefined ? cfg.energieDepart : 0;
             this.temps = cfg.tempsDepart !== undefined ? cfg.tempsDepart : 0;
+            // Barre de jokers de la partie (spec 728 §3, SIM-6) : une
+            // quantité par joker (clés de cfg.jokers). Remplie au début de
+            // partie depuis l'inventaire du profil (initialiserJokers —
+            // jokers achetés emportés, SIM-8) et par les gains d'alignement
+            // de 5+ (gagnerJokerAleatoire). this.jokerArme = clé du joker
+            // armé (le Marteau attend un item), ou null.
+            this.jokers = {};
+            (cfg.jokers || []).forEach((j) => { this.jokers[j.cle] = 0; });
+            this.jokerArme = null;
+            // Effets des jokers (spec 728 §3) — valeurs de config.js
+            // (effetsJokers), jamais en dur (spec §10).
+            const ej = cfg.effetsJokers || {};
+            this.sablierSecondes = ej.sablierSecondes || 30;
+            this.foudreEnergie = ej.foudreEnergie || 10;
+            this.seuilJoker = ej.seuilJokerAlignement || 5;
         }
 
         /** Grille 9×9 de null (case vide). */
@@ -265,9 +280,16 @@
          * plus dans le même coup) : le total du coup est doublé — score,
          * énergie et temps.
          *
-         * @returns {object} {alignements, retires, gains, combo, aucun}
-         *   — aucun: true si RIEN n'a sauté (⇒ le tour se termine par un
-         *     spawn de nouveaux items, spec §3).
+         * Joker offert (spec 728 §3, SIM-6) : un alignement de seuilJoker
+         * items ou plus (5+, config.js) offre 1 joker tiré au hasard, ajouté
+         * immédiatement à la barre de la partie en cours (jokerGagne). C'est
+         * une RÉCOMPENSE en plus des points de l'alignement — le joker, lui,
+         * ne rapportera jamais de point (règle d'or).
+         *
+         * @returns {object} {alignements, retires, gains, combo, aucun,
+         *   jokerGagne} — aucun: true si RIEN n'a sauté (⇒ le tour se
+         *   termine par un spawn de nouveaux items, spec §3) ;
+         *   jokerGagne: clé du joker offert par un alignement 5+, ou null.
          */
         resoudre() {
             const alignements = this.detecterAlignements();
@@ -275,32 +297,11 @@
                 return {
                     alignements: [], retires: [],
                     gains: { score: 0, energie: 0, temps: 0 },
-                    combo: false, aucun: true
+                    combo: false, aucun: true, jokerGagne: null
                 };
             }
 
-            // Positions à vider — union de tous les alignements : chaque
-            // item n'est retiré qu'UNE seule fois, même au croisement
-            // ligne/colonne (spec §3).
-            const aRetirer = new Set();
-            alignements.forEach((a) => {
-                if (a.horizontal) {
-                    for (let x = a.colonne; x < a.colonne + a.longueur; x++) {
-                        aRetirer.add(a.ligne + "," + x);
-                    }
-                } else {
-                    for (let y = a.ligne; y < a.ligne + a.longueur; y++) {
-                        aRetirer.add(y + "," + a.colonne);
-                    }
-                }
-            });
-
-            const retires = [];
-            aRetirer.forEach((cle) => {
-                const [l, c] = cle.split(",").map(Number);
-                this.set(l, c, null);
-                retires.push({ l: l, c: c });
-            });
+            const retires = this._retirerAlignements(alignements);
 
             // Gains — barème de config.js (spec §5), jamais en dur ici.
             let score = 0, energie = 0, temps = 0;
@@ -320,11 +321,77 @@
             this.energie += energie;
             this.temps += temps;
 
+            // Joker offert par un alignement de 5+ (spec 728 §3). Un
+            // alignement du MÉLANGE (fusion mécanique) n'offre jamais de
+            // joker : la règle d'or s'applique à sa résolution à 0 gain.
+            const jokerGagne = alignements.some((a) => a.longueur >= this.seuilJoker)
+                ? this.gagnerJokerAleatoire()
+                : null;
+
             return {
                 alignements: alignements,
                 retires: retires,
                 gains: { score: score, energie: energie, temps: temps },
                 combo: combo,
+                aucun: false,
+                jokerGagne: jokerGagne
+            };
+        }
+
+        /**
+         * Retire les items des alignements donnés — union des positions :
+         * chaque item n'est retiré qu'UNE seule fois, même au croisement
+         * ligne/colonne (spec §3).
+         *
+         * @returns {Array<{l:number, c:number}>} les positions vidées.
+         */
+        _retirerAlignements(alignements) {
+            const aRetirer = new Set();
+            alignements.forEach((a) => {
+                if (a.horizontal) {
+                    for (let x = a.colonne; x < a.colonne + a.longueur; x++) {
+                        aRetirer.add(a.ligne + "," + x);
+                    }
+                } else {
+                    for (let y = a.ligne; y < a.ligne + a.longueur; y++) {
+                        aRetirer.add(y + "," + a.colonne);
+                    }
+                }
+            });
+
+            const retires = [];
+            aRetirer.forEach((cle) => {
+                const [l, c] = cle.split(",").map(Number);
+                this.set(l, c, null);
+                retires.push({ l: l, c: c });
+            });
+            return retires;
+        }
+
+        /**
+         * Résolution MÉCANIQUE à gains zéro (spec 728 §3, règle d'or) :
+         * les alignements sautent (items retirés, cases libérées) mais ne
+         * rapportent NI points, NI ⚡, NI temps, NI joker. Utilisée par le
+         * Mélange : une fusion déclenchée mécaniquement par un joker
+         * rapporte 0.
+         *
+         * @returns {object} {alignements, retires, gains (tous à 0),
+         *   combo, aucun}
+         */
+        _resoudreSansGain() {
+            const alignements = this.detecterAlignements();
+            if (!alignements.length) {
+                return {
+                    alignements: [], retires: [],
+                    gains: { score: 0, energie: 0, temps: 0 },
+                    combo: false, aucun: true
+                };
+            }
+            return {
+                alignements: alignements,
+                retires: this._retirerAlignements(alignements),
+                gains: { score: 0, energie: 0, temps: 0 },
+                combo: alignements.length >= 2,
                 aucun: false
             };
         }
@@ -353,6 +420,192 @@
                 poses.push({ l: p[0], c: p[1], type: type });
             }
             return poses;
+        }
+
+        // =====================================================================
+        // Jokers en partie (spec 728 §3, SIM-6) — logique pure, testable
+        // en headless. Règle d'or : AUCUN joker ne rapporte jamais de point
+        // par lui-même ; une fusion déclenchée mécaniquement par un joker
+        // (le Mélange) rapporte 0 — ni points, ni ⚡, ni temps, ni joker.
+        // Utiliser un joker ne coûte jamais d'énergie et ne compte pas comme
+        // un déplacement (la sélection n'est pas consommée).
+        // =====================================================================
+
+        /** Quantité d'un joker dans la barre de la partie (0 si inconnu). */
+        quantiteJoker(cle) {
+            return this.jokers[cle] || 0;
+        }
+
+        /**
+         * Barre de jokers au début de partie (spec 728 §3) : copie des
+         * quantités de l'inventaire du profil persistant — les jokers
+         * achetés en boutique (SIM-8) sont « emportés au début de la partie
+         * suivante ». Les jokers gagnés EN PARTIE (alignement 5+) s'ajoutent
+         * ensuite à cette barre SANS toucher à l'inventaire.
+         *
+         * @param {object} inventaire  profil.inventaire (clés = clés jokers)
+         */
+        initialiserJokers(inventaire) {
+            if (!inventaire || typeof inventaire !== "object") return;
+            Object.keys(this.jokers).forEach((cle) => {
+                const q = inventaire[cle];
+                if (typeof q === "number" && isFinite(q) && q > 0) {
+                    this.jokers[cle] = Math.floor(q);
+                }
+            });
+        }
+
+        /**
+         * +1 joker tiré au hasard parmi les jokers connus (spec 728 §3) —
+         * la récompense d'un alignement de 5+.
+         *
+         * @returns {string|null} clé du joker gagné (null si aucun joker connu).
+         */
+        gagnerJokerAleatoire() {
+            const cles = Object.keys(this.jokers);
+            if (!cles.length) return null;
+            const cle = cles[Math.floor(Math.random() * cles.length)];
+            this.jokers[cle] = (this.jokers[cle] || 0) + 1;
+            return cle;
+        }
+
+        /**
+         * Armement / désarmement d'un joker (spec 728 §3) :
+         *  - quantité 0 → refus (l'icône de la barre est grisée) ;
+         *  - Marteau : s'arme, l'effet s'appliquera au prochain clic sur un
+         *    item (appliquerMarteau). Re-clic → désarme, RIEN n'est consommé.
+         *  - Mélange / Sablier / Foudre : effet IMMÉDIAT — le joker n'est
+         *    décompté qu'au moment où son effet s'applique réellement.
+         *
+         * @returns {object} {ok, applique, arme?, raison?, ...effet} —
+         *   applique: false = simple armement/désarmement (rien consommé) ;
+         *   applique: true = effet appliqué et joker consommé (le retour
+         *   contient alors le détail de l'effet).
+         */
+        armerJoker(cle) {
+            if (!(cle in this.jokers)) {
+                return { ok: false, applique: false, raison: "joker-inconnu" };
+            }
+            if (this.jokers[cle] <= 0) {
+                return { ok: false, applique: false, raison: "aucun-joker" };
+            }
+
+            if (cle === "marteau") {
+                if (this.jokerArme === "marteau") {
+                    this.jokerArme = null;   // re-clic : désarme, rien consommé
+                    return { ok: true, applique: false, arme: null };
+                }
+                this.jokerArme = "marteau";  // s'arme, en attente d'un item
+                return { ok: true, applique: false, arme: "marteau" };
+            }
+
+            // Les 3 autres jokers : effet immédiat au clic.
+            if (cle === "melange") return this.appliquerMelange();
+            if (cle === "sablier") return this.appliquerSablier();
+            return this.appliquerFoudre();
+        }
+
+        /**
+         * Marteau (spec 728 §3) : supprime l'item (l, c). Ne coûte pas
+         * d'énergie, ne rapporte AUCUN point (règle d'or), ne compte pas
+         * comme un déplacement (la sélection n'est pas consommée, sauf si
+         * c'est l'item sélectionné qui est retiré). Le joker n'est décompté
+         * que si un item est réellement supprimé : un clic sur une case
+         * vide ne coûte rien et le marteau reste armé.
+         *
+         * @returns {object} {ok, applique, position?, raison?}
+         */
+        appliquerMarteau(l, c) {
+            if (this.jokerArme !== "marteau") {
+                return { ok: false, applique: false, raison: "non-arme" };
+            }
+            if (this.jokers.marteau <= 0) {
+                return { ok: false, applique: false, raison: "aucun-joker" };
+            }
+            if (this.get(l, c) === null) {
+                return { ok: false, applique: false, raison: "case-vide" };
+            }
+
+            this.set(l, c, null);
+            this.jokers.marteau -= 1;
+            this.jokerArme = null;
+            // Si c'était l'item sélectionné, la sélection est effacée
+            // proprement (sinon elle resterait sur une case vide).
+            if (this.selection && this.selection.l === l && this.selection.c === c) {
+                this.selection = null;
+            }
+            return { ok: true, applique: true, position: { l: l, c: c } };
+        }
+
+        /**
+         * Mélange (spec 728 §3) : redistribue TOUS les items présents sur
+         * des cases tirées au hasard — le NOMBRE d'items ne change pas (une
+         * permutation des types sur les cases occupées). Les alignements
+         * formés par le mélange sont résolus mais rapportent 0 (règle d'or :
+         * ni points, ni ⚡, ni temps, ni joker). Consommé au moment où son
+         * effet s'applique réellement (la redistribution EST l'effet).
+         *
+         * @returns {object} {ok, applique, items, alignements, retires,
+         *   raison?}
+         */
+        appliquerMelange() {
+            if (this.jokers.melange <= 0) {
+                return { ok: false, applique: false, raison: "aucun-joker" };
+            }
+
+            // Permutation aléatoire (Fisher–Yates) des types sur les cases
+            // occupées : même nombre d'items, positions conservées, cases
+            // « tirées au hasard » (spec 728 §3).
+            const types = [];
+            for (let l = 0; l < this.taille; l++) {
+                for (let c = 0; c < this.taille; c++) {
+                    if (this.cases[l][c] !== null) types.push(this.cases[l][c]);
+                }
+            }
+            for (let i = types.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = types[i]; types[i] = types[j]; types[j] = tmp;
+            }
+            let k = 0;
+            for (let l = 0; l < this.taille; l++) {
+                for (let c = 0; c < this.taille; c++) {
+                    if (this.cases[l][c] !== null) this.cases[l][c] = types[k++];
+                }
+            }
+
+            this.jokers.melange -= 1;
+            this.jokerArme = null;
+            this.selection = null;   // la grille vient d'être redistribuée
+
+            // Résolution mécanique à 0 gain (règle d'or, spec 728 §3).
+            const res = this._resoudreSansGain();
+            return {
+                ok: true,
+                applique: true,
+                items: types.length,
+                alignements: res.alignements,
+                retires: res.retires
+            };
+        }
+
+        /** Sablier (spec 728 §3) : +sablierSecondes s au chrono, 0 point. */
+        appliquerSablier() {
+            if (this.jokers.sablier <= 0) {
+                return { ok: false, applique: false, raison: "aucun-joker" };
+            }
+            this.jokers.sablier -= 1;
+            this.temps += this.sablierSecondes;
+            return { ok: true, applique: true, temps: this.temps };
+        }
+
+        /** Foudre (spec 728 §3) : +foudreEnergie ⚡ d'énergie, 0 point. */
+        appliquerFoudre() {
+            if (this.jokers.foudre <= 0) {
+                return { ok: false, applique: false, raison: "aucun-joker" };
+            }
+            this.jokers.foudre -= 1;
+            this.energie += this.foudreEnergie;
+            return { ok: true, applique: true, energie: this.energie };
         }
     }
 

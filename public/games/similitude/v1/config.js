@@ -118,14 +118,41 @@ window.SimilitudeConfig = {
     },
 
     // Les 4 jokers (spec 728 §3) : la CLÉ est la clé d'inventaire de la
-    // save (contrat §8). L'ordre n'a pas d'importance. Les effets arrivent
-    // en SIM-6.
+    // save (contrat §8). L'ordre du tableau est l'ordre d'affichage de la
+    // barre de jokers (SIM-6). L'emoji est l'icône affichée en jeu (pas de
+    // texture dédiée, comme le HUD ⏱ / ⚡ / 🪙). Les effets sont en
+    // SIM-6 (effetsJokers ci-dessous).
     jokers: [
-        { cle: "marteau", nom: "Marteau" },
-        { cle: "melange", nom: "Mélange" },
-        { cle: "sablier", nom: "Sablier" },
-        { cle: "foudre", nom: "Foudre" }
+        { cle: "marteau", nom: "Marteau", emoji: "🔨" },
+        { cle: "melange", nom: "Mélange", emoji: "🌀" },
+        { cle: "sablier", nom: "Sablier", emoji: "⏳" },
+        { cle: "foudre", nom: "Foudre", emoji: "⚡" }
     ],
+
+    // Effets des jokers (spec 728 §3) — valeurs chiffrées, rééquilibrables.
+    // Règle d'or : un joker ne rapporte JAMAIS de point par lui-même (une
+    // fusion déclenchée mécaniquement par un joker rapporte 0).
+    effetsJokers: {
+        sablierSecondes: 30,       // ⏳ +30 s au chrono
+        foudreEnergie: 10,         // ⚡ +10 d'énergie
+        seuilJokerAlignement: 5    // un alignement de 5 items ou plus offre
+                                   // 1 joker tiré au hasard (spec 728 §3)
+    },
+
+    // --- Barre de jokers (spec 728 §3) -------------------------------------
+    // En bas de l'écran de jeu : une icône par joker avec sa quantité,
+    // grisée à zéro. Clic = arme (l'icône s'éclaire) ; re-clic = désarme
+    // (rien n'est consommé) ; les jokers à effet immédiat (Mélange,
+    // Sablier, Foudre) s'appliquent au clic, le Marteau attend le clic
+    // suivant sur un item. Tailles en % du plus petit côté (u), clic/tap.
+    barreJokers: {
+        tailleIconePct: 7,         // côté d'une icône
+        tailleEmojiPct: 4.5,       // taille de l'emoji dans l'icône
+        tailleQuantitePct: 2.6,    // taille du nombre (quantité)
+        margePct: 1.5,             // espace entre icônes / bord bas
+        grisAlpha: 0.25,           // alpha d'une icône à quantité 0
+        eclatCouleur: "#fff3c4"    // fond de l'icône ARMÉE (spec §3)
+    },
 
     // --- Couleurs -----------------------------------------------------------
     couleurs: {
