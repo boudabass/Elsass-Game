@@ -123,14 +123,15 @@ class CommentJouerScene extends Phaser.Scene {
 
             const u = (n) => UI.u(this, n);
             const espace = u(C.menu.espaceU);
+            const cj = C.commentJouer;
 
-            titre.setPosition(w / 2, h * 0.06)
-                 .setFontSize(Math.round(u(8.5)) + "px");
+            titre.setPosition(w / 2, h * cj.titreY)
+                 .setFontSize(Math.round(u(cj.titreTailleU)) + "px");
 
             // --- Retour, ancré en bas (sol) --------------------------------
-            const hauteurRetour = u(9);
-            const yRetour = h * 0.965 - hauteurRetour / 2;
-            retour.redimensionner(u(40), hauteurRetour)
+            const hauteurRetour = u(cj.retourHauteurU);
+            const yRetour = h * cj.solY - hauteurRetour / 2;
+            retour.redimensionner(u(cj.retourLargeurU), hauteurRetour)
                   .setPosition(w / 2, yRetour);
 
             // --- Bande de contenu : du dessous du titre au-dessus du ------
@@ -138,9 +139,9 @@ class CommentJouerScene extends Phaser.Scene {
             // chaque bloc occupe TOUTE sa hauteur (pattern tableau à
             // hauteur variable du Classement) : rien ne déborde jamais sur
             // le Retour (règle John : empilé, jamais superposé).
-            const hautBande = h * 0.12;
+            const hautBande = h * cj.bandeHautY;
             const basBande = yRetour - hauteurRetour / 2 - espace;
-            const blocH = Math.max(u(6), (basBande - hautBande) / 3);
+            const blocH = Math.max(u(cj.blocMinU), (basBande - hautBande) / 3);
 
             this._placerBlocBoucle(w, hautBande, blocH, u);
             this._placerBlocFins(w, hautBande + blocH, blocH, u);
@@ -157,86 +158,157 @@ class CommentJouerScene extends Phaser.Scene {
     /** Bloc « La boucle en 3 gestes » : titre + 3 cartes empilées. */
     _placerBlocBoucle(w, y0, blocH, u) {
         const C = window.SimilitudeConfig;
-        const tailleTitre = u(3.2);
+        const cj = C.commentJouer;
+        const tailleTitre = u(cj.tailleSectionU);
         this.titreBoucle
             .setPosition(w / 2, y0 + tailleTitre / 2)
             .setFontSize(Math.round(tailleTitre) + "px");
-        const hCarte = Math.max(u(4.5), (blocH - tailleTitre - u(1)) / 3);
-        const lcarte = u(30);
+        // ⭐ FIX SIM-FIX-CJ (GATE John 09/08) : la largeur des cartes se
+        // calcule depuis la LARGEUR RÉELLEMENT DISPONIBLE de l'écran (w),
+        // plus jamais depuis u() (le plus petit côté) — sur mobile une
+        // carte u(30) ne faisait que ~30 % de l'écran et le texte wrapé
+        // débordait par-dessus les cartes voisines.
+        const lcarte = (w * cj.largeurCartePct) / 100;
+        const marge = u(cj.margeCarteU);
+        const zoneEmoji = u(cj.tailleEmojiU);
+        const espaceCarte = u(cj.espaceCartesU);
+        // 3 cartes empilées + 2 espacements réguliers entre elles, dans la
+        // hauteur du bloc (jamais superposées, règle John 08/08).
+        const hCarte = Math.max(u(cj.hauteurCarteMinU),
+            (blocH - tailleTitre - 2 * espaceCarte) / 3);
         for (let i = 0; i < 3; i++) {
-            const y = y0 + tailleTitre + u(1) + hCarte * (i + 0.5);
+            const y = y0 + tailleTitre + espaceCarte +
+                i * (hCarte + espaceCarte) + hCarte / 2;
             this._dessinerCarte(this.boucle[i], w / 2, y, lcarte, hCarte);
+            // Emoji à gauche DANS la carte (jamais hors conteneur).
             this.boucle[i].emoji
-                .setFontSize(Math.round(u(4)) + "px")
-                .setPosition(w / 2 - lcarte / 2 + u(4), y);
+                .setFontSize(Math.round(zoneEmoji) + "px")
+                .setPosition(w / 2 - lcarte / 2 + marge, y);
+            // Libellé à droite de l'emoji, wrap DANS la largeur restante
+            // du conteneur (le texte ne déborde plus sur les autres
+            // éléments — GATE John 09/08).
+            const xLabel = w / 2 - lcarte / 2 + marge + zoneEmoji +
+                u(cj.espaceEmojiLabelU);
             this.boucle[i].label
-                .setFontSize(Math.round(u(2.7)) + "px")
-                .setPosition(w / 2 + u(2), y)
-                .setWordWrapWidth(lcarte - u(10), true);
+                .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
+                .setPosition(xLabel, y)
+                .setWordWrapWidth(
+                    lcarte - 2 * marge - zoneEmoji - u(cj.espaceEmojiLabelU),
+                    true);
+            this._ajusterTexte(this.boucle[i].label, hCarte, u);
         }
     }
 
     /** Bloc « La partie se termine quand… » : titre + 3 cartes empilées. */
     _placerBlocFins(w, y0, blocH, u) {
         const C = window.SimilitudeConfig;
-        const tailleTitre = u(3.2);
+        const cj = C.commentJouer;
+        const tailleTitre = u(cj.tailleSectionU);
         this.titreFin
             .setPosition(w / 2, y0 + tailleTitre / 2)
             .setFontSize(Math.round(tailleTitre) + "px");
-        const hCarte = Math.max(u(4.5), (blocH - tailleTitre - u(1)) / 3);
-        const lcarte = u(30);
+        const lcarte = (w * cj.largeurCartePct) / 100;
+        const marge = u(cj.margeCarteU);
+        const zoneEmoji = u(cj.tailleEmojiU);
+        const espaceCarte = u(cj.espaceCartesU);
+        const hCarte = Math.max(u(cj.hauteurCarteMinU),
+            (blocH - tailleTitre - 2 * espaceCarte) / 3);
         for (let i = 0; i < 3; i++) {
-            const y = y0 + tailleTitre + u(1) + hCarte * (i + 0.5);
+            const y = y0 + tailleTitre + espaceCarte +
+                i * (hCarte + espaceCarte) + hCarte / 2;
             this._dessinerCarte(this.fins[i], w / 2, y, lcarte, hCarte);
             this.fins[i].emoji
-                .setFontSize(Math.round(u(4)) + "px")
-                .setPosition(w / 2 - lcarte / 2 + u(4), y);
+                .setFontSize(Math.round(zoneEmoji) + "px")
+                .setPosition(w / 2 - lcarte / 2 + marge, y);
+            const xLabel = w / 2 - lcarte / 2 + marge + zoneEmoji +
+                u(cj.espaceEmojiLabelU);
             this.fins[i].label
-                .setFontSize(Math.round(u(2.7)) + "px")
-                .setPosition(w / 2 + u(2), y)
-                .setWordWrapWidth(lcarte - u(10), true);
+                .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
+                .setPosition(xLabel, y)
+                .setWordWrapWidth(
+                    lcarte - 2 * marge - zoneEmoji - u(cj.espaceEmojiLabelU),
+                    true);
+            this._ajusterTexte(this.fins[i].label, hCarte, u);
         }
     }
 
     /** Bloc « Les 4 jokers » : titre + intro + grille 2×2. */
     _placerBlocJokers(w, y0, blocH, u, titreJokers, introJokers) {
         const C = window.SimilitudeConfig;
+        const cj = C.commentJouer;
         const espace = u(C.menu.espaceU);
-        const tailleTitre = u(3.2);
+        const tailleTitre = u(cj.tailleSectionU);
         titreJokers
             .setPosition(w / 2, y0 + tailleTitre / 2)
             .setFontSize(Math.round(tailleTitre) + "px");
-        // Intro + grille 2×2 dans le reste du bloc : l'intro prend une
-        // ligne (u(2.8)), la grille occupe tout le reste.
-        const yIntro = y0 + tailleTitre + u(0.8);
+        // Intro sur TOUTE la largeur disponible (wrap configuré — jamais
+        // de débordement sur les cartes), puis grille 2×2 dans le reste.
+        const lcarte = (w * cj.largeurCartePct) / 100;
+        const marge = u(cj.margeCarteU);
+        const zoneEmoji = u(cj.tailleEmojiJokerU);
+        const espaceCarte = u(cj.espaceCartesU);
+        const yIntro = y0 + tailleTitre + espaceCarte;
         introJokers
-            .setFontSize(Math.round(u(2.5)) + "px")
+            .setFontSize(Math.round(u(cj.tailleIntroU)) + "px")
             .setPosition(w / 2, yIntro)
-            .setWordWrapWidth(w * 0.82, true)
+            .setWordWrapWidth(lcarte, true)
             .setAlign("center");
-        const hJoker = Math.max(u(4.5),
-            (blocH - tailleTitre - u(0.8) - u(3.4)) / 2 - espace * 0.6);
-        const lJoker = u(31);
+        // Grille 2×2 : chaque carte = (largeurDispo − espace) / 2 — la
+        // paire occupe exactement la largeur des cartes du haut. Centrage
+        // CORRIGÉ (SIM-FIX-CJ) : l'ancien x1 = w/2 + espace/2 rapprochait
+        // la carte droite de lJoker/2 → les deux cartes se chevauchaient.
+        const lJoker = (lcarte - espace) / 2;
         const x0 = w / 2 - lJoker / 2 - espace / 2;
-        const x1 = w / 2 + espace / 2;
-        const y0c = yIntro + u(1.7) + hJoker / 2;
-        const y1c = y0c + hJoker + espace * 0.6;
+        const x1 = w / 2 + lJoker / 2 + espace / 2;
+        // 2 rangées empilées + 1 espacement régulier, dans la hauteur qui
+        // reste sous l'intro (hauteur MESURÉE de l'intro wrapée — rien
+        // n'est superposé, règle John 08/08).
+        const y0Grille = yIntro + introJokers.height / 2 + espaceCarte;
+        const reste = y0 + blocH - y0Grille;
+        const hJoker = Math.max(u(cj.hauteurCarteMinU),
+            (reste - espaceCarte) / 2);
+        const y0c = y0Grille + hJoker / 2;
+        const y1c = y0c + hJoker + espaceCarte;
         this.jokers.forEach((j, i) => {
             const x = i % 2 === 0 ? x0 : x1;
             const y = i < 2 ? y0c : y1c;
             this._dessinerCarte(j, x, y, lJoker, hJoker);
+            // Emoji à gauche DANS la carte ; nom et effet à sa droite,
+            // wrap dans la largeur restante du conteneur (SIM-FIX-CJ).
             j.emoji
-                .setFontSize(Math.round(u(4.2)) + "px")
-                .setPosition(x - lJoker / 2 + u(4.5), y);
+                .setFontSize(Math.round(zoneEmoji) + "px")
+                .setPosition(x - lJoker / 2 + marge, y);
+            const xTexte = x - lJoker / 2 + marge + zoneEmoji +
+                u(cj.espaceEmojiLabelU);
+            const wrapTexte = lJoker - 2 * marge - zoneEmoji -
+                u(cj.espaceEmojiLabelU);
             j.nom
-                .setFontSize(Math.round(u(2.6)) + "px")
-                .setPosition(x + u(1), y - hJoker * 0.16)
-                .setWordWrapWidth(lJoker - u(12), true);
+                .setFontSize(Math.round(u(cj.tailleNomJokerU)) + "px")
+                .setPosition(xTexte, y - hJoker * 0.16)
+                .setWordWrapWidth(wrapTexte, true);
             j.effet
-                .setFontSize(Math.round(u(2.2)) + "px")
-                .setPosition(x + u(1), y + hJoker * 0.18)
-                .setWordWrapWidth(lJoker - u(12), true);
+                .setFontSize(Math.round(u(cj.tailleEffetJokerU)) + "px")
+                .setPosition(xTexte, y + hJoker * 0.18)
+                .setWordWrapWidth(wrapTexte, true);
+            this._ajusterTexte(j.effet, hJoker * 0.5, u);
         });
+    }
+
+    /**
+     * Ajustement anti-débordement (pattern InventaireScene) : si le texte
+     * wrapé dépasse la hauteur allouée dans sa carte, la police est
+     * réduite progressivement (plancher config.policeMinU) — le texte ne
+     * déborde JAMAIS par-dessus l'élément suivant.
+     */
+    _ajusterTexte(texte, hauteurMax, u) {
+        const cj = window.SimilitudeConfig.commentJouer;
+        const margeSecu = 2 * u(cj.margeTexteU);
+        let fs = parseFloat(texte.style.fontSize);
+        const plancher = u(cj.policeMinU);
+        while (texte.height > hauteurMax - margeSecu && fs > plancher) {
+            fs -= 0.5;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
     }
 
     /** Titre de section (texte blanc avec relief, police Azimut). */

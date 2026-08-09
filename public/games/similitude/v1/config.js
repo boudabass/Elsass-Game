@@ -278,6 +278,40 @@ window.SimilitudeConfig = {
         ]
     },
 
+    // --- Écran Comment jouer (spec 728 §7 — SIM-FIX-CJ 09/08) ---------------
+    // ⭐ GATE John 09/08 : les textes se chevauchaient car les conteneurs
+    // étaient dimensionnés depuis le PLUS PETIT côté (u(30)) au lieu de la
+    // LARGEUR RÉELLEMENT DISPONIBLE (w) — le wrap serrait le texte dans
+    // ~30 % de l'écran et il débordait par-dessus les cartes voisines.
+    // Fix : la largeur des cartes = % de la LARGEUR d'écran (même pattern
+    // que largeurJouerPct du menu), le texte est posé DANS sa carte avec
+    // un wrap dans la largeur restante, espacements verticaux réguliers,
+    // jamais superposé (règle John 08/08).
+    commentJouer: {
+        largeurCartePct: 88,    // largeur des cartes = % de la largeur d'écran
+        margeCarteU: 3,         // marge interne gauche/droite d'une carte
+        espaceCartesU: 1.2,     // espacement VERTICAL entre cartes empilées
+        tailleSectionU: 3.2,    // titres de section (boucle / fins / jokers)
+        tailleEmojiU: 4,        // emoji des cartes boucle / fins
+        tailleLabelU: 2.7,      // libellé des cartes boucle / fins
+        tailleIntroU: 2.5,      // phrase d'intro du bloc jokers
+        tailleEmojiJokerU: 4.2, // emoji des cartes jokers
+        tailleNomJokerU: 2.6,   // nom d'un joker
+        tailleEffetJokerU: 2.2, // effet en une phrase d'un joker
+        hauteurCarteMinU: 4.5,  // hauteur minimale d'une carte empilée
+        espaceEmojiLabelU: 0.6, // espace entre l'emoji et le texte d'une carte
+        margeTexteU: 0.8,       // marge de sécurité texte / bord de carte
+        policeMinU: 1.6,        // plancher de l'ajustement anti-débordement
+        // Structure de l'écran (mêmes pattern que Classement / Inventaire).
+        titreY: 0.06,           // centre du titre (fraction de la hauteur)
+        titreTailleU: 8.5,      // ⚠ doublon volontaire : police du titre
+        retourHauteurU: 9,      // hauteur du bouton Retour
+        retourLargeurU: 40,     // largeur du bouton Retour
+        solY: 0.965,            // ancrage du Retour (fraction de la hauteur)
+        bandeHautY: 0.12,       // haut de la bande de contenu
+        blocMinU: 6             // hauteur minimale d'un des 3 blocs
+    },
+
     // --- Couleurs -----------------------------------------------------------
     couleurs: {
         fond: "#1f3a2d",
