@@ -44,15 +44,23 @@ class OverScene extends Phaser.Scene {
         // « Nouveau record ! » — rempli après Arcade.Score.submit (spec §6).
         const record = UI.text(this, 0, 0, "", 5, C.couleurs.combo);
 
+        // Boutons de fin de partie : MÊME rendu que partout ailleurs
+        // (police Azimut + ombre portée du composant partagé) et libellés
+        // pris dans config.textes — ils étaient écrits en dur et sortaient
+        // en police système, sans ombre (audit John 09/08).
         const rejouer = Arcade.UI.bouton(this, {
-            label: "Rejouer",
+            label: C.textes.rejouer,
             couleur: C.couleurs.boutonJouer,
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(GameScene.KEY)
         });
         const menu = Arcade.UI.bouton(this, {
-            label: "Menu",
+            label: C.textes.retourMenu,
             couleur: C.couleurs.bouton,
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             textColor: C.couleurs.texteClair,
             onClick: () => this.scene.start(MenuScene.KEY)
         });

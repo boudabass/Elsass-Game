@@ -70,6 +70,8 @@ window.SimilitudeConfig = {
         // Écran de fin (spec §6) — affichés par OverScene.
         partieTerminee: "Partie terminée",
         scoreFinal: "Score : {score}",
+        rejouer: "Rejouer",           // bouton de l'écran de fin
+        retourMenu: "Menu",           // bouton de l'écran de fin
 
         // HUD en jeu (spec §8) — affichés par GameScene. {score}, {s} et {e}
         // sont des emplacements : la valeur est insérée à chaque mise à jour.
@@ -103,9 +105,14 @@ window.SimilitudeConfig = {
         pasAssezPieces: "Pas assez de pièces",
         prixJoker: "{prix} 🪙",       // prix d'un joker en boutique
         possede: "Possédé : {n}",     // quantité déjà possédée (boutique)
+        possedeCourt: "×{n}",         // idem, colonne étroite de la boutique
         achete: "Acheté !",           // feedback après un achat réussi
         quantite: "× {n}",            // quantité possédée (inventaire)
-        renvoiBoutique: "🛒 Achète-le en Boutique"   // renvoi inventaire → boutique (spec 728 §6)
+        renvoiBoutique: "🛒 Achète-le en Boutique",  // renvoi inventaire → boutique (spec 728 §6)
+        // Le même renvoi sur les 2 lignes du bouton (colonne de droite de
+        // l'inventaire — voir inventaire.colBoutonU).
+        renvoiBoutiqueHaut: "🛒 Achète-le",
+        renvoiBoutiqueBas: "en Boutique"
     },
 
     // --- Grille (spec §2, §4) ----------------------------------------------
@@ -226,7 +233,43 @@ window.SimilitudeConfig = {
             melange: 40,    // 🌀 Mélange
             sablier: 60,    // ⏳ Sablier
             foudre: 60      // ⚡ Foudre
-        }
+        },
+        // ⭐ Mise en page d'une ligne (GATE John 09/08) : 3 COLONNES —
+        // à GAUCHE l'icône au-dessus de la quantité possédée, au MILIEU
+        // le nom au-dessus de la description, à DROITE le bouton
+        // d'achat (prix au-dessus du mot « Acheter »).
+        largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
+        espaceLigneU: 1.4,      // espace VERTICAL entre deux lignes
+        margeLigneU: 2.5,       // marge interne d'une ligne
+        espaceColonneU: 2,      // espace entre deux colonnes
+        colGaucheU: 10,         // largeur de la colonne icône / quantité
+        colBoutonU: 20,         // largeur de la colonne bouton
+        hauteurBoutonPct: 76,   // hauteur du bouton = % de la hauteur de ligne
+        tailleIconeU: 4.4,      // icône (emoji) de la colonne gauche
+        tailleQuantiteU: 2.6,   // quantité possédée sous l'icône
+        tailleNomU: 3,          // nom de l'item
+        tailleEffetU: 2.3,      // description de l'item
+        policeMinU: 1.6         // plancher de l'ajustement anti-débordement
+    },
+
+    // --- Inventaire (spec 728 §6) ------------------------------------------
+    // ⭐ Mise en page d'une ligne (GATE John 09/08) : MÊMES 3 COLONNES que
+    // la Boutique — à GAUCHE l'icône au-dessus de la quantité possédée, au
+    // MILIEU le nom au-dessus de la description, à DROITE (seulement si la
+    // quantité est à zéro) le renvoi vers la Boutique sur 2 lignes.
+    inventaire: {
+        largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
+        espaceLigneU: 1.4,      // espace VERTICAL entre deux lignes
+        margeLigneU: 2.5,       // marge interne d'une ligne
+        espaceColonneU: 2,      // espace entre deux colonnes
+        colGaucheU: 10,         // largeur de la colonne icône / quantité
+        colBoutonU: 26,         // largeur de la colonne bouton
+        hauteurBoutonPct: 76,   // hauteur du bouton = % de la hauteur de ligne
+        tailleIconeU: 4.4,      // icône (emoji) de la colonne gauche
+        tailleQuantiteU: 2.8,   // quantité possédée sous l'icône
+        tailleNomU: 3,          // nom de l'item
+        tailleEffetU: 2.3,      // description de l'item
+        policeMinU: 1.6         // plancher de l'ajustement anti-débordement
     },
 
     // --- Barre de jokers (spec 728 §3) -------------------------------------

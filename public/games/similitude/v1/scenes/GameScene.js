@@ -210,19 +210,15 @@ class GameScene extends Phaser.Scene {
             const B = C.barreJokers;
             const tailleIcone = UI.u(this, B.tailleIconePct);
             const marge = UI.u(this, B.margePct);
-            const yBarre = h - marge - tailleIcone / 2;
-            const espace = tailleIcone + marge;
-            const x0Barre = w / 2 - (C.jokers.length - 1) * espace / 2;
-
-            C.jokers.forEach((j, i) => {
-                const ic = this.barreJokers[j.cle];
-                const x = x0Barre + i * espace;
-                ic.fond.setPosition(x, yBarre).setSize(tailleIcone, tailleIcone);
-                ic.emoji.setPosition(x, yBarre - tailleIcone * 0.06)
-                    .setFontSize(Math.round(UI.u(this, B.tailleEmojiPct)) + "px");
-                ic.quantite.setPosition(x, yBarre + tailleIcone * 0.32)
-                    .setFontSize(Math.round(UI.u(this, B.tailleQuantitePct)) + "px");
-                ic.zone.setPosition(x, yBarre).setSize(tailleIcone, tailleIcone);
+            // Barre CENTRÉE, posée au-dessus du bord bas (le composant
+            // répartit les icônes lui-même — spec 728 §3).
+            this.barreJokers.placer({
+                x: w / 2,
+                y: h - marge - tailleIcone / 2,
+                cote: tailleIcone,
+                espace: marge,
+                tailleIcone: UI.u(this, B.tailleEmojiPct),
+                tailleBadge: UI.u(this, B.tailleQuantitePct)
             });
         }
     }
@@ -584,33 +580,23 @@ class GameScene extends Phaser.Scene {
      */
     _creerBarreJokers() {
         const C = window.SimilitudeConfig;
-        this.barreJokers = {};
-
-        C.jokers.forEach((j) => {
-            const fond = this.add.rectangle(0, 0, 0, 0, this._hex(C.couleurs.caseFond), 1)
-                .setStrokeStyle(1, this._hex(C.couleurs.caseBordure))
-                .setDepth(C.profondeurs.hud);
-            const emoji = this.add.text(0, 0, j.emoji, {
-                fontFamily: "system-ui, sans-serif",
-                fontSize: "0px"
-            }).setOrigin(0.5)
-              .setDepth(C.profondeurs.hud);
-            const quantite = this.add.text(0, 0, "0", {
-                fontFamily: "system-ui, sans-serif",
-                fontSize: "0px",
-                color: C.couleurs.texteClair
-            }).setOrigin(0.5)
-              .setDepth(C.profondeurs.hud);
-            // Couche HUD pour la zone aussi : la barre capte les clics AVANT
-            // la grille (les objets les plus hauts sont testés en premier).
-            const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true })
-                .setDepth(C.profondeurs.hud);
-            zone.on("pointerdown", (pointeur, localX, localY, event) => {
-                event.stopPropagation();   // le clic ne doit pas atteindre la grille
-                this._clicJoker(j.cle);
-            });
-
-            this.barreJokers[j.cle] = { j: j, fond: fond, emoji: emoji, quantite: quantite, zone: zone };
+        const B = C.barreJokers;
+        // ⭐ Décision John 09/08 : la barre passe par LE composant partagé
+        // Arcade.UI.barreIcones (core/ui/iconbar.js) — plus aucun élément
+        // cliquable redessiné à la main dans le jeu. Le composant gère le
+        // fond, la quantité, le grisage à zéro, l'éclat de l'icône armée
+        // et le clic (qui n'atteint pas la grille) ; la scène ne garde que
+        // la LOGIQUE (Grille.js).
+        this.barreJokers = Arcade.UI.barreIcones(this, {
+            items: C.jokers.map((j) => ({ cle: j.cle, icone: j.emoji })),
+            couleurFond: C.couleurs.caseFond,
+            couleurBordure: C.couleurs.caseBordure,
+            couleurActif: B.eclatCouleur,
+            couleurBadge: C.couleurs.texteClair,
+            grisAlpha: B.grisAlpha,
+            police: C.police.famille,
+            profondeur: C.profondeurs.hud,
+            onClic: (cle) => this._clicJoker(cle)
         });
 
         this._majBarreJokers();
@@ -619,21 +605,11 @@ class GameScene extends Phaser.Scene {
     /** Rafraîchit la barre : quantités, grisée à zéro, icône armée éclairée. */
     _majBarreJokers() {
         const C = window.SimilitudeConfig;
-        const B = C.barreJokers;
-        const arme = this.grille.jokerArme;
-
-        Object.keys(this.barreJokers).forEach((cle) => {
-            const ic = this.barreJokers[cle];
-            const q = this.grille.quantiteJoker(cle);
-            ic.quantite.setText(String(q));
-
-            const estArme = arme === cle;
-            ic.fond.setFillStyle(estArme ? this._hex(B.eclatCouleur) : this._hex(C.couleurs.caseFond), 1);
-            const alpha = (q <= 0 && !estArme) ? B.grisAlpha : 1;
-            ic.fond.setAlpha(alpha);
-            ic.emoji.setAlpha(alpha);
-            ic.quantite.setAlpha(alpha);
+        if (!this.barreJokers) return;
+        C.jokers.forEach((j) => {
+            this.barreJokers.setBadge(j.cle, this.grille.quantiteJoker(j.cle));
         });
+        this.barreJokers.setActif(this.grille.jokerArme);
     }
 
     /**
@@ -698,7 +674,9 @@ class GameScene extends Phaser.Scene {
         const C = window.SimilitudeConfig;
         const UI = Arcade.UI;
         const j = C.jokers.find((x) => x.cle === cle);
-        const ic = this.barreJokers[cle];
+        // Objets Phaser de l'icône, exposés par le composant partagé.
+        const ic = this.barreJokers && this.barreJokers.objets(cle);
+        if (!ic) return;
         const taille = UI.u(this, C.tailleTexteGainPct);
 
         const txt = this.add.text(ic.fond.x, ic.fond.y - ic.fond.displayHeight / 2 - UI.u(this, 3), "+1 " + (j ? j.emoji : cle), {

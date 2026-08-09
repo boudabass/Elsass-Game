@@ -6,10 +6,18 @@
  * Mélange 40 🪙, Sablier 60 🪙, Foudre 60 🪙 — John rééquilibrera après
  * test (spec 728 §10 : toutes les valeurs chiffrées vivent dans config.js).
  *
- * Une CARTE par joker : icône (emoji), nom, effet en une phrase (réutilise
- * textes.commentJokerEffet, spec 728 §3), prix, quantité déjà possédée,
- * bouton Acheter (LE composant partagé Arcade.UI.bouton — aucun bouton
- * redessiné à la main, spec 728 §7).
+ * Une LIGNE par joker, en TROIS COLONNES (mise en page GATE John 09/08) :
+ *
+ *   [ 🔨      ] [ Marteau         ] [   30 🪙   ]
+ *   [ ×0      ] [ Supprime 1 item ] [  Acheter  ]
+ *    colonne 1        colonne 2        colonne 3
+ *
+ * — à GAUCHE l'icône (emoji) au-dessus de la quantité possédée ;
+ * — au MILIEU le nom au-dessus de la description (réutilise
+ *   textes.commentJokerEffet, spec 728 §3) ;
+ * — à DROITE, bien séparé, UN SEUL bouton à 2 lignes : le coût en pièces
+ *   d'or au-dessus du mot « Acheter » (option `ligneHaut` du composant
+ *   partagé Arcade.UI.bouton — aucun bouton redessiné à la main, §7).
  *
  * ACHAT (spec 728 §5) : wallet déduit, inventaire incrémenté, save écrite
  * IMMÉDIATEMENT (Arcade.Save.saveLocal() + saveCloud()) — c'est une action
@@ -153,31 +161,60 @@ class ShopScene extends Phaser.Scene {
             l.emoji.destroy();
             l.nom.destroy();
             l.effet.destroy();
-            l.prix.destroy();
             l.possede.destroy();
             l.bouton.destroy();
         });
         this._lignes = [];
 
         const profil = window.SimilitudeProfil && window.SimilitudeProfil.profil;
-        const largeur = u(72);
+        // ⭐ FIX GATE John 09/08 : la largeur d'une ligne se calcule sur la
+        // LARGEUR RÉELLE de l'écran (w), plus sur u() (le plus petit côté) —
+        // sinon les 3 colonnes se chevauchaient sur mobile.
+        const largeur = (w * C.boutique.largeurLignePct) / 100;
         const x = w / 2;
+
+        // La carte est un peu plus BASSE que son pas vertical : les lignes
+        // ne se touchent plus (leurs coins arrondis se chevauchaient).
+        const hCarte = Math.max(u(6), hLigne - u(C.boutique.espaceLigneU));
 
         C.jokers.forEach((j, i) => {
             const y = y0 + hLigne * (i + 0.5);
             const possede = profil ? (profil.inventaire[j.cle] || 0) : 0;
             const prix = (C.boutique && C.boutique.prix[j.cle]) || 0;
-            this._creerCarte(j, possede, prix, x, y, largeur, hLigne, u);
+            this._creerCarte(j, possede, prix, x, y, largeur, hCarte, u);
         });
     }
 
-    /** Crée la carte d'un joker (spec 728 §5 : icône, nom, effet, prix,
-     * quantité possédée, bouton Acheter). */
+    /**
+     * Crée la ligne d'un joker (spec 728 §5 — mise en page GATE John 09/08).
+     *
+     * TROIS COLONNES, jamais superposées :
+     *   [ icône      ] [ nom            ] [   prix 🪙   ]
+     *   [ ×possédé   ] [ description    ] [   Acheter   ]
+     *     colonne 1        colonne 2         colonne 3
+     *
+     * Le bouton est SÉPARÉ à l'extrême droite et porte le prix sur sa
+     * ligne haute (un seul bouton à 2 lignes, option `ligneHaut` du
+     * composant partagé Arcade.UI.bouton).
+     */
     _creerCarte(j, possede, prix, x, y, largeur, hauteur, u) {
         const C = this.C;
-        const UI = Arcade.UI;
+        const b = C.boutique;
         const profil = window.SimilitudeProfil && window.SimilitudeProfil.profil;
         const r = hauteur * 0.2;
+
+        // --- Géométrie des 3 colonnes -------------------------------------
+        const marge = u(b.margeLigneU);
+        const espaceCol = u(b.espaceColonneU);
+        const lGauche = u(b.colGaucheU);
+        const lBouton = u(b.colBoutonU);
+        const gauche = x - largeur / 2;
+        const droite = x + largeur / 2;
+        const xGauche = gauche + marge + lGauche / 2;        // centre col. 1
+        const xMilieu = gauche + marge + lGauche + espaceCol; // bord g. col. 2
+        const xBouton = droite - marge - lBouton / 2;         // centre col. 3
+        const wrapMilieu = Math.max(u(10),
+            xBouton - lBouton / 2 - espaceCol - xMilieu);
 
         // Ombre portée sous la ligne (VALEUR NUMÉRIQUE — WebGL, QA NC1).
         const ombre = this.add.graphics().setDepth(2);
@@ -189,16 +226,29 @@ class ShopScene extends Phaser.Scene {
         fond.fillStyle(0x141210, 0.85);
         fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
 
-        // Icône : l'emoji du joker (pas de texture dédiée, spec 728 §3).
+        // --- Colonne 1 (gauche) : icône AU-DESSUS de la quantité ----------
         const emoji = this.add.text(0, 0, j.emoji, {
             fontFamily: C.police.famille,
             align: "center"
         })
             .setOrigin(0.5)
             .setDepth(4)
-            .setPosition(x - largeur / 2 + u(5), y);
+            .setFontSize(Math.round(u(b.tailleIconeU)) + "px")
+            .setPosition(xGauche, y - hauteur * 0.18);
 
-        // Nom (blanc, relief) + effet en une phrase (spec 728 §3).
+        const possedeT = this.add.text(0, 0,
+            C.textes.possedeCourt.replace("{n}", possede), {
+                fontFamily: C.police.famille,
+                color: "#ffffff",
+                align: "center"
+            })
+            .setOrigin(0.5)
+            .setDepth(4)
+            .setStroke("#141210", 2)
+            .setFontSize(Math.round(u(b.tailleQuantiteU)) + "px")
+            .setPosition(xGauche, y + hauteur * 0.24);
+
+        // --- Colonne 2 (milieu) : nom AU-DESSUS de la description ---------
         const nom = this.add.text(0, 0, j.nom, {
             fontFamily: C.police.famille,
             color: "#ffffff",
@@ -207,7 +257,9 @@ class ShopScene extends Phaser.Scene {
             .setOrigin(0, 0.5)
             .setDepth(4)
             .setStroke("#141210", 2)
-            .setPosition(x - largeur / 2 + u(9), y - hauteur * 0.16);
+            .setFontSize(Math.round(u(b.tailleNomU)) + "px")
+            .setPosition(xMilieu, y - hauteur * 0.18)
+            .setWordWrapWidth(wrapMilieu, true);
 
         const e = C.effetsJokers;
         const effet = C.textes.commentJokerEffet[j.cle]
@@ -220,33 +272,23 @@ class ShopScene extends Phaser.Scene {
         })
             .setOrigin(0, 0.5)
             .setDepth(4)
-            .setPosition(x - largeur / 2 + u(9), y + hauteur * 0.14)
-            .setWordWrapWidth(u(34), true);
+            .setFontSize(Math.round(u(b.tailleEffetU)) + "px")
+            .setPosition(xMilieu, y + hauteur * 0.22)
+            .setWordWrapWidth(wrapMilieu, true);
+        // Anti-débordement : la description se réduit plutôt que de sortir
+        // de sa colonne (plancher config.boutique.policeMinU).
+        this._ajusterTexte(effetT, hauteur * 0.42, u);
+        this._ajusterTexte(nom, hauteur * 0.42, u);
 
-        // Prix + quantité déjà possédée (bloc droit, aligné à droite).
-        const prixT = this.add.text(0, 0, C.textes.prixJoker.replace("{prix}", prix), {
-            fontFamily: C.police.famille,
-            color: C.couleurs.combo,
-            align: "right"
-        })
-            .setOrigin(1, 0.5)
-            .setDepth(4)
-            .setPosition(x + largeur / 2 - u(21), y - hauteur * 0.16);
-
-        const possedeT = this.add.text(0, 0, C.textes.possede.replace("{n}", possede), {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "right"
-        })
-            .setOrigin(1, 0.5)
-            .setDepth(4)
-            .setPosition(x + largeur / 2 - u(21), y + hauteur * 0.14);
-
-        // Bouton Acheter (composant partagé Arcade.UI.bouton — spec 728 §7).
+        // --- Colonne 3 (droite) : UN SEUL bouton à 2 lignes ---------------
+        // Ligne haute = coût en pièces d'or, ligne basse = « Acheter »
+        // (option `ligneHaut` du composant partagé Arcade.UI.bouton).
         // ÉTEINT (grisé) si les pièces manquent : le clic affiche alors
         // « Pas assez de pièces » — jamais un achat qui échoue en silence
         // (spec 728 §5).
         const bouton = Arcade.UI.bouton(this, {
+            ligneHaut: C.textes.prixJoker.replace("{prix}", prix),
+            couleurLigneHaut: C.couleurs.combo,
             label: C.textes.acheter,
             couleur: C.couleurs.boutonJouer,
             ombre: C.couleurs.ombreBouton,
@@ -254,13 +296,29 @@ class ShopScene extends Phaser.Scene {
             onClick: () => this._acheter(j.cle)
         });
         const assez = profil && profil.wallet >= prix;
-        bouton.redimensionner(u(17), u(6.5)).setPosition(x + largeur / 2 - u(10), y);
+        bouton
+            .redimensionner(lBouton, hauteur * b.hauteurBoutonPct / 100)
+            .setPosition(xBouton, y);
         if (!assez) bouton.setAlpha(0.4);   // bouton éteint (spec 728 §5)
 
         this._lignes.push({
             ombre, fond, emoji, nom,
-            effet: effetT, prix: prixT, possede: possedeT, bouton
+            effet: effetT, possede: possedeT, bouton
         });
+    }
+
+    /**
+     * Anti-débordement (même pattern que CommentJouerScene) : si le texte
+     * wrapé dépasse la hauteur allouée dans sa colonne, la police est
+     * réduite progressivement jusqu'au plancher config.boutique.policeMinU.
+     */
+    _ajusterTexte(texte, hauteurMax, u) {
+        const plancher = u(this.C.boutique.policeMinU);
+        let fs = parseFloat(texte.style.fontSize);
+        while (texte.height > hauteurMax && fs > plancher) {
+            fs -= 0.5;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
     }
 
     /**

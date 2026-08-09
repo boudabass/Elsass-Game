@@ -6,10 +6,15 @@
  * écran de CONSULTATION uniquement : les jokers s'utilisent EN PARTIE
  * (SIM-6, barre de jokers de GameScene) — rien ne s'utilise ici.
  *
+ * Une LIGNE par joker, en TROIS COLONNES — MÊME mise en page que la
+ * Boutique (GATE John 09/08) : à GAUCHE l'icône au-dessus de la quantité
+ * possédée, au MILIEU le nom au-dessus de la description, à DROITE le
+ * renvoi vers la Boutique.
+ *
  * Un joker à 0 reste VISIBLE, GRISÉ (alpha réduit sur toute la carte),
- * avec un renvoi cliquable « 🛒 Achète-le en Boutique » qui ouvre
- * ShopScene (même esprit que le « 🔒 Débloque-le en Boutique » de Waggis,
- * spec 709). Le renvoi est un VRAI bouton (LE composant partagé
+ * avec un renvoi cliquable « 🛒 Achète-le / en Boutique » (2 lignes) qui
+ * ouvre ShopScene (même esprit que le « 🔒 Débloque-le en Boutique » de
+ * Waggis, spec 709). Le renvoi est un VRAI bouton (LE composant partagé
  * Arcade.UI.bouton — aucun bouton redessiné à la main, spec 728 §7).
  *
  * ⭐ Décision John 08/08 (art. 704 Chantier B) : PAS d'icônes Retour /
@@ -107,23 +112,52 @@ class InventaireScene extends Phaser.Scene {
         this._lignes = [];
 
         const profil = window.SimilitudeProfil && window.SimilitudeProfil.profil;
-        const largeur = u(72);
+        // ⭐ FIX GATE John 09/08 : largeur calculée sur la LARGEUR RÉELLE de
+        // l'écran (w) et non sur u() (le plus petit côté), sinon les 3
+        // colonnes se chevauchaient. Carte un peu plus basse que son pas
+        // vertical : les lignes ne se touchent plus.
+        const largeur = (w * C.inventaire.largeurLignePct) / 100;
+        const hCarte = Math.max(u(6), hLigne - u(C.inventaire.espaceLigneU));
         const x = w / 2;
 
         C.jokers.forEach((j, i) => {
             const y = y0 + hLigne * (i + 0.5);
             const possede = profil ? (profil.inventaire[j.cle] || 0) : 0;
-            this._creerLigne(j, possede, x, y, largeur, hLigne, u);
+            this._creerLigne(j, possede, x, y, largeur, hCarte, u);
         });
     }
 
-    /** Crée la ligne d'un joker (spec 728 §6 : quantité + rappel de
-     * l'effet ; à zéro : grisé + renvoi vers la Boutique). */
+    /**
+     * Crée la ligne d'un joker (spec 728 §6 — mise en page GATE John 09/08,
+     * MÊMES 3 COLONNES que la Boutique) :
+     *
+     *   [ 🔨      ] [ Marteau         ] [ 🛒 Achète-le ]
+     *   [ ×0      ] [ Supprime 1 item ] [  en Boutique ]
+     *     colonne 1        colonne 2         colonne 3
+     *
+     * La colonne 3 n'existe QUE si la quantité est à zéro (la ligne est
+     * alors grisée) — sinon le joker est simplement possédé.
+     */
     _creerLigne(j, possede, x, y, largeur, hauteur, u) {
         const C = this.C;
-        const UI = Arcade.UI;
+        const inv = C.inventaire;
         const zero = possede <= 0;
         const r = hauteur * 0.2;
+
+        // --- Géométrie des 3 colonnes -------------------------------------
+        const marge = u(inv.margeLigneU);
+        const espaceCol = u(inv.espaceColonneU);
+        const lGauche = u(inv.colGaucheU);
+        const lBouton = u(inv.colBoutonU);
+        const gauche = x - largeur / 2;
+        const droite = x + largeur / 2;
+        const xGauche = gauche + marge + lGauche / 2;        // centre col. 1
+        const xMilieu = gauche + marge + lGauche + espaceCol; // bord g. col. 2
+        const xBouton = droite - marge - lBouton / 2;         // centre col. 3
+        // Sans bouton (joker possédé), la colonne 2 récupère toute la place.
+        const borneDroite = zero ? xBouton - lBouton / 2 - espaceCol
+                                 : droite - marge;
+        const wrapMilieu = Math.max(u(10), borneDroite - xMilieu);
 
         // Ombre portée sous la ligne (VALEUR NUMÉRIQUE — WebGL, QA NC1).
         const ombre = this.add.graphics().setDepth(2);
@@ -135,17 +169,30 @@ class InventaireScene extends Phaser.Scene {
         fond.fillStyle(0x141210, zero ? 0.45 : 0.85);
         fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
 
-        // Icône emoji (grisée si quantité 0).
+        // --- Colonne 1 (gauche) : icône AU-DESSUS de la quantité ----------
         const emoji = this.add.text(0, 0, j.emoji, {
             fontFamily: C.police.famille,
             align: "center"
         })
             .setOrigin(0.5)
             .setDepth(4)
-            .setPosition(x - largeur / 2 + u(5), y)
+            .setFontSize(Math.round(u(inv.tailleIconeU)) + "px")
+            .setPosition(xGauche, y - hauteur * 0.18)
             .setAlpha(zero ? 0.35 : 1);
 
-        // Nom + effet en une phrase (rappel, spec 728 §6) — grisés si 0.
+        const quantite = this.add.text(0, 0,
+            C.textes.quantite.replace("{n}", possede), {
+                fontFamily: C.police.famille,
+                color: zero ? "#8a8a8a" : C.couleurs.combo,
+                align: "center"
+            })
+            .setOrigin(0.5)
+            .setDepth(4)
+            .setStroke("#141210", 2)
+            .setFontSize(Math.round(u(inv.tailleQuantiteU)) + "px")
+            .setPosition(xGauche, y + hauteur * 0.24);
+
+        // --- Colonne 2 (milieu) : nom AU-DESSUS de la description ---------
         const nom = this.add.text(0, 0, j.nom, {
             fontFamily: C.police.famille,
             color: "#ffffff",
@@ -154,7 +201,9 @@ class InventaireScene extends Phaser.Scene {
             .setOrigin(0, 0.5)
             .setDepth(4)
             .setStroke("#141210", 2)
-            .setPosition(x - largeur / 2 + u(9), y - hauteur * 0.16)
+            .setFontSize(Math.round(u(inv.tailleNomU)) + "px")
+            .setPosition(xMilieu, y - hauteur * 0.18)
+            .setWordWrapWidth(wrapMilieu, true)
             .setAlpha(zero ? 0.35 : 1);
 
         const e = C.effetsJokers;
@@ -168,56 +217,64 @@ class InventaireScene extends Phaser.Scene {
         })
             .setOrigin(0, 0.5)
             .setDepth(4)
-            .setPosition(x - largeur / 2 + u(9), y + hauteur * 0.14)
-            .setWordWrapWidth(u(34), true)
+            .setFontSize(Math.round(u(inv.tailleEffetU)) + "px")
+            .setPosition(xMilieu, y + hauteur * 0.22)
+            .setWordWrapWidth(wrapMilieu, true)
             .setAlpha(zero ? 0.35 : 1);
+        // Anti-débordement : le texte se réduit plutôt que de sortir de sa
+        // colonne (plancher config.inventaire.policeMinU).
+        this._ajusterTexte(nom, hauteur * 0.42, u);
+        this._ajusterTexte(effetT, hauteur * 0.42, u);
 
-        // Quantité possédée (droite) — « × N ».
-        const quantite = this.add.text(0, 0, C.textes.quantite.replace("{n}", possede), {
-            fontFamily: C.police.famille,
-            color: zero ? "#8a8a8a" : C.couleurs.combo,
-            align: "right"
-        })
-            .setOrigin(1, 0.5)
-            .setDepth(4)
-            .setPosition(x + largeur / 2 - u(3), y);
-
-        // Renvoi vers la Boutique si quantité 0 (spec 728 §6 : « 🛒
-        // Achète-le en Boutique », même esprit que le 🔒 de Waggis spec
-        // 709). VRAI bouton cliquable → ShopScene. Ajustement anti-
-        // débordement (pattern Waggis) : la largeur est élargie jusqu'à
-        // ce que le libellé tienne, puis la police du libellé est réduite
-        // si nécessaire (jamais de débordement, mobile-first).
+        // --- Colonne 3 (droite) : renvoi Boutique, sur 2 lignes -----------
+        // Seulement si la quantité est à zéro (spec 728 §6 : « 🛒 Achète-le
+        // en Boutique », même esprit que le 🔒 de Waggis spec 709). VRAI
+        // bouton cliquable → ShopScene, à 2 lignes (option `ligneHaut` du
+        // composant partagé) : le libellé ne déborde plus de sa colonne.
         let renvoi = null;
         if (zero) {
             renvoi = Arcade.UI.bouton(this, {
-                label: C.textes.renvoiBoutique,
+                ligneHaut: C.textes.renvoiBoutiqueHaut,
+                label: C.textes.renvoiBoutiqueBas,
                 couleur: C.couleurs.boutonJouer,
                 ombre: C.couleurs.ombreBouton,
                 police: C.police.famille,
                 onClick: () => SimilitudeUI.aller(this, ShopScene.KEY)
             });
-            const hauteurBouton = hauteur * 0.42;
-            let largeurBouton = u(17);
-            renvoi.redimensionner(largeurBouton, hauteurBouton);
-            while (renvoi.label.width > largeurBouton - u(2) &&
-                   largeurBouton < u(40)) {
-                largeurBouton += u(1);
-                renvoi.redimensionner(largeurBouton, hauteurBouton);
-            }
-            // Si le libellé ne tient toujours pas à largeur max : police
-            // réduite progressivement (recalculée à chaque rotation, le
-            // layout recrée les lignes).
-            let fs = hauteurBouton * 0.4;   // police initiale du composant
-            while (renvoi.label.width > largeurBouton - u(2) && fs > u(1.6)) {
-                fs -= 1;
-                renvoi.label.setFontSize(Math.round(fs) + "px");
-            }
-            renvoi.setPosition(x + largeur / 2 - u(3) - largeurBouton / 2, y);
+            renvoi
+                .redimensionner(lBouton, hauteur * inv.hauteurBoutonPct / 100)
+                .setPosition(xBouton, y);
+            // Filet de sécurité : si le libellé est trop large pour la
+            // colonne (police système différente), il rétrécit.
+            this._ajusterLargeur(renvoi.label, lBouton - u(2), u);
         }
 
         this._lignes.push({
             ombre, fond, emoji, nom, effet: effetT, quantite, renvoi
         });
+    }
+
+    /**
+     * Anti-débordement VERTICAL (pattern ShopScene / CommentJouerScene) :
+     * si le texte wrapé dépasse la hauteur allouée dans sa colonne, la
+     * police est réduite jusqu'au plancher config.inventaire.policeMinU.
+     */
+    _ajusterTexte(texte, hauteurMax, u) {
+        const plancher = u(this.C.inventaire.policeMinU);
+        let fs = parseFloat(texte.style.fontSize);
+        while (texte.height > hauteurMax && fs > plancher) {
+            fs -= 0.5;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
+    }
+
+    /** Idem, en LARGEUR (libellé d'un bouton dans une colonne étroite). */
+    _ajusterLargeur(texte, largeurMax, u) {
+        const plancher = u(this.C.inventaire.policeMinU);
+        let fs = parseFloat(texte.style.fontSize);
+        while (texte.width > largeurMax && fs > plancher) {
+            fs -= 0.5;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
     }
 }
