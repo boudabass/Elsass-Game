@@ -95,14 +95,19 @@ class ClassementScene extends Phaser.Scene {
         this.suiv = suiv;
 
         // Retour au menu (bouton refondu).
-        const retour = WaggisUI.bouton(this, {
+        const retour = Arcade.UI.bouton(this, {
             label: C.textes.retour,
             couleur: "#141210",
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 
-        // 10 entrées par page : rang + nom + score lisibles sur mobile.
-        this.parPage = 10;
+        // Entrées par page : 10 au maximum, MOINS si la hauteur disponible
+        // ne permet pas des lignes lisibles (recalculé à chaque rotation —
+        // voir _parPagePourHauteur). En mobile paysage, 10 lignes tombaient
+        // à 22 px de haut ; mieux vaut en afficher 5 qui se lisent.
+        this.parPage = C.listes.entreesParPageMax;
         this.page = 0;
         this.entrees = null;     // null = chargement en cours ; [] = chargé mais vide
         this._lignes = [];       // objets de rendu de la page courante
@@ -146,7 +151,14 @@ class ClassementScene extends Phaser.Scene {
             // hauteur disponible.
             const hautTable = h * 0.07 + u(4.5) + espace;
             const basTable = yPagination - u(4.5) - espace;
+            // ⭐ Pagination adaptative : le nombre d'entrées par page suit
+            // la hauteur réellement disponible. Recalculé à chaque
+            // rotation ; la page courante est réajustée pour que la
+            // première entrée affichée reste la même (on ne perd pas sa
+            // place en tournant le téléphone).
+            this._majParPage(basTable - hautTable, u);
             this._table = this._calculerTable(w, h, hautTable, basTable);
+            this._majEtat();
             this._dessinerListe();
         });
 
@@ -160,6 +172,35 @@ class ClassementScene extends Phaser.Scene {
         this.entrees = await Arcade.Platform.score.leaderboard();
         this._majEtat();
         this._dessinerListe();
+    }
+
+    /**
+     * Recalcule le nombre d'entrées par page selon la hauteur disponible
+     * (config.listes) : au mieux entreesParPageMax, au moins
+     * entreesParPageMin, sans jamais descendre sous hauteurLigneMinU de
+     * hauteur de ligne. La page courante est réajustée pour garder la
+     * première entrée visible — tourner l'écran ne fait pas perdre sa place.
+     */
+    _majParPage(hauteurDispo, u) {
+        const L = this.C.listes;
+        const avant = this.parPage;
+        const premiere = avant * this.page;   // index de la 1re entrée affichée
+        // La police d'une ligne vaut min(u(3.2), hauteurLigne × 0,45). On
+        // retire des entrées tant que c'est la HAUTEUR qui la bride sous
+        // le seuil de lisibilité — et seulement dans ce cas : sur un petit
+        // écran où la police plafonne déjà à u(3.2), retirer des entrées
+        // n'agrandirait rien et ferait juste perdre du contenu.
+        const cible = Math.min(u(3.2), L.policeMinPx);
+        let n = L.entreesParPageMax;
+        while (n > L.entreesParPageMin &&
+               (hauteurDispo / n) * 0.45 < cible) {
+            n -= 1;
+        }
+        this.parPage = n;
+        if (this.parPage !== avant) {
+            this.page = Math.floor(premiere / this.parPage);
+            this.page = Math.max(0, Math.min(this.page, this._nbPages() - 1));
+        }
     }
 
     /** Nombre de pages (au moins 1 — la liste est vide au pire). */
@@ -206,11 +247,16 @@ class ClassementScene extends Phaser.Scene {
      */
     _calculerTable(w, h, hautTable, basTable) {
         const UI = Arcade.UI;
+        const C = window.WaggisConfig;
         const hauteurLigne = Math.max(1, (basTable - hautTable) / this.parPage);
         return {
             hauteurLigne: hauteurLigne,
             x: w / 2,
-            largeur: UI.u(this, 46),
+            // Largeur = % de la LARGEUR RÉELLE (jamais u(), qui mesure le
+            // plus petit côté : le tableau ne faisait que ~22 % de l'écran
+            // en paysage), plafonnée sur les très grands écrans.
+            largeur: Math.min((w * C.listes.largeurClassementPct) / 100,
+                UI.u(this, C.listes.largeurMaxU)),
             y0: hautTable + hauteurLigne / 2
         };
     }

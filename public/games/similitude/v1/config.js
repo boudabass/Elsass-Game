@@ -239,12 +239,25 @@ window.SimilitudeConfig = {
         // le nom au-dessus de la description, à DROITE le bouton
         // d'achat (prix au-dessus du mot « Acheter »).
         largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
+        hauteurLigneMaxU: 22,   // ⭐ plafond de hauteur d'une ligne : sans lui,
+                                // 4 lignes réparties sur toute la hauteur d'un
+                                // écran mobile donnent des cartes de 157 px de
+                                // haut pour 363 de large, avec un bouton plus
+                                // HAUT que LARGE dont le texte débordait
         espaceLigneU: 1.4,      // espace VERTICAL entre deux lignes
         margeLigneU: 2.5,       // marge interne d'une ligne
         espaceColonneU: 2,      // espace entre deux colonnes
-        colGaucheU: 10,         // largeur de la colonne icône / quantité
-        colBoutonU: 20,         // largeur de la colonne bouton
+        // ⭐ Largeurs de colonnes en % de la largeur de la LIGNE (et non en
+        // u(), qui mesure le plus petit côté : la colonne bouton faisait
+        // 82 px sur une ligne de 363 px en mobile).
+        colGauchePct: 16,       // colonne icône / quantité
+        colBoutonPct: 33,       // colonne bouton
+        colBoutonMaxU: 30,      // plafond de largeur du bouton : n'agit que
+                                // sur grand écran (sinon 33 % d'une ligne de
+                                // 1690 px = un bouton « Acheter » de 558 px)
         hauteurBoutonPct: 76,   // hauteur du bouton = % de la hauteur de ligne
+        boutonRatioMax: 0.5,    // …mais jamais plus haut que largeur × ce ratio
+                                // (un bouton trop haut = police trop grosse)
         tailleIconeU: 4.4,      // icône (emoji) de la colonne gauche
         tailleQuantiteU: 2.6,   // quantité possédée sous l'icône
         tailleNomU: 3,          // nom de l'item
@@ -259,12 +272,17 @@ window.SimilitudeConfig = {
     // quantité est à zéro) le renvoi vers la Boutique sur 2 lignes.
     inventaire: {
         largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
+        hauteurLigneMaxU: 22,   // plafond de hauteur d'une ligne (voir boutique)
         espaceLigneU: 1.4,      // espace VERTICAL entre deux lignes
         margeLigneU: 2.5,       // marge interne d'une ligne
         espaceColonneU: 2,      // espace entre deux colonnes
-        colGaucheU: 10,         // largeur de la colonne icône / quantité
-        colBoutonU: 26,         // largeur de la colonne bouton
+        // Largeurs de colonnes en % de la largeur de la LIGNE (jamais u()).
+        colGauchePct: 16,       // colonne icône / quantité
+        colBoutonPct: 38,       // colonne bouton (« 🛒 Achète-le / en Boutique »)
+        colBoutonMaxU: 34,      // plafond de largeur du bouton (plus haut
+                                // qu'en boutique : le libellé est plus long)
         hauteurBoutonPct: 76,   // hauteur du bouton = % de la hauteur de ligne
+        boutonRatioMax: 0.5,    // jamais plus haut que largeur × ce ratio
         tailleIconeU: 4.4,      // icône (emoji) de la colonne gauche
         tailleQuantiteU: 2.8,   // quantité possédée sous l'icône
         tailleNomU: 3,          // nom de l'item

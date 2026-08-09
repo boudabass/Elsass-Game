@@ -17,8 +17,8 @@
  *
  * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
  *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
- *  - boutons refondus (WaggisUI.bouton : coins arrondis + ombre portée +
- *    dégradé léger + feedback clic) — plus de noir mat uniforme ;
+ *  - boutons du composant partagé Arcade.UI.bouton (coins arrondis + ombre
+ *    portée + dégradé léger + feedback clic) — plus de noir mat uniforme ;
  *  - police ronde Azimut (C.police.famille) ;
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
@@ -62,17 +62,21 @@ class SettingsScene extends Phaser.Scene {
         // Bouton bascule du son : le libellé porte l'état courant
         // (« Son : Activé » / « Son : Désactivé »), le clic bascule.
         // ⭐ REFONTE 08/08 : bouton refondu (ombre + arrondis + dégradé).
-        const sonBtn = WaggisUI.bouton(this, {
+        const sonBtn = Arcade.UI.bouton(this, {
             label: "",
             couleur: C.couleurs.bouton,
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => this.basculerSon(sonBtn)
         });
         this._majBoutonSon(sonBtn);
 
         // Retour au menu (comportement standard des écrans du menu).
-        const retour = WaggisUI.bouton(this, {
+        const retour = Arcade.UI.bouton(this, {
             label: C.textes.retour,
             couleur: "#141210",
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 

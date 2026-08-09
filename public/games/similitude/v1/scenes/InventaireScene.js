@@ -85,9 +85,17 @@ class InventaireScene extends Phaser.Scene {
             // hauteur variable du Classement) : rien ne déborde.
             const hautBande = h * 0.13;
             const basBande = yRetour - hauteurRetour / 2 - espace;
-            const hLigne = Math.max(u(8), (basBande - hautBande) / C.jokers.length);
+            // Hauteur de ligne PLAFONNÉE (config) puis pile centrée dans la
+            // bande — sans plafond, les lignes deviennent des pavés plus
+            // hauts que larges sur mobile (bug vu par John le 09/08).
+            const hDispo = basBande - hautBande;
+            const hLigne = Math.max(u(8),
+                Math.min(u(C.inventaire.hauteurLigneMaxU),
+                    hDispo / C.jokers.length));
+            const y0 = hautBande +
+                Math.max(0, (hDispo - hLigne * C.jokers.length) / 2);
 
-            this._dessinerLignes(w, hautBande, hLigne, u);
+            this._dessinerLignes(w, y0, hLigne, u);
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 728 §7).
@@ -145,10 +153,13 @@ class InventaireScene extends Phaser.Scene {
         const r = hauteur * 0.2;
 
         // --- Géométrie des 3 colonnes -------------------------------------
+        // Largeurs = % de la largeur de la LIGNE (jamais u(), qui mesure le
+        // plus petit côté — bug de la Boutique mobile, 09/08).
         const marge = u(inv.margeLigneU);
         const espaceCol = u(inv.espaceColonneU);
-        const lGauche = u(inv.colGaucheU);
-        const lBouton = u(inv.colBoutonU);
+        const lGauche = (largeur * inv.colGauchePct) / 100;
+        const lBouton = Math.min((largeur * inv.colBoutonPct) / 100,
+            u(inv.colBoutonMaxU));
         const gauche = x - largeur / 2;
         const droite = x + largeur / 2;
         const xGauche = gauche + marge + lGauche / 2;        // centre col. 1
@@ -241,12 +252,12 @@ class InventaireScene extends Phaser.Scene {
                 police: C.police.famille,
                 onClick: () => SimilitudeUI.aller(this, ShopScene.KEY)
             });
-            renvoi
-                .redimensionner(lBouton, hauteur * inv.hauteurBoutonPct / 100)
-                .setPosition(xBouton, y);
-            // Filet de sécurité : si le libellé est trop large pour la
-            // colonne (police système différente), il rétrécit.
-            this._ajusterLargeur(renvoi.label, lBouton - u(2), u);
+            // Hauteur bornée par la largeur : la police du composant est
+            // déduite de la hauteur, un bouton étroit et haut afficherait
+            // un texte démesuré.
+            const hBouton = Math.min(hauteur * inv.hauteurBoutonPct / 100,
+                lBouton * inv.boutonRatioMax);
+            renvoi.redimensionner(lBouton, hBouton).setPosition(xBouton, y);
         }
 
         this._lignes.push({
@@ -268,13 +279,4 @@ class InventaireScene extends Phaser.Scene {
         }
     }
 
-    /** Idem, en LARGEUR (libellé d'un bouton dans une colonne étroite). */
-    _ajusterLargeur(texte, largeurMax, u) {
-        const plancher = u(this.C.inventaire.policeMinU);
-        let fs = parseFloat(texte.style.fontSize);
-        while (texte.width > largeurMax && fs > plancher) {
-            fs -= 0.5;
-            texte.setFontSize(Math.round(fs) + "px");
-        }
-    }
 }

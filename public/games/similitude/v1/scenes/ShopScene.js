@@ -118,9 +118,18 @@ class ShopScene extends Phaser.Scene {
             // tableau à hauteur variable du Classement).
             const hautBande = h * 0.20;
             const basBande = yRetour - hauteurRetour / 2 - espace;
-            const hLigne = Math.max(u(8), (basBande - hautBande) / C.jokers.length);
+            // Hauteur de ligne PLAFONNÉE (config) : sans plafond, 4 lignes
+            // étalées sur toute la hauteur d'un mobile deviennent des
+            // pavés plus hauts que larges. Le reste de la place est laissé
+            // en marge : la pile est centrée dans la bande.
+            const hDispo = basBande - hautBande;
+            const hLigne = Math.max(u(8),
+                Math.min(u(C.boutique.hauteurLigneMaxU),
+                    hDispo / C.jokers.length));
+            const y0 = hautBande +
+                Math.max(0, (hDispo - hLigne * C.jokers.length) / 2);
 
-            this._dessinerCartes(w, hautBande, hLigne, u);
+            this._dessinerCartes(w, y0, hLigne, u);
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 728 §7).
@@ -204,10 +213,15 @@ class ShopScene extends Phaser.Scene {
         const r = hauteur * 0.2;
 
         // --- Géométrie des 3 colonnes -------------------------------------
+        // Les largeurs de colonnes sont des % de la LARGEUR DE LA LIGNE :
+        // elles suivent donc la ligne, qui suit elle-même la largeur de
+        // l'écran. En u(), la colonne bouton tombait à 82 px sur une ligne
+        // de 363 px en mobile (bug vu par John le 09/08).
         const marge = u(b.margeLigneU);
         const espaceCol = u(b.espaceColonneU);
-        const lGauche = u(b.colGaucheU);
-        const lBouton = u(b.colBoutonU);
+        const lGauche = (largeur * b.colGauchePct) / 100;
+        const lBouton = Math.min((largeur * b.colBoutonPct) / 100,
+            u(b.colBoutonMaxU));
         const gauche = x - largeur / 2;
         const droite = x + largeur / 2;
         const xGauche = gauche + marge + lGauche / 2;        // centre col. 1
@@ -296,9 +310,12 @@ class ShopScene extends Phaser.Scene {
             onClick: () => this._acheter(j.cle)
         });
         const assez = profil && profil.wallet >= prix;
-        bouton
-            .redimensionner(lBouton, hauteur * b.hauteurBoutonPct / 100)
-            .setPosition(xBouton, y);
+        // La police du composant est déduite de la HAUTEUR du bouton : on
+        // borne donc la hauteur par la largeur, sinon un bouton étroit et
+        // haut affiche un texte démesuré (garde-fou aussi côté composant).
+        const hBouton = Math.min(hauteur * b.hauteurBoutonPct / 100,
+            lBouton * b.boutonRatioMax);
+        bouton.redimensionner(lBouton, hBouton).setPosition(xBouton, y);
         if (!assez) bouton.setAlpha(0.4);   // bouton éteint (spec 728 §5)
 
         this._lignes.push({
@@ -360,8 +377,12 @@ class ShopScene extends Phaser.Scene {
         const yRetour = h * 0.965 - hauteurRetour / 2;
         const hautBande = h * 0.20;
         const basBande = yRetour - hauteurRetour / 2 - espace;
-        const hLigne = Math.max(u(8), (basBande - hautBande) / C.jokers.length);
-        this._dessinerCartes(w, hautBande, hLigne, u);
+        const hDispo = basBande - hautBande;
+        const hLigne = Math.max(u(8),
+            Math.min(u(C.boutique.hauteurLigneMaxU), hDispo / C.jokers.length));
+        const y0 = hautBande +
+            Math.max(0, (hDispo - hLigne * C.jokers.length) / 2);
+        this._dessinerCartes(w, y0, hLigne, u);
     }
 
     /** Petite annonce temporaire (pattern MenuScene._annoncer). */

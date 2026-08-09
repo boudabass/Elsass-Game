@@ -455,7 +455,9 @@ class GameScene extends Phaser.Scene {
     /** Rafraîchit le texte du niveau en haut à gauche (D2-3). */
     _afficherNiveau() {
         if (this.texteNiveau) {
-            this.texteNiveau.setText("Niveau " + this.niveau);
+            this.texteNiveau.setText(
+                window.WaggisConfig.textes.niveauEnCours
+                    .replace("{niveau}", this.niveau));
         }
     }
 

@@ -72,6 +72,11 @@ window.WaggisConfig = {
         // victoire et libellé du bouton de passage au niveau suivant.
         niveauReussi: "Niveau {niveau} réussi !",
         niveauSuivant: "Niveau suivant",
+        // ⭐ 09/08/2026 : ces deux libellés étaient concaténés en dur dans
+        // le code ("Niveau " + n, "★ " + score). Tout texte vu par le
+        // joueur vit ici, avec ses emplacements.
+        niveauEnCours: "Niveau {niveau}",   // HUD en jeu (haut à gauche)
+        meilleurNiveau: "★ {score}",        // score d'une tuile de Niveaux
 
         // MENU-1 (spec 709, verrouillée 07/08/2026) : les 7 boutons du
         // menu principal (MenuScene). « Jouer » lance le prochain niveau
@@ -117,6 +122,11 @@ window.WaggisConfig = {
         acheter: "Acheter",
         dejaDebloque: "Déjà débloqué",
         pasAssezPieces: "Pas assez de pièces",
+        // ⭐ 09/08 : versions COURTES, utilisées quand la colonne est trop
+        // étroite (mobile portrait). Mieux vaut un mot juste et lisible
+        // qu'une phrase rétrécie jusqu'à 11 px.
+        pasAssezPiecesCourt: "Trop cher",
+        dejaDebloqueCourt: "Débloqué",
         gratuit: "Gratuit",
         // ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08) : le texte des
         // personnages verrouillés passe de « À débloquer dans la Boutique »
@@ -368,6 +378,43 @@ window.WaggisConfig = {
             prix: 300,
             frames: ["pieton_rose_1", "pieton_rose_2", "pieton_rose_3"]
         }
+    },
+
+    // --- Listes des écrans (Personnages, Boutique, Classement) --------------
+    // ⭐ FIX 09/08/2026 : ces largeurs étaient calculées avec u() — donc en
+    // % du PLUS PETIT CÔTÉ. Sur un écran paysage, une liste u(76) ne fait
+    // que ~37 % de la largeur : lignes étriquées au milieu de l'écran et
+    // textes qui se replient pour rien. La largeur d'un conteneur
+    // horizontal se calcule TOUJOURS en % de la largeur réelle `w`
+    // (les hauteurs et les polices, elles, restent en u()).
+    listes: {
+        largeurPct: 76,         // Personnages / Boutique : % de la largeur
+        largeurClassementPct: 60,   // Classement : tableau rang/nom/score
+        largeurMaxU: 110,       // garde-fou : jamais plus large que u(110),
+                                // sinon une ligne s'étire sur un écran très
+                                // large et le texte se perd dans le vide
+        // Marge latérale de la grille de Niveaux : sans elle, la tuile est
+        // calculée sur (w − gaps) / 5 et la grille colle EXACTEMENT aux
+        // deux bords de l'écran en mobile portrait (412 px sur 412).
+        margeGrilleU: 4,
+        // ⭐ Pagination ADAPTATIVE (09/08). Sur un écran écrasé en hauteur
+        // (mobile en paysage), remplir la page au nombre maximal donnait
+        // des lignes de 22 px et des tuiles de 38 px : illisible et
+        // difficile à viser du doigt. On affiche donc MOINS d'éléments par
+        // page plutôt que des éléments trop petits.
+        entreesParPageMax: 10,      // Classement : 10 entrées au mieux…
+        entreesParPageMin: 4,       // …mais jamais moins de 4
+        grilleLignesMax: 5,         // Niveaux : grille 5 × 5 au mieux…
+        grilleLignesMin: 3,         // …mais jamais moins de 3 lignes
+        // ⚠️ Les DEUX seuils ci-dessous sont en PIXELS ABSOLUS, seule
+        // entorse assumée à la règle « tout en % de l'écran ». Ce sont des
+        // seuils d'ACCESSIBILITÉ, pas des dimensions de mise en page : un
+        // texte de 10 px reste illisible et une cible de 38 px reste
+        // difficile à viser, quelle que soit la taille de l'écran. Un
+        // seuil exprimé en u() suivrait la taille de l'écran et raterait
+        // donc exactement le cas qu'il doit attraper.
+        policeMinPx: 13,            // sous 13 px, une ligne ne se lit plus
+        tuileMinPx: 44              // cible tactile minimale (règle iOS/Android)
     },
 
     // --- Couleurs -----------------------------------------------------------

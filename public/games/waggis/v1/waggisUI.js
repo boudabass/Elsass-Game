@@ -2,14 +2,19 @@
  * waggisUI.js — helpers de refonte visuelle des écrans Waggis
  * (spec 709 — « ⚠️ RÉVISION 08/08/2026 », validée John le 08/08).
  *
- * Regroupe ce qui est partagé par les écrans refondus SANS toucher à
- * core/ (règle studio : une brique n'entre dans core/ que si deux jeux
- * l'utilisent — ces helpers sont propres à Waggis) :
+ * Regroupe ce qui est propre à Waggis et n'a pas sa place dans core/.
+ *
+ * ⭐ 09/08/2026 : WaggisUI.bouton a été SUPPRIMÉ. C'était une deuxième
+ * version du bouton de l'arcade, en parallèle du composant partagé
+ * core/ui/button.js — deux rendus à maintenir, deux occasions de
+ * diverger. Les 6 boutons des écrans Personnages / Classement /
+ * Niveaux / Réglages / Boutique passent désormais par Arcade.UI.bouton,
+ * comme le menu. Règle : AUCUN bouton n'est redessiné à la main
+ * (mode d'emploi du composant : article Odoo 458).
+ *
+ * Restent ici :
  *  - WaggisUI.ciel(g, w, h) : dégradé de ciel (même rendu que
  *    MenuScene._dessinerCiel — cielHaut en haut → cielBas en bas) ;
- *  - WaggisUI.bouton(scene, o) : bouton refondu (coins arrondis + ombre
- *    portée + dégradé léger + feedback clic rétricissement 10 % CENTRÉ /
- *    micro-rebond, pattern MenuScene) ;
  *  - WaggisUI.fleche(scene, sens, onClick) : bouton rond de pagination
  *    avec chevron FIN et ARRONDI (Graphics, lineCap/lineJoin round) —
  *    remplace les boutons carrés ◀▶ de l'ancien menu ;
@@ -52,86 +57,6 @@
                 g.fillStyle(Phaser.Display.Color.GetColor(r, v, b), 1);
                 g.fillRect(0, (h * i) / bandes, w, h / bandes + 1);
             }
-        },
-
-        /**
-         * Bouton rectangulaire refondu — pattern MenuScene (spec 709
-         * révision 08/08) : coins arrondis + ombre portée + voile clair sur
-         * la moitié haute (dégradé léger) + feedback au clic (rétricissement
-         * de 10 % AUTOUR DU CENTRE à l'appui — correction John 08/08, plus
-         * aucun déplacement ; micro-rebond Back.Out au relâchement).
-         * @param {object} o {label, couleur, onClick}
-         */
-        bouton: function (scene, o) {
-            var C = window.WaggisConfig;
-            var ombre = scene.add.graphics().setDepth(49);
-            var corps = scene.add.graphics().setDepth(50);
-            var label = scene.add.text(0, 0, o.label, {
-                fontFamily: C.police.famille,
-                color: "#ffffff",
-                align: "center"
-            }).setOrigin(0.5).setDepth(51);
-            var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
-                .setInteractive({ useHandCursor: true })
-                .setDepth(52);
-
-            zone.on("pointerdown", function () {
-                [ombre, corps, label, zone].forEach(function (c) {
-                    scene.tweens.add({ targets: c, scale: 0.9, duration: 70, ease: "Linear" });
-                });
-            });
-            var relacher = function () {
-                [ombre, corps, label, zone].forEach(function (c) {
-                    scene.tweens.add({ targets: c, scale: 1, duration: 170, ease: "Back.Out" });
-                });
-            };
-            zone.on("pointerout", relacher);
-            zone.on("pointerup", function () {
-                relacher();
-                if (typeof o.onClick === "function") o.onClick();
-            });
-
-            var x = 0, y = 0, largeur = 10, hauteur = 10;
-            var couleur = hex(o.couleur || C.couleurs.bouton);
-            var dessiner = function () {
-                var r = hauteur * 0.3;
-                // Dessin centré sur (0,0) local + objet posé au centre du
-                // bouton : le feedback clic (scale 10 %) garde le centre,
-                // aucun déplacement (correction John 08/08).
-                ombre.clear();
-                ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-                ombre.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
-                    largeur, hauteur, r);
-                ombre.setPosition(x, y);
-                corps.clear();
-                corps.fillStyle(couleur, 1);
-                corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
-                // Dégradé léger : voile clair sur la moitié haute (spec 709).
-                corps.fillStyle(0xffffff, 0.16);
-                corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                    largeur, hauteur * 0.52, r);
-                corps.setPosition(x, y);
-                label.setFontSize(Math.round(hauteur * 0.4) + "px");
-                label.setPosition(x, y);
-                zone.setPosition(x, y).setSize(largeur, hauteur);
-                if (zone.input && zone.input.hitArea) {
-                    zone.input.hitArea.setSize(largeur, hauteur);
-                }
-            };
-
-            return {
-                label: label,
-                setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
-                redimensionner: function (nw, nh) { largeur = nw; hauteur = nh; dessiner(); return this; },
-                setDepth: function (d) {
-                    ombre.setDepth(d); corps.setDepth(d + 1);
-                    label.setDepth(d + 2); zone.setDepth(d + 3);
-                    return this;
-                },
-                destroy: function () {
-                    ombre.destroy(); corps.destroy(); label.destroy(); zone.destroy();
-                }
-            };
         },
 
         /**

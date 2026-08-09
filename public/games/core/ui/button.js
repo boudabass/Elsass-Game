@@ -120,6 +120,24 @@
     })();
 
     /**
+     * Réduit la police d'un texte jusqu'à ce qu'il tienne dans la largeur
+     * utile du bouton (90 % — il reste une marge de chaque côté). Descend
+     * au plus jusqu'à 40 % de la taille demandée : en dessous, ce n'est
+     * plus lisible et c'est le bouton qu'il faut élargir, pas le texte
+     * qu'il faut rapetisser.
+     */
+    function tenirDansLaLargeur(texte, largeur) {
+        if (!texte || !largeur) return;
+        var dispo = largeur * 0.9;
+        var fs = parseFloat(texte.style.fontSize);
+        var plancher = Math.max(6, fs * 0.4);
+        while (texte.width > dispo && fs > plancher) {
+            fs -= 1;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
+    }
+
+    /**
      * Composant bouton réutilisable (style spec 709 révision 08/08).
      * @param {Phaser.Scene} scene
      * @param {object} o — voir l'en-tête de fichier pour les options.
@@ -357,6 +375,15 @@
                 txt.setFontSize(Math.round(hauteur * 0.4) + "px");
                 txt.setPosition(x, y);
             }
+            // ⭐ GARDE-FOU 09/08 (bug vu par John sur la Boutique mobile) :
+            // la police est déduite de la HAUTEUR du bouton. Un bouton plus
+            // haut que large (82 × 119 px) donnait donc un texte de 36 px
+            // large de 138 px pour 82 px disponibles — le libellé sortait
+            // par les côtés. Le composant rétrécit maintenant lui-même son
+            // texte jusqu'à ce qu'il tienne : AUCUN bouton de l'arcade ne
+            // peut plus déborder, quelles que soient ses proportions.
+            tenirDansLaLargeur(txt, largeur);
+            if (haut) tenirDansLaLargeur(haut, largeur);
 
             zone.setPosition(x, y).setSize(largeur, hauteur);
             if (zone.input && zone.input.hitArea) {
