@@ -299,7 +299,10 @@ window.SimilitudeConfig = {
         tailleNomJokerU: 2.6,   // nom d'un joker
         tailleEffetJokerU: 2.2, // effet en une phrase d'un joker
         hauteurCarteMinU: 4.5,  // hauteur minimale d'une carte empilée
-        espaceEmojiLabelU: 0.6, // espace entre l'emoji et le texte d'une carte
+        espaceEmojiLabelU: 1.4, // espace entre l'emoji et le texte d'une carte
+        // Un emoji est rendu PLUS LARGE que sa taille de police : on réserve
+        // taille × ce facteur, sinon le libellé vient se coller à l'emoji.
+        largeurEmojiFacteur: 1.25,
         margeTexteU: 0.8,       // marge de sécurité texte / bord de carte
         policeMinU: 1.6,        // plancher de l'ajustement anti-débordement
         // Structure de l'écran (mêmes pattern que Classement / Inventaire).

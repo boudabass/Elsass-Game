@@ -159,10 +159,7 @@ class CommentJouerScene extends Phaser.Scene {
     _placerBlocBoucle(w, y0, blocH, u) {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
-        const tailleTitre = u(cj.tailleSectionU);
-        this.titreBoucle
-            .setPosition(w / 2, y0 + tailleTitre / 2)
-            .setFontSize(Math.round(tailleTitre) + "px");
+        const tailleTitre = this._placerTitreSection(this.titreBoucle, w, y0, u);
         // ⭐ FIX SIM-FIX-CJ (GATE John 09/08) : la largeur des cartes se
         // calcule depuis la LARGEUR RÉELLEMENT DISPONIBLE de l'écran (w),
         // plus jamais depuis u() (le plus petit côté) — sur mobile une
@@ -171,11 +168,15 @@ class CommentJouerScene extends Phaser.Scene {
         const lcarte = (w * cj.largeurCartePct) / 100;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiU);
+        // Largeur RÉSERVÉE à l'emoji : un emoji est rendu plus large que sa
+        // taille de police (SIM-FIX-CJ2) — sans ce facteur le libellé venait
+        // se coller à l'emoji.
+        const largeEmoji = zoneEmoji * cj.largeurEmojiFacteur;
         const espaceCarte = u(cj.espaceCartesU);
-        // 3 cartes empilées + 2 espacements réguliers entre elles, dans la
-        // hauteur du bloc (jamais superposées, règle John 08/08).
+        // 3 cartes empilées + 2 espacements entre elles + 1 espacement avant
+        // et 1 après : le bloc ne déborde JAMAIS sur le titre suivant.
         const hCarte = Math.max(u(cj.hauteurCarteMinU),
-            (blocH - tailleTitre - 2 * espaceCarte) / 3);
+            (blocH - tailleTitre - 4 * espaceCarte) / 3);
         for (let i = 0; i < 3; i++) {
             const y = y0 + tailleTitre + espaceCarte +
                 i * (hCarte + espaceCarte) + hCarte / 2;
@@ -187,13 +188,13 @@ class CommentJouerScene extends Phaser.Scene {
             // Libellé à droite de l'emoji, wrap DANS la largeur restante
             // du conteneur (le texte ne déborde plus sur les autres
             // éléments — GATE John 09/08).
-            const xLabel = w / 2 - lcarte / 2 + marge + zoneEmoji +
+            const xLabel = w / 2 - lcarte / 2 + marge + largeEmoji +
                 u(cj.espaceEmojiLabelU);
             this.boucle[i].label
                 .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
                 .setPosition(xLabel, y)
                 .setWordWrapWidth(
-                    lcarte - 2 * marge - zoneEmoji - u(cj.espaceEmojiLabelU),
+                    lcarte - 2 * marge - largeEmoji - u(cj.espaceEmojiLabelU),
                     true);
             this._ajusterTexte(this.boucle[i].label, hCarte, u);
         }
@@ -203,16 +204,14 @@ class CommentJouerScene extends Phaser.Scene {
     _placerBlocFins(w, y0, blocH, u) {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
-        const tailleTitre = u(cj.tailleSectionU);
-        this.titreFin
-            .setPosition(w / 2, y0 + tailleTitre / 2)
-            .setFontSize(Math.round(tailleTitre) + "px");
+        const tailleTitre = this._placerTitreSection(this.titreFin, w, y0, u);
         const lcarte = (w * cj.largeurCartePct) / 100;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiU);
+        const largeEmoji = zoneEmoji * cj.largeurEmojiFacteur;
         const espaceCarte = u(cj.espaceCartesU);
         const hCarte = Math.max(u(cj.hauteurCarteMinU),
-            (blocH - tailleTitre - 2 * espaceCarte) / 3);
+            (blocH - tailleTitre - 4 * espaceCarte) / 3);
         for (let i = 0; i < 3; i++) {
             const y = y0 + tailleTitre + espaceCarte +
                 i * (hCarte + espaceCarte) + hCarte / 2;
@@ -220,13 +219,13 @@ class CommentJouerScene extends Phaser.Scene {
             this.fins[i].emoji
                 .setFontSize(Math.round(zoneEmoji) + "px")
                 .setPosition(w / 2 - lcarte / 2 + marge, y);
-            const xLabel = w / 2 - lcarte / 2 + marge + zoneEmoji +
+            const xLabel = w / 2 - lcarte / 2 + marge + largeEmoji +
                 u(cj.espaceEmojiLabelU);
             this.fins[i].label
                 .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
                 .setPosition(xLabel, y)
                 .setWordWrapWidth(
-                    lcarte - 2 * marge - zoneEmoji - u(cj.espaceEmojiLabelU),
+                    lcarte - 2 * marge - largeEmoji - u(cj.espaceEmojiLabelU),
                     true);
             this._ajusterTexte(this.fins[i].label, hCarte, u);
         }
@@ -237,22 +236,26 @@ class CommentJouerScene extends Phaser.Scene {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
         const espace = u(C.menu.espaceU);
-        const tailleTitre = u(cj.tailleSectionU);
-        titreJokers
-            .setPosition(w / 2, y0 + tailleTitre / 2)
-            .setFontSize(Math.round(tailleTitre) + "px");
+        const tailleTitre = this._placerTitreSection(titreJokers, w, y0, u);
         // Intro sur TOUTE la largeur disponible (wrap configuré — jamais
         // de débordement sur les cartes), puis grille 2×2 dans le reste.
         const lcarte = (w * cj.largeurCartePct) / 100;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiJokerU);
+        const largeEmoji = zoneEmoji * cj.largeurEmojiFacteur;
         const espaceCarte = u(cj.espaceCartesU);
-        const yIntro = y0 + tailleTitre + espaceCarte;
+        // ⭐ FIX SIM-FIX-CJ2 : l'intro est CENTRÉE (origine 0.5) — elle
+        // héritait de l'origine gauche de _texte() et partait donc du
+        // milieu vers la droite, en débordant de l'écran. Sa position est
+        // calculée APRÈS le wrap, avec la hauteur mesurée, pour ne jamais
+        // remonter sur le titre de section.
         introJokers
+            .setOrigin(0.5)
+            .setAlign("center")
             .setFontSize(Math.round(u(cj.tailleIntroU)) + "px")
-            .setPosition(w / 2, yIntro)
-            .setWordWrapWidth(lcarte, true)
-            .setAlign("center");
+            .setWordWrapWidth(lcarte, true);
+        const yIntro = y0 + tailleTitre + espaceCarte + introJokers.height / 2;
+        introJokers.setPosition(w / 2, yIntro);
         // Grille 2×2 : chaque carte = (largeurDispo − espace) / 2 — la
         // paire occupe exactement la largeur des cartes du haut. Centrage
         // CORRIGÉ (SIM-FIX-CJ) : l'ancien x1 = w/2 + espace/2 rapprochait
@@ -266,7 +269,7 @@ class CommentJouerScene extends Phaser.Scene {
         const y0Grille = yIntro + introJokers.height / 2 + espaceCarte;
         const reste = y0 + blocH - y0Grille;
         const hJoker = Math.max(u(cj.hauteurCarteMinU),
-            (reste - espaceCarte) / 2);
+            (reste - 2 * espaceCarte) / 2);
         const y0c = y0Grille + hJoker / 2;
         const y1c = y0c + hJoker + espaceCarte;
         this.jokers.forEach((j, i) => {
@@ -278,9 +281,9 @@ class CommentJouerScene extends Phaser.Scene {
             j.emoji
                 .setFontSize(Math.round(zoneEmoji) + "px")
                 .setPosition(x - lJoker / 2 + marge, y);
-            const xTexte = x - lJoker / 2 + marge + zoneEmoji +
+            const xTexte = x - lJoker / 2 + marge + largeEmoji +
                 u(cj.espaceEmojiLabelU);
-            const wrapTexte = lJoker - 2 * marge - zoneEmoji -
+            const wrapTexte = lJoker - 2 * marge - largeEmoji -
                 u(cj.espaceEmojiLabelU);
             j.nom
                 .setFontSize(Math.round(u(cj.tailleNomJokerU)) + "px")
@@ -290,8 +293,23 @@ class CommentJouerScene extends Phaser.Scene {
                 .setFontSize(Math.round(u(cj.tailleEffetJokerU)) + "px")
                 .setPosition(xTexte, y + hJoker * 0.18)
                 .setWordWrapWidth(wrapTexte, true);
-            this._ajusterTexte(j.effet, hJoker * 0.5, u);
+            this._ajusterTexte(j.nom, hJoker * 0.44, u);
+            this._ajusterTexte(j.effet, hJoker * 0.44, u);
         });
+    }
+
+    /**
+     * Place un titre de section en haut de son bloc et renvoie la hauteur
+     * RÉELLEMENT occupée (police + interligne). L'ancien code réservait la
+     * seule taille de police : le texte, plus haut que ça, mordait sur la
+     * carte du dessus (SIM-FIX-CJ2, GATE John 09/08).
+     */
+    _placerTitreSection(titre, w, y0, u) {
+        const cj = window.SimilitudeConfig.commentJouer;
+        titre.setFontSize(Math.round(u(cj.tailleSectionU)) + "px");
+        const hauteur = titre.height;
+        titre.setPosition(w / 2, y0 + hauteur / 2);
+        return hauteur;
     }
 
     /**
