@@ -108,7 +108,8 @@ class GameScene extends Phaser.Scene {
             for (let c = 0; c < C.grilleTaille; c++) {
                 const fond = this.add
                     .rectangle(0, 0, 0, 0, coulCase, 1)
-                    .setStrokeStyle(1, coulBord);
+                    .setStrokeStyle(1, coulBord)
+                    .setDepth(C.profondeurs.fondsCase);
                 this.fonds[l][c] = fond;
                 this.sprites[l][c] = this._creerSprite(l, c);
             }
@@ -117,9 +118,14 @@ class GameScene extends Phaser.Scene {
         // --- HUD Phaser (spec §8) ----------------------------------------
         // Score (gauche), ⏱ chrono (centre), ⚡ énergie (droite) — textes
         // Arcade.UI, tailles en % du plus petit côté, PAS d'overlay DOM.
-        this.hudScore = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
-        this.hudChrono = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
-        this.hudEnergie = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair);
+        // Couche HUD (SIM-FIX-DEPTH) : au-dessus de la grille en toutes
+        // circonstances — y compris les items apparus en cours de partie.
+        this.hudScore = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
+            .setDepth(C.profondeurs.hud);
+        this.hudChrono = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
+            .setDepth(C.profondeurs.hud);
+        this.hudEnergie = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
+            .setDepth(C.profondeurs.hud);
         this._majHUD();   // valeurs de départ : 0 pt, 120 s, 25 ⚡ (spec §4)
 
         // Chrono : 1 décompte par seconde (spec §4 — 120 s, non plafonné).
@@ -147,8 +153,12 @@ class GameScene extends Phaser.Scene {
         const type = this.grille.get(l, c);
         if (type === null) return null;
         // C.items[type] : la texture correspond à l'ordre des types (0..5)
-        // défini dans config.js.
-        return this.add.image(0, 0, C.items[type].cle);
+        // défini dans config.js. La profondeur est posée ICI (pas seulement
+        // dans create()) : tout sprite créé après coup (spawn, déplacement,
+        // mélange) repart sur sa couche, sinon le bug de l'ordre d'affichage
+        // reviendrait (SIM-FIX-DEPTH, art. 704).
+        return this.add.image(0, 0, C.items[type].cle)
+            .setDepth(C.profondeurs.items);
     }
 
     /** Recentre / redimensionne la grille (rotation, plein écran, desktop). */
@@ -306,6 +316,10 @@ class GameScene extends Phaser.Scene {
             : 1;
         const cote = this.tailleCase * (C.tailleItemPct / 100) * facteur;
         spr.setDisplaySize(cote, cote);
+        // SIM-FIX-DEPTH : l'item sélectionné (agrandi) monte à 2 tant qu'il
+        // est sélectionné, et redescend à 1 à la désélection — sinon il est
+        // rogné par les fonds des cases créées après lui.
+        spr.setDepth(estSelectionne ? C.profondeurs.itemSelectionne : C.profondeurs.items);
         if (estSelectionne) spr.setTint(this._hex(C.couleurs.surbrillance));
         else spr.clearTint();
     }
@@ -397,6 +411,7 @@ class GameScene extends Phaser.Scene {
         this.sprites[l][c] = spr;          // le sprite suit l'item dans la grille
         this.sprites[sel.l][sel.c] = null;
         spr.clearTint();                   // la sélection est consommée par le déplacement
+        spr.setDepth(C.profondeurs.items); // … et l'item redescend de la couche 2 (SIM-FIX-DEPTH)
 
         const cx = this.x0 + c * this.tailleCase + this.tailleCase / 2;
         const cy = this.y0 + l * this.tailleCase + this.tailleCase / 2;
@@ -516,7 +531,8 @@ class GameScene extends Phaser.Scene {
                 color: C.couleurs.texteClair,
                 stroke: C.couleurs.texteContour,
                 strokeThickness: Math.max(1, Math.round(tailleTexte * 0.12))
-            }).setOrigin(0.5);
+            }).setOrigin(0.5)
+              .setDepth(C.profondeurs.textesFlottants);
 
             this.tweens.add({
                 targets: txt,
@@ -538,7 +554,8 @@ class GameScene extends Phaser.Scene {
                 color: C.couleurs.combo,
                 stroke: C.couleurs.texteContour,
                 strokeThickness: Math.max(1, Math.round(tailleTexte * 0.2))
-            }).setOrigin(0.5);
+            }).setOrigin(0.5)
+              .setDepth(C.profondeurs.textesFlottants);
 
             this.tweens.add({
                 targets: txt,
@@ -571,17 +588,23 @@ class GameScene extends Phaser.Scene {
 
         C.jokers.forEach((j) => {
             const fond = this.add.rectangle(0, 0, 0, 0, this._hex(C.couleurs.caseFond), 1)
-                .setStrokeStyle(1, this._hex(C.couleurs.caseBordure));
+                .setStrokeStyle(1, this._hex(C.couleurs.caseBordure))
+                .setDepth(C.profondeurs.hud);
             const emoji = this.add.text(0, 0, j.emoji, {
                 fontFamily: "system-ui, sans-serif",
                 fontSize: "0px"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5)
+              .setDepth(C.profondeurs.hud);
             const quantite = this.add.text(0, 0, "0", {
                 fontFamily: "system-ui, sans-serif",
                 fontSize: "0px",
                 color: C.couleurs.texteClair
-            }).setOrigin(0.5);
-            const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true });
+            }).setOrigin(0.5)
+              .setDepth(C.profondeurs.hud);
+            // Couche HUD pour la zone aussi : la barre capte les clics AVANT
+            // la grille (les objets les plus hauts sont testés en premier).
+            const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true })
+                .setDepth(C.profondeurs.hud);
             zone.on("pointerdown", (pointeur, localX, localY, event) => {
                 event.stopPropagation();   // le clic ne doit pas atteindre la grille
                 this._clicJoker(j.cle);
@@ -684,7 +707,8 @@ class GameScene extends Phaser.Scene {
             color: C.couleurs.combo,
             stroke: C.couleurs.texteContour,
             strokeThickness: Math.max(1, Math.round(taille * 0.12))
-        }).setOrigin(0.5);
+        }).setOrigin(0.5)
+          .setDepth(C.profondeurs.textesFlottants);
 
         this.tweens.add({
             targets: txt,
@@ -708,7 +732,8 @@ class GameScene extends Phaser.Scene {
             color: couleur,
             stroke: C.couleurs.texteContour,
             strokeThickness: Math.max(1, Math.round(taille * 0.12))
-        }).setOrigin(0.5);
+        }).setOrigin(0.5)
+          .setDepth(C.profondeurs.textesFlottants);
 
         this.tweens.add({
             targets: txt,

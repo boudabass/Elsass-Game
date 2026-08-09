@@ -133,6 +133,22 @@ window.SimilitudeConfig = {
                               // plus petit côté
     dureeTexteGainMs: 700,    // durée de vie du texte flottant des gains
 
+    // --- Couches de profondeur (SIM-FIX-DEPTH, art. 704) -------------------
+    // Phaser dessine dans l'ordre de création : sans setDepth, le fond d'une
+    // case créée après un item le recouvre (item sélectionné rogné par ses
+    // voisins, items apparus en cours de partie par-dessus le HUD). Couches
+    // explicites posées sur TOUS les objets de GameScene, lues ici — rien en
+    // dur dans le code (spec §10). La profondeur des items est posée dans
+    // _creerSprite pour que tout sprite créé après coup (spawn, déplacement,
+    // mélange) reparte sur sa couche.
+    profondeurs: {
+        fondsCase: 0,          // rectangles des 81 cases
+        items: 1,              // sprites des items (posée dans _creerSprite)
+        itemSelectionne: 2,    // item agrandi, tant qu'il est sélectionné
+        hud: 10,               // HUD (score / ⏱ / ⚡) et barre de jokers
+        textesFlottants: 20    // +pts, +s, +⚡, « Combo ×2 ! », « +1 joker »
+    },
+
     // --- HUD (spec §8) -----------------------------------------------------
     // Tout le HUD est en Phaser via Arcade.UI, tailles en % du plus petit
     // côté (u) — jamais d'overlay DOM, jamais de pixels. États d'alerte
