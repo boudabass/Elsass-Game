@@ -38,12 +38,30 @@
             });
         },
 
-        // Session unique (spec §2) : AUCUNE sauvegarde de partie — core/save.js
-        // n'est volontairement pas câblé. Seul le score final part au serveur
-        // via Arcade.Score.submit() (SIM-3).
+        // Profil persistant (spec 728 §2, §8) : SEUL le profil (pièces +
+        // inventaire) se sauvegarde — jamais le déroulé d'une partie (ni
+        // grille, ni score en cours, ni chrono). core/save.js est câblé à
+        // partir de cette étape : deux copies (locale + cloud), la plus
+        // RÉCENTE gagne, apply() assainit (entiers ≥ 0, joker inconnu
+        // ignoré). PAS d'autosave : la save n'est écrite qu'aux moments
+        // explicites (fin de partie, achat, utilisation d'un joker).
         create: async function () {
-            // Rien à initialiser en SIM-1 : la grille se construit dans
-            // GameScene, le meilleur score se lit dans MenuScene.
+            // L'état du profil vit ici (objet mutable) ; les scènes le
+            // lisent via window.SimilitudeProfil.profil (menu : porte-
+            // monnaie ; fin de partie : gain + écriture de la save).
+            const etat = { profil: Profil.creer(C) };
+            window.SimilitudeProfil = etat;
+
+            Arcade.Save.configure({
+                key: C.key,
+                version: 1,
+                gather: () => etat.profil,
+                apply: (data) => { etat.profil = Profil.assainir(data, C); }
+            });
+
+            // Charge local + cloud avant d'afficher le menu (la copie la
+            // plus récente gagne, contrat spec 728 §8).
+            await Arcade.Save.load();
         }
     });
 })();

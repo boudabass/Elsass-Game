@@ -35,6 +35,12 @@ window.SimilitudeConfig = {
         finEnergie: "Plus d'énergie",
         finGrillePleine: "Grille pleine",
 
+        // Profil persistant (spec 728 §4, §8) — affichés par OverScene
+        // (gain de fin de partie) et MenuScene (porte-monnaie).
+        gainPieces: "+{pieces} 🪙",      // gain total, écran de fin
+        gainPrime: "dont {pieces} 🪙 de prime record !",  // détail prime
+        porteMonnaie: "🪙 {pieces}",     // porte-monnaie, HUD du menu
+
         // Libellés des icônes persistantes Quitter / Plein écran (lus par
         // Arcade.UI.iconesPlateforme via les options de boot — main.js).
         retour: "Retour",
@@ -100,6 +106,25 @@ window.SimilitudeConfig = {
         { cle: "chope",      chemin: "assets/items/chope.png" },
         { cle: "choucroute", chemin: "assets/items/choucroute.png" },
         { cle: "geranium",   chemin: "assets/items/geranium.png" }
+    ],
+
+    // --- Profil persistant / économie (spec 728 §4, §8) ---------------------
+    // Monnaie propre à Similitude (pas de porte-monnaie commun à l'arcade).
+    // Aucun achat en argent réel, aucune pub, jamais (spec 728 §4).
+    economie: {
+        pointsParPiece: 100,      // 1 pièce par tranche de 100 points
+                                  // (arrondi à l'inférieur, spec §4)
+        primeRecordPieces: 10     // prime quand la partie bat le record
+    },
+
+    // Les 4 jokers (spec 728 §3) : la CLÉ est la clé d'inventaire de la
+    // save (contrat §8). L'ordre n'a pas d'importance. Les effets arrivent
+    // en SIM-6.
+    jokers: [
+        { cle: "marteau", nom: "Marteau" },
+        { cle: "melange", nom: "Mélange" },
+        { cle: "sablier", nom: "Sablier" },
+        { cle: "foudre", nom: "Foudre" }
     ],
 
     // --- Couleurs -----------------------------------------------------------

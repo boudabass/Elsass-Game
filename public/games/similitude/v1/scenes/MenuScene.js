@@ -26,6 +26,11 @@ class MenuScene extends Phaser.Scene {
         const regle = UI.text(this, 0, 0, C.textes.regle, 4, C.couleurs.texteClair);
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texteClair);
 
+        // Porte-monnaie (spec 728 §4, §7) : le profil est chargé par
+        // main.js AVANT l'affichage du menu (Arcade.Save.load dans le
+        // create du boot) — la valeur est donc toujours à jour ici.
+        const porteMonnaie = UI.text(this, 0, 0, "", 5, C.couleurs.combo);
+
         // Composant bouton réutilisable (core/ui/button.js) — variante TEXTE
         // SIMPLE, VERT comme Jouer / Commencer (décision John 08/08).
         const jouer = Arcade.UI.bouton(this, {
@@ -37,6 +42,8 @@ class MenuScene extends Phaser.Scene {
 
         // Mise en page recalculée à chaque rotation de l'écran
         UI.layout(this, (w, h) => {
+            porteMonnaie.setPosition(w / 2, h * 0.07)
+                        .setFontSize(Math.round(UI.u(this, 5)) + "px");
             titre.setPosition(w / 2, h * 0.16)
                  .setFontSize(Math.round(UI.u(this, 11)) + "px");
             regle.setPosition(w / 2, h * 0.36)
@@ -51,5 +58,9 @@ class MenuScene extends Phaser.Scene {
         // Meilleur score : local d'abord, puis confirmation par le serveur
         await Arcade.Score.load();
         record.setText(C.textes.meilleurScore.replace("{score}", Arcade.Score.best));
+
+        // Porte-monnaie : profil persistant chargé au boot (spec 728 §4).
+        const profil = window.SimilitudeProfil && window.SimilitudeProfil.profil;
+        porteMonnaie.setText(C.textes.porteMonnaie.replace("{pieces}", profil ? profil.wallet : 0));
     }
 }

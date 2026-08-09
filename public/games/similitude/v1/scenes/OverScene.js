@@ -35,6 +35,12 @@ class OverScene extends Phaser.Scene {
         const titre = UI.text(this, 0, 0, C.textes.partieTerminee, 9, C.couleurs.texteClair);
         const motif = UI.text(this, 0, 0, C.textes[this.motifCle], 6, C.couleurs.combo);
         const score = UI.text(this, 0, 0, C.textes.scoreFinal.replace("{score}", this.scoreFinal), 6, C.couleurs.texteClair);
+        // Gain de fin de partie (spec 728 §4) : 1 pièce par tranche de
+        // 100 points + 10 pièces de prime si la partie bat le record —
+        // rempli après Arcade.Score.submit, c'est le moment où le joueur
+        // comprend l'économie.
+        const gain = UI.text(this, 0, 0, "", 6, C.couleurs.combo);
+        const prime = UI.text(this, 0, 0, "", 4, C.couleurs.texteClair);
         // « Nouveau record ! » — rempli après Arcade.Score.submit (spec §6).
         const record = UI.text(this, 0, 0, "", 5, C.couleurs.combo);
 
@@ -53,11 +59,13 @@ class OverScene extends Phaser.Scene {
 
         UI.layout(this, (w, h) => {
             titre.setPosition(w / 2, h * 0.14).setFontSize(Math.round(UI.u(this, 9)) + "px");
-            motif.setPosition(w / 2, h * 0.30).setFontSize(Math.round(UI.u(this, 6)) + "px");
-            score.setPosition(w / 2, h * 0.44).setFontSize(Math.round(UI.u(this, 6)) + "px");
-            record.setPosition(w / 2, h * 0.56).setFontSize(Math.round(UI.u(this, 5)) + "px");
-            rejouer.redimensionner(UI.u(this, 40), UI.u(this, 12)).setPosition(w / 2, h * 0.70);
-            menu.redimensionner(UI.u(this, 40), UI.u(this, 10)).setPosition(w / 2, h * 0.84);
+            motif.setPosition(w / 2, h * 0.28).setFontSize(Math.round(UI.u(this, 6)) + "px");
+            score.setPosition(w / 2, h * 0.40).setFontSize(Math.round(UI.u(this, 6)) + "px");
+            gain.setPosition(w / 2, h * 0.50).setFontSize(Math.round(UI.u(this, 6)) + "px");
+            prime.setPosition(w / 2, h * 0.56).setFontSize(Math.round(UI.u(this, 4)) + "px");
+            record.setPosition(w / 2, h * 0.63).setFontSize(Math.round(UI.u(this, 5)) + "px");
+            rejouer.redimensionner(UI.u(this, 40), UI.u(this, 12)).setPosition(w / 2, h * 0.74);
+            menu.redimensionner(UI.u(this, 40), UI.u(this, 10)).setPosition(w / 2, h * 0.86);
         });
 
         // Le score final part au serveur (spec §2, §6). submit() renvoie
@@ -65,5 +73,26 @@ class OverScene extends Phaser.Scene {
         // meilleur score fait sur un autre appareil a priorité).
         const estRecord = await Arcade.Score.submit(this.scoreFinal);
         if (estRecord) record.setText(C.textes.nouveauRecord);
+
+        // Économie (spec 728 §4) : gain = 1 pièce par tranche de
+        // pointsParPiece points (arrondi à l'inférieur) + primeRecordPieces
+        // de prime si la partie bat le record personnel. Affiché sur
+        // l'écran de fin, appliqué au profil persistant, puis save écrite
+        // IMMÉDIATEMENT (local + cloud) : fin de partie = moment explicite
+        // (spec 728 §2 — jamais d'autosave en cours de partie).
+        const resGain = Profil.calculerGain(this.scoreFinal, estRecord, C);
+        if (resGain.total > 0) {
+            gain.setText(C.textes.gainPieces.replace("{pieces}", resGain.total));
+            if (resGain.prime > 0) {
+                prime.setText(C.textes.gainPrime.replace("{pieces}", resGain.prime));
+            }
+        }
+
+        const etat = window.SimilitudeProfil;
+        if (etat && etat.profil) {
+            Profil.appliquerGain(etat.profil, resGain);
+            Arcade.Save.saveLocal();
+            Arcade.Save.saveCloud();
+        }
     }
 }
