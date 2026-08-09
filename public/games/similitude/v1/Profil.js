@@ -106,10 +106,49 @@
         profil.wallet = entierPositif(profil.wallet) + montant;
     }
 
+    /**
+     * Achat d'un joker en boutique (spec 728 §5 — SIM-8).
+     *
+     * LOGIQUE PURE : ne fait que vérifier et muter le profil — l'écriture
+     * de la save (local + cloud) appartient à la scène (action explicite
+     * du joueur, spec 728 §2/§5). Rachetable à l'infini : aucun plafond.
+     *
+     * JAMAIS d'achat qui échoue en silence : le retour indique la raison.
+     *
+     * @param {object} profil  profil courant (wallet + inventaire)
+     * @param {string} cle     clé du joker (marteau | melange | sablier |
+     *                         foudre — config.jokers)
+     * @param {object} cfg     config du jeu (C.boutique.prix)
+     * @returns {{ok:boolean, raison?:string}}
+     *   {ok:true}                      achat effectué (wallet déduit,
+     *                                  inventaire incrémenté)
+     *   {ok:false, raison:"inconnu"}   joker inconnu / pas de prix
+     *   {ok:false, raison:"pas_assez"} pièces insuffisantes (rien ne bouge)
+     */
+    function acheter(profil, cle, cfg) {
+        if (!profil || typeof profil !== "object") {
+            return { ok: false, raison: "inconnu" };
+        }
+        var prixTable = (cfg && cfg.boutique && cfg.boutique.prix) || {};
+        var connu = (cfg && cfg.jokers || []).some(function (j) {
+            return j.cle === cle;
+        });
+        var prix = entierPositif(prixTable[cle]);
+        if (!connu || prix <= 0) return { ok: false, raison: "inconnu" };
+
+        var wallet = entierPositif(profil.wallet);
+        if (wallet < prix) return { ok: false, raison: "pas_assez" };
+
+        profil.wallet = wallet - prix;
+        profil.inventaire[cle] = entierPositif(profil.inventaire[cle]) + 1;
+        return { ok: true };
+    }
+
     return {
         creer: creer,
         assainir: assainir,
         calculerGain: calculerGain,
-        appliquerGain: appliquerGain
+        appliquerGain: appliquerGain,
+        acheter: acheter
     };
 });

@@ -10,7 +10,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.fond,
-        scenes: [MenuScene, GameScene, OverScene, SettingsScene, ClassementScene, CommentJouerScene],
+        scenes: [MenuScene, GameScene, OverScene, SettingsScene, ClassementScene, CommentJouerScene, ShopScene, InventaireScene],
         firstScene: MenuScene.KEY,
 
         // Règle de l'arcade : rendu net pour les sprites 16×16 agrandis

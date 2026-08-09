@@ -349,11 +349,11 @@ class MenuScene extends Phaser.Scene {
     }
 
     /**
-     * Ouvre un écran secondaire depuis la grille 2×2. Boutique et
-     * Inventaire arrivent en SIM-8 (leurs scènes ne sont pas encore
-     * enregistrées dans main.js) : le clic affiche « Bientôt disponible ! »
-     * au lieu de planter — jamais de placeholder (spec 728 §9 : une carte
-     * dev à la fois).
+     * Ouvre un écran secondaire depuis la grille 2×2. Les 4 écrans sont
+     * enregistrés dans main.js (Boutique/Inventaire = SIM-8 : ShopScene /
+     * InventaireScene ; Classement / Comment jouer = SIM-7). Le garde-fou
+     * scene.get() affiche « Bientôt disponible ! » si une clé n'est pas
+     * encore enregistrée — jamais de placeholder qui plante.
      */
     ouvrirSecondaire(cle) {
         const C = window.SimilitudeConfig;

@@ -22,8 +22,9 @@ window.SimilitudeConfig = {
         classement: "Classement",
         commentJouer: "Comment jouer",
         reglages: "Réglages",
-        // Les écrans Boutique / Inventaire arrivent en SIM-8 : tant qu'ils
-        // ne sont pas enregistrés, le clic affiche ce message discret.
+        // Boutique et Inventaire sont ouverts par la grille 2×2 (SIM-8 :
+        // ShopScene / InventaireScene). Le libellé ci-dessous reste un
+        // garde-fou pour toute clé de scène non encore enregistrée.
         bientot: "Bientôt disponible !",
 
         // Écran Réglages (spec 728 §7 — son on/off uniquement).
@@ -93,7 +94,18 @@ window.SimilitudeConfig = {
         // Libellés des icônes persistantes Quitter / Plein écran (lus par
         // Arcade.UI.iconesPlateforme via les options de boot — main.js).
         retour: "Retour",
-        pleinEcran: "Plein écran"
+        pleinEcran: "Plein écran",
+
+        // Écrans Boutique / Inventaire (spec 728 §5, §6 — SIM-8).
+        // {prix} et {n} sont des emplacements : la valeur est insérée au
+        // moment de l'affichage (voir ShopScene / InventaireScene).
+        acheter: "Acheter",
+        pasAssezPieces: "Pas assez de pièces",
+        prixJoker: "{prix} 🪙",       // prix d'un joker en boutique
+        possede: "Possédé : {n}",     // quantité déjà possédée (boutique)
+        achete: "Acheté !",           // feedback après un achat réussi
+        quantite: "× {n}",            // quantité possédée (inventaire)
+        renvoiBoutique: "🛒 Achète-le en Boutique"   // renvoi inventaire → boutique (spec 728 §6)
     },
 
     // --- Grille (spec §2, §4) ----------------------------------------------
@@ -186,6 +198,19 @@ window.SimilitudeConfig = {
         foudreEnergie: 10,         // ⚡ +10 d'énergie
         seuilJokerAlignement: 5    // un alignement de 5 items ou plus offre
                                    // 1 joker tiré au hasard (spec 728 §3)
+    },
+
+    // --- Boutique (spec 728 §5 — SIM-8) ------------------------------------
+    // Prix d'achat d'un joker à l'unité, en pièces du jeu (data.wallet).
+    // Rachetables à l'infini. Prix de départ — John rééquilibrera après
+    // test (spec 728 §10 : toutes les valeurs chiffrées vivent ici).
+    boutique: {
+        prix: {
+            marteau: 30,    // 🔨 Marteau
+            melange: 40,    // 🌀 Mélange
+            sablier: 60,    // ⏳ Sablier
+            foudre: 60      // ⚡ Foudre
+        }
     },
 
     // --- Barre de jokers (spec 728 §3) -------------------------------------
