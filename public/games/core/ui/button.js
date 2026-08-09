@@ -384,7 +384,10 @@
             },
             // Dimensions courantes (pour le positionnement).
             largeur: function () { return largeur; },
-            hauteur: function () { return hauteur; }
+            hauteur: function () { return hauteur; },
+            // Objet texte du libellé (pour les boutons bascule — ex.
+            // SettingsScene son on/off : btn.label.setText(...)).
+            label: txt
         };
         bouton.setPosition(x, y);
 

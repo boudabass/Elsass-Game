@@ -10,7 +10,7 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.fond,
-        scenes: [MenuScene, GameScene, OverScene],
+        scenes: [MenuScene, GameScene, OverScene, SettingsScene, ClassementScene, CommentJouerScene],
         firstScene: MenuScene.KEY,
 
         // Règle de l'arcade : rendu net pour les sprites 16×16 agrandis
@@ -19,14 +19,17 @@
 
         // Contrat de plateforme (chantier B, art. 704) : les boutons
         // persistants Quitter (haut-gauche) / Plein écran (haut-droite)
-        // reprennent le style du bouton Réglages. Les textes vivent dans
-        // config.js, la couleur de fond vient de la config — le socle
-        // (core/ui.js, Arcade.UI.iconesPlateforme) fait le reste.
+        // reprennent le style du bouton Réglages (spec 728 §7 : police
+        // Azimut + ombre portée — mêmes réglages que Waggis). Les textes
+        // vivent dans config.js, le style vient aussi de la config — le
+        // socle (core/ui.js, Arcade.UI.iconesPlateforme) fait le reste.
         iconesPlateforme: {
             retour: C.textes.retour,
             pleinEcran: C.textes.pleinEcran,
             style: {
-                couleur: C.couleurs.bouton
+                couleur: C.couleurs.bouton,
+                ombre: C.couleurs.ombreBouton,
+                police: C.police.famille
             }
         },
 
@@ -45,7 +48,7 @@
         // RÉCENTE gagne, apply() assainit (entiers ≥ 0, joker inconnu
         // ignoré). PAS d'autosave : la save n'est écrite qu'aux moments
         // explicites (fin de partie, achat, utilisation d'un joker).
-        create: async function () {
+        create: async function (scene) {
             // L'état du profil vit ici (objet mutable) ; les scènes le
             // lisent via window.SimilitudeProfil.profil (menu : porte-
             // monnaie ; fin de partie : gain + écriture de la save).
@@ -62,6 +65,12 @@
             // Charge local + cloud avant d'afficher le menu (la copie la
             // plus récente gagne, contrat spec 728 §8).
             await Arcade.Save.load();
+
+            // SIM-7 (spec 728 §7 — Réglages) : la préférence son (on/off,
+            // stockée LOCALEMENT — soundPref.js) est appliquée au
+            // SoundManager global dès le boot : un son coupé le reste au
+            // lancement du jeu, avant même d'ouvrir Réglages.
+            SimilitudeSound.appliquer(scene);
         }
     });
 })();
