@@ -143,10 +143,17 @@ class GameScene extends Phaser.Scene {
         //     child.displayList = container, et willRender consulte
         //     displayList.willRender) ;
         //   - le monde (couches, joueur, emojis) est exclu de la camUI.
+        // ⭐ FIX 4e QA : la camUI est recalée à CHAQUE layout. En
+        // Scale.RESIZE (boot.js) la taille du canvas évolue (desktop /
+        // mobile / rotation) ; le CameraManager.onResize ne redimensionne
+        // une caméra ajoutée via cameras.add QUE s'il la trouve avec
+        // exactement l'ancienne taille du scale (0×0 au premier frame,
+        // jamais rattrapé) → viewport camUI décalé ou vide → HUD invisible.
         this.camUI = this.cameras.add(0, 0, this.scale.width, this.scale.height);
         this.hud = this.add.container(0, 0);
         this.hud.cameraFilter = this.cameras.main.id;
         this.camUI.ignore([this.coucheSol, this.coucheObstacles, this.coucheDecors, this.joueur]);
+        Arcade.UI.layout(this, (w, h) => this.camUI.setViewport(0, 0, w, h));
 
         // --- Sols : rendu initial (tuile labourée + emojis de pousse) -----
         this._emojis = {};
@@ -203,8 +210,20 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        const tx = Math.floor(pointeur.worldX / this.map.tileWidth);
-        const ty = Math.floor(pointeur.worldY / this.map.tileHeight);
+        // ⭐ FIX 4e QA : coordonnées MONDE explicites. Avec la caméra UI
+        // dédiée, pointeur.worldX/worldY ne sont PAS fiables : le
+        // hit-testing (InputPlugin.hitTestPointer) itère les caméras sous
+        // le pointeur dans l'ordre [camUI, main] (getCamerasBelowPointer
+        // inverse la liste via unshift) et écrase worldX/worldY à CHAQUE
+        // caméra testée — coordonnées ÉCRAN si le clic tombe sur un objet
+        // HUD (camUI : scroll 0, zoom 1), MONDE sinon. Interprétées comme
+        // monde, des coordonnées écran donnent des tuiles hors map
+        // (ty=27 > 18 sur ferme) → « rien ne se déclenche ». On transforme
+        // donc toujours la position écran du pointeur avec la caméra du
+        // monde : déterministe quel que soit l'ordre des caméras.
+        const pt = this.cameras.main.getWorldPoint(pointeur.x, pointeur.y);
+        const tx = Math.floor(pt.x / this.map.tileWidth);
+        const ty = Math.floor(pt.y / this.map.tileHeight);
         if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return;
         const cible = { x: tx, y: ty };
 
