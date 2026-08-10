@@ -100,7 +100,9 @@ class GameScene extends Phaser.Scene {
         this.coucheDecors = coucheDecors;
 
         // --- Joueur (graphisme simple : emoji — pas d'asset en Bloc A) -----
-        const tuile = this.map.tilewidth;
+        // API Phaser 4.2.1 : Tilemap expose tileWidth/tileHeight (camelCase) —
+        // map.tilewidth (minuscule) est undefined → NaN partout (fix 2e QA).
+        const tuile = this.map.tileWidth;
         const p = this.apparition || this.zone.apparition || { x: 1, y: 1 };
         // API Phaser 4.2.1 : Tilemap.tileToWorldXY(tileX, tileY, point,
         // camera, layer) — le dernier argument est la COUCHE (nom, index ou
@@ -156,8 +158,8 @@ class GameScene extends Phaser.Scene {
     _tileCentre(x, y) {
         const pos = this.coucheSol.tileToWorldXY(x, y, null, null);
         return {
-            x: pos.x + this.map.tilewidth / 2,
-            y: pos.y + this.map.tileheight / 2
+            x: pos.x + this.map.tileWidth / 2,
+            y: pos.y + this.map.tileHeight / 2
         };
     }
 
@@ -182,8 +184,8 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        const tx = Math.floor(pointeur.worldX / this.map.tilewidth);
-        const ty = Math.floor(pointeur.worldY / this.map.tileheight);
+        const tx = Math.floor(pointeur.worldX / this.map.tileWidth);
+        const ty = Math.floor(pointeur.worldY / this.map.tileHeight);
         if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return;
         const cible = { x: tx, y: ty };
 
@@ -299,7 +301,7 @@ class GameScene extends Phaser.Scene {
     _suivreChemin() {
         if (!this.chemin || !this.chemin.length) return;
         const C = this.C;
-        const tuile = this.map.tilewidth;
+        const tuile = this.map.tileWidth;
         const cible = this.chemin[0];
         const pos = this._tileCentre(cible.x, cible.y);
         const dx = pos.x - this.joueur.x;
@@ -650,7 +652,7 @@ class GameScene extends Phaser.Scene {
                 const pos = this._tileCentre(x, y);
                 this._emojis[k] = this.add.text(pos.x, pos.y, emoji, {
                     fontFamily: C.police.famille,
-                    fontSize: Math.round(this.map.tilewidth * 0.85) + "px",
+                    fontSize: Math.round(this.map.tileWidth * 0.85) + "px",
                     align: "center"
                 })
                     .setOrigin(0.5)
