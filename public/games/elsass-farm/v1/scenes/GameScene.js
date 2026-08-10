@@ -63,6 +63,15 @@ class GameScene extends Phaser.Scene {
         }
         this.zoneId = this.zone.id;
         this.load.tilemapTiledJSON("carte", this.zone.tiled);
+
+        // Tilesets partagés de l'arcade (public/games/assets/tilesets/,
+        // consigne 704) : les textures DOIVENT exister dans le
+        // TextureManager avant create() — addTilesetImage référence la
+        // texture par clé = nom du tileset dans la carte Tiled. Même
+        // chemin que l'image référencée dans les .json Tiled.
+        this.load.image("sol_16px", "/games/assets/tilesets/sol_16px.png");
+        this.load.image("batiment_16px", "/games/assets/tilesets/batiment_16px.png");
+        this.load.image("decor_16px", "/games/assets/tilesets/decor_16px.png");
     }
 
     create() {
@@ -82,6 +91,7 @@ class GameScene extends Phaser.Scene {
         // (bloquante), "decors" (rendue au-dessus du joueur).
         const coucheSol = this.map.createLayer("sol", tsListe)
             .setDepth(C.profondeurs.sol);
+        this.coucheSol = coucheSol;
         this.map.createLayer("obstacles", tsListe)
             .setDepth(C.profondeurs.obstacles)
             .setCollisionByProperty({ passable: false });
@@ -92,7 +102,11 @@ class GameScene extends Phaser.Scene {
         // --- Joueur (graphisme simple : emoji — pas d'asset en Bloc A) -----
         const tuile = this.map.tilewidth;
         const p = this.apparition || this.zone.apparition || { x: 1, y: 1 };
-        const posDepart = this.map.tileToWorldXY(p.x, p.y, null, 0.5, 0.5);
+        // API Phaser 4.2.1 : Tilemap.tileToWorldXY(tileX, tileY, point,
+        // camera, layer) — le dernier argument est la COUCHE (nom, index ou
+        // TilemapLayer), pas un décalage de tuile. On passe la couche "sol"
+        // et on centre sur la tuile manuellement (coin + demi-tuile).
+        const posDepart = this._tileCentre(p.x, p.y);
         this.joueur = this.add.text(posDepart.x, posDepart.y, "🧑‍🌾", {
             fontFamily: C.police.famille,
             fontSize: Math.round(tuile * 1.1) + "px",
@@ -129,6 +143,22 @@ class GameScene extends Phaser.Scene {
         this.derniereHeure = null;
         this.nuit = null;
         this._rafraichirHorloge(true);
+    }
+
+    /**
+     * Centre (px) de la tuile (x, y) dans le monde. API Phaser 4.2.1 :
+     * Tilemap.tileToWorldXY(tileX, tileY, point, camera, layer) — la couche
+     * doit être passée explicitement (5e argument ; la méthode de la
+     * TilemapLayer délègue avec elle-même), la caméra par défaut suffit.
+     * Le point retourné est le COIN de la tuile : on centre en ajoutant
+     * une demi-tuile (l'ancien (null, 0.5, 0.5) de Phaser 3 n'existe plus).
+     */
+    _tileCentre(x, y) {
+        const pos = this.coucheSol.tileToWorldXY(x, y, null, null);
+        return {
+            x: pos.x + this.map.tilewidth / 2,
+            y: pos.y + this.map.tileheight / 2
+        };
     }
 
     update(time, delta) {
@@ -271,7 +301,7 @@ class GameScene extends Phaser.Scene {
         const C = this.C;
         const tuile = this.map.tilewidth;
         const cible = this.chemin[0];
-        const pos = this.map.tileToWorldXY(cible.x, cible.y, null, 0.5, 0.5);
+        const pos = this._tileCentre(cible.x, cible.y);
         const dx = pos.x - this.joueur.x;
         const dy = pos.y - this.joueur.y;
         const dist = Math.hypot(dx, dy);
@@ -617,7 +647,7 @@ class GameScene extends Phaser.Scene {
             if (c.etat === "plantee") emoji = "🌱";
             else if (c.etat === "prete") emoji = C.sol.graineTest;
             if (emoji) {
-                const pos = this.map.tileToWorldXY(x, y, null, 0.5, 0.5);
+                const pos = this._tileCentre(x, y);
                 this._emojis[k] = this.add.text(pos.x, pos.y, emoji, {
                     fontFamily: C.police.famille,
                     fontSize: Math.round(this.map.tilewidth * 0.85) + "px",
