@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "assets:atlas": "node scripts/build-atlas.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -65,7 +66,9 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "maxrects-packer": "^2.7.3",
     "postcss": "^8",
+    "sharp": "^0.35.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
