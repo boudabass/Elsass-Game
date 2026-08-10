@@ -92,7 +92,7 @@ class GameScene extends Phaser.Scene {
         const coucheSol = this.map.createLayer("sol", tsListe)
             .setDepth(C.profondeurs.sol);
         this.coucheSol = coucheSol;
-        this.map.createLayer("obstacles", tsListe)
+        this.coucheObstacles = this.map.createLayer("obstacles", tsListe)
             .setDepth(C.profondeurs.obstacles)
             .setCollisionByProperty({ passable: false });
         const coucheDecors = this.map.createLayer("decors", tsListe)
@@ -128,6 +128,25 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
         this.cameras.main.startFollow(this.joueur, true, 0.12, 0.12);
         this.cameras.main.setZoom(C.camera.zoomDefaut);
+
+        // --- Caméra UI dédiée (fix 3e QA — bug John « l'UI bouge avec le
+        // zoom ») ---------------------------------------------------------
+        // Phaser 4.2.1 : scrollFactor(0) ne compense QUE le scroll de la
+        // caméra (translation e/f de la matrice) — la partie linéaire a/d
+        // (le ZOOM) s'applique TOUJOURS, même à scrollFactor 0. Une UI
+        // vraiment fixe à l'écran (indépendante du zoom ET du scroll) exige
+        // donc une CAMÉRA UI DÉDIÉE, rendue par-dessus la caméra du monde :
+        //   - camUI : zoom 1, scroll 0, pas de follow → espace écran ;
+        //   - container HUD : Tous les objets d'interface y vivent ; le
+        //     container est exclu de la caméra du monde via cameraFilter
+        //     (les enfants héritent du filtre : addChildCallback fait
+        //     child.displayList = container, et willRender consulte
+        //     displayList.willRender) ;
+        //   - le monde (couches, joueur, emojis) est exclu de la camUI.
+        this.camUI = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+        this.hud = this.add.container(0, 0);
+        this.hud.cameraFilter = this.cameras.main.id;
+        this.camUI.ignore([this.coucheSol, this.coucheObstacles, this.coucheDecors, this.joueur]);
 
         // --- Sols : rendu initial (tuile labourée + emojis de pousse) -----
         this._emojis = {};
@@ -364,7 +383,11 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
             .setStroke(C.couleurs.contour, 3);
 
-        const boutons = p.choix.map((ch) => Arcade.UI.bouton(this, {
+        // Espace écran (fix 3e QA) : le popup vit dans le container HUD.
+        this.hud.add(fond);
+        this.hud.add(titre);
+
+        const boutons = p.choix.map((ch) => this._creerBoutonHUD({
             label: ch.label,
             couleur: ch.cible ? C.couleurs.boutonJouer : C.couleurs.boutonSecondaire,
             ombre: C.couleurs.ombreBouton,
@@ -417,7 +440,11 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
             .setStroke(C.couleurs.contour, 3);
 
-        const oui = Arcade.UI.bouton(this, {
+        // Espace écran (fix 3e QA) : le popup vit dans le container HUD.
+        this.hud.add(fond);
+        this.hud.add(titre);
+
+        const oui = this._creerBoutonHUD({
             label: C.textes.dormirOui,
             couleur: C.couleurs.boutonJouer,
             ombre: C.couleurs.ombreBouton,
@@ -427,7 +454,7 @@ class GameScene extends Phaser.Scene {
                 this._dormir();
             }
         });
-        const non = Arcade.UI.bouton(this, {
+        const non = this._creerBoutonHUD({
             label: C.textes.dormirNon,
             couleur: C.couleurs.boutonSecondaire,
             ombre: C.couleurs.ombreBouton,
@@ -453,10 +480,12 @@ class GameScene extends Phaser.Scene {
         const C = this.C;
         const E = this.E;
 
-        // Voile de nuit (fondu) — recalculé à la rotation.
+        // Voile de nuit (fondu) — recalculé à la rotation. Espace écran
+        // (fix 3e QA) : vit dans le container HUD.
         if (!this.voile) {
             this.voile = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
                 .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.nuit + 1);
+            this.hud.add(this.voile);
             Arcade.UI.layout(this, (w, h) => this.voile.setSize(w, h));
         }
 
@@ -498,9 +527,12 @@ class GameScene extends Phaser.Scene {
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
+        this.hud.add(this.hudHorloge);
 
         // Barre d'outils (bas, 5 slots — point 3). Le clic sur une icône ne
         // traverse pas vers la grille (stopPropagation du composant).
+        // Les objets créés par le composant sont déplacés dans le container
+        // HUD (espace écran, caméra UI) via l'API objets(cle).
         this.barre = Arcade.UI.barreIcones(this, {
             items: [
                 { cle: "pelle", icone: "⛏️" },
@@ -517,10 +549,20 @@ class GameScene extends Phaser.Scene {
             profondeur: C.profondeurs.hud,
             onClic: (cle) => this._choisirOutil(cle)
         });
+        C.outils.forEach((it) => {
+            const o = this.barre.objets(it.cle);
+            if (!o) return;
+            this.hud.add(o.fond);
+            this.hud.add(o.icone);
+            this.hud.add(o.badge);
+            this.hud.add(o.zone);
+        });
 
         // Boutons zoom +/− (toujours visibles — point 3). marqueurClic :
         // le clic sur un bouton ne déclenche pas le déplacement (_clic).
-        this.zoomPlus = Arcade.UI.bouton(this, {
+        // Créés via le helper HUD : les objets internes du composant sont
+        // déplacés dans le container (espace écran, caméra UI).
+        this.zoomPlus = this._creerBoutonHUD({
             label: "+",
             couleur: C.couleurs.boutonSecondaire,
             ombre: C.couleurs.ombreBouton,
@@ -528,7 +570,7 @@ class GameScene extends Phaser.Scene {
             marqueurClic: true,
             onClick: () => this._zoom(C.zoom.pas)
         });
-        this.zoomMoins = Arcade.UI.bouton(this, {
+        this.zoomMoins = this._creerBoutonHUD({
             label: "−",
             couleur: C.couleurs.boutonSecondaire,
             ombre: C.couleurs.ombreBouton,
@@ -559,6 +601,21 @@ class GameScene extends Phaser.Scene {
             this.zoomMoins.redimensionner(zb, zb)
                 .setPosition(xZoom, h * 0.42 + zb + u(1));
         });
+    }
+
+    /**
+     * Crée un bouton core (Arcade.UI.bouton) puis déplace les objets Phaser
+     * qu'il a ajoutés à la scène dans le container HUD (espace écran, caméra
+     * UI dédiée — fix 3e QA : l'UI doit rester fixe sous zoom/scroll).
+     * Le composant crée ses objets via scene.add.* : on les capture dans le
+     * displayList entre l'avant et l'après de l'appel.
+     */
+    _creerBoutonHUD(options) {
+        const enfants = this.sys.displayList.getChildren();
+        const avant = enfants.length;
+        const bouton = Arcade.UI.bouton(this, options);
+        enfants.slice(avant).forEach((o) => this.hud.add(o));
+        return bouton;
     }
 
     /** Sélection d'un outil (toggle ; le slot libre désarme). */
@@ -600,10 +657,12 @@ class GameScene extends Phaser.Scene {
         );
 
         // Teinte jour/nuit : overlay plein écran coloré par plage horaire.
+        // Espace écran (fix 3e QA) : vit dans le container HUD.
         const teinte = this._teinte(h);
         if (!this.nuit) {
             this.nuit = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
                 .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.nuit);
+            this.hud.add(this.nuit);
             Arcade.UI.layout(this, (w, hh) => this.nuit.setSize(w, hh));
         }
         this.nuit.setFillStyle(
@@ -650,13 +709,16 @@ class GameScene extends Phaser.Scene {
             else if (c.etat === "prete") emoji = C.sol.graineTest;
             if (emoji) {
                 const pos = this._tileCentre(x, y);
-                this._emojis[k] = this.add.text(pos.x, pos.y, emoji, {
+                const texte = this.add.text(pos.x, pos.y, emoji, {
                     fontFamily: C.police.famille,
                     fontSize: Math.round(this.map.tileWidth * 0.85) + "px",
                     align: "center"
                 })
                     .setOrigin(0.5)
                     .setDepth(C.profondeurs.pousse);
+                // Objet du MONDE : pas rendu par la caméra UI (espace écran).
+                this.camUI.ignore(texte);
+                this._emojis[k] = texte;
             }
         }
 
