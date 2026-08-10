@@ -86,9 +86,11 @@ class CharactersScene extends Phaser.Scene {
         this._lignes = [];   // objets { ombre, fond, sprite, nom, etat, zone, cadenas? }
 
         // --- Retour au menu (bouton refondu) --------------------------------
-        const retour = WaggisUI.bouton(this, {
+        const retour = Arcade.UI.bouton(this, {
             label: C.textes.retour,
             couleur: "#141210",
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
         this.retour = retour;
@@ -143,7 +145,11 @@ class CharactersScene extends Phaser.Scene {
         const h = this.scale.height;
         const ligneH = UI.u(this, 12);
         const gap = UI.u(this, 1.4);
-        const listeW = UI.u(this, 76);
+        // Largeur de liste = % de la LARGEUR RÉELLE (jamais u(), qui mesure
+        // le plus petit côté), plafonnée pour ne pas s'étirer à l'infini
+        // sur un écran très large (config.listes).
+        const listeW = Math.min((w * C.listes.largeurPct) / 100,
+            UI.u(this, C.listes.largeurMaxU));
         const total = ids.length * ligneH + (ids.length - 1) * gap;
         let y = h * 0.21 + ligneH / 2;
 

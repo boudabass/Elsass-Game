@@ -83,7 +83,12 @@ class LevelsScene extends Phaser.Scene {
             ? C.levels.niveauMaxRepere
             : 100;
         this.nbNiveaux = Math.max(maxRepere, this.currentLevel);
-        this.parPage = 25;        // grille 5 × 5
+        // Grille de 5 colonnes ; le nombre de LIGNES suit la hauteur
+        // disponible (5 au mieux, 3 au minimum — voir _majLignes). Sur un
+        // mobile en paysage, 5 lignes donnaient des tuiles de 38 px.
+        this.colonnes = 5;
+        this.lignes = C.listes.grilleLignesMax;
+        this.parPage = this.colonnes * this.lignes;
         this.page = 0;
         this._tuiles = [];
 
@@ -115,9 +120,11 @@ class LevelsScene extends Phaser.Scene {
         });
 
         // --- Retour au menu (bouton refondu : ombre + arrondis + dégradé) --
-        const retour = WaggisUI.bouton(this, {
+        const retour = Arcade.UI.bouton(this, {
             label: C.textes.retour,
             couleur: "#141210",
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
 
@@ -161,13 +168,51 @@ class LevelsScene extends Phaser.Scene {
             // recalculée ici, à chaque rotation.
             const hautGrille = h * 0.08 + u(4.5) + espace;
             const basGrille = yPagination - u(4.5) - espace;
+            // ⭐ Nombre de lignes adaptatif : la page se réduit plutôt que
+            // les tuiles. La page courante est réajustée pour garder le
+            // même premier niveau affiché (on ne perd pas sa place en
+            // tournant le téléphone).
+            this._majLignes(basGrille - hautGrille, w, u);
             this._grille = this._calculerGrille(w, h, hautGrille, basGrille);
+            this._majPageInfo();
             this._dessinerGrille();
         });
         this._majPageInfo();
 
         // Transition d'arrivée : fondu depuis le noir (spec 709).
         this.cameras.main.fadeIn(220, 0, 0, 0);
+    }
+
+    /**
+     * Recalcule le nombre de lignes de la grille selon la hauteur
+     * disponible (config.listes) : 5 au mieux, jamais moins de 3, et
+     * jamais de tuile plus petite que tuileMinU. La page courante est
+     * réajustée pour garder le même premier niveau affiché.
+     */
+    _majLignes(hauteurDispo, largeurDispo, u) {
+        const L = this.C.listes;
+        const gap = u(1.5);
+        const avant = this.parPage;
+        const premier = avant * this.page;   // 1er niveau affiché (index 0)
+        // La tuile vaut min(côté tenant en hauteur, côté tenant en
+        // largeur). On retire des lignes tant que c'est la HAUTEUR qui la
+        // maintient sous la cible tactile — et seulement dans ce cas : si
+        // c'est la largeur qui bride (écran étroit), retirer des lignes
+        // n'agrandirait rien et ferait juste perdre des niveaux.
+        const coteW = (largeurDispo - 2 * u(L.margeGrilleU) -
+            (this.colonnes - 1) * gap) / this.colonnes;
+        const cible = Math.min(coteW, L.tuileMinPx);
+        let lignes = L.grilleLignesMax;
+        while (lignes > L.grilleLignesMin &&
+               (hauteurDispo - (lignes - 1) * gap) / lignes < cible) {
+            lignes -= 1;
+        }
+        this.lignes = lignes;
+        this.parPage = this.colonnes * lignes;
+        if (this.parPage !== avant) {
+            this.page = Math.floor(premier / this.parPage);
+            this.page = Math.max(0, Math.min(this.page, this._nbPages() - 1));
+        }
     }
 
     /** Nombre de pages de la grille (au moins 1). */
@@ -207,13 +252,17 @@ class LevelsScene extends Phaser.Scene {
      */
     _calculerGrille(w, h, hautGrille, basGrille) {
         const UI = Arcade.UI;
-        const cols = 5;
-        const lignes = 5;
+        const C = window.WaggisConfig;
+        const cols = this.colonnes;
+        const lignes = this.lignes;
         const gap = UI.u(this, 1.5);
         // Tuile la plus grande qui tient dans la hauteur de la bande…
         const coteH = (basGrille - hautGrille - (lignes - 1) * gap) / lignes;
-        // …et dans la largeur de l'écran.
-        const coteW = (w - (cols - 1) * gap) / cols;
+        // …et dans la largeur de l'écran, MARGES LATÉRALES DÉDUITES : sans
+        // elles, la grille collait exactement aux deux bords de l'écran en
+        // mobile portrait (412 px de grille sur 412 px d'écran).
+        const marge = UI.u(this, C.listes.margeGrilleU);
+        const coteW = (w - 2 * marge - (cols - 1) * gap) / cols;
         const cote = Math.max(1, Math.min(coteH, coteW));
         const grilleW = cols * cote + (cols - 1) * gap;
         const grilleH = lignes * cote + (lignes - 1) * gap;
@@ -247,7 +296,7 @@ class LevelsScene extends Phaser.Scene {
         if (!g) return;
         const cote = g.cote;
         const gap = g.gap;
-        const cols = 5;
+        const cols = this.colonnes;
 
         const debut = this.page * this.parPage;
         const fin = Math.min(debut + this.parPage, this.nbNiveaux);
@@ -357,7 +406,9 @@ class LevelsScene extends Phaser.Scene {
             return;
         } else {
             const s = this.bestScores[String(niveau)];
-            if (typeof s === "number") score.setText("★ " + s);
+            if (typeof s === "number") {
+                score.setText(C.textes.meilleurNiveau.replace("{score}", s));
+            }
         }
 
         zone.on("pointerdown", () => fond.setAlpha(0.75));

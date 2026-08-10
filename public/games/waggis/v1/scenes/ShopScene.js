@@ -81,9 +81,11 @@ class ShopScene extends Phaser.Scene {
         this._articles = [];   // objets { ombre, fond, sprite, nom, prix, action, zone }
 
         // --- Retour au menu (bouton refondu) --------------------------------
-        const retour = WaggisUI.bouton(this, {
+        const retour = Arcade.UI.bouton(this, {
             label: C.textes.retour,
             couleur: "#141210",
+            ombre: C.couleurs.ombreBouton,
+            police: C.police.famille,
             onClick: () => WaggisUI.aller(this, MenuScene.KEY)
         });
         this.retour = retour;
@@ -141,7 +143,11 @@ class ShopScene extends Phaser.Scene {
         const h = this.scale.height;
         const ligneH = UI.u(this, 12);
         const gap = UI.u(this, 1.4);
-        const listeW = UI.u(this, 76);
+        // Largeur de liste = % de la LARGEUR RÉELLE (jamais u(), qui mesure
+        // le plus petit côté), plafonnée pour ne pas s'étirer à l'infini
+        // sur un écran très large (config.listes).
+        const listeW = Math.min((w * C.listes.largeurPct) / 100,
+            UI.u(this, C.listes.largeurMaxU));
         const total = aVendre.length * ligneH + (aVendre.length - 1) * gap;
         let y = h * 0.21 + ligneH / 2;
 
@@ -227,16 +233,20 @@ class ShopScene extends Phaser.Scene {
         // Action : « Acheter » (assez de pièces) / prix grisé « Pas assez
         // de pièces » / « Déjà débloqué » (plus rien à acheter).
         let actionTexte = "";
+        let actionCourt = "";
         let actionCouleur = C.couleurs.bouton;
         let actionnable = false;
         if (debloque) {
             actionTexte = C.textes.dejaDebloque;
+            actionCourt = C.textes.dejaDebloqueCourt;
             actionCouleur = C.couleurs.liseretActif;
         } else if (assez) {
             actionTexte = C.textes.acheter;
+            actionCourt = C.textes.acheter;
             actionnable = true;
         } else {
             actionTexte = C.textes.pasAssezPieces;
+            actionCourt = C.textes.pasAssezPiecesCourt;
             actionCouleur = "#8A8A8A";
         }
         const action = this.add
@@ -248,8 +258,14 @@ class ShopScene extends Phaser.Scene {
             })
             .setOrigin(1, 0.5);
 
-        // Ajustement anti-chevauchement : l'action tient dans la moitié
-        // droite du bloc, le nom dans ce qui reste à gauche.
+        // ⭐ FIX 09/08 : d'ABORD le libellé COURT, ENSUITE seulement la
+        // réduction de police. « Pas assez de pièces » sur un mobile
+        // portrait finissait rétréci à ~11 px ; « Trop cher » tient à
+        // taille normale et se lit. La police ne rétrécit plus qu'en
+        // dernier recours (écran vraiment minuscule).
+        if (action.width > texteW * 0.5 && actionCourt !== actionTexte) {
+            action.setText(actionCourt);
+        }
         let fsAction = 3.4;
         while (action.width > texteW * 0.5 && fsAction > 2.4) {
             fsAction -= 0.2;

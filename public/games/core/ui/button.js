@@ -16,6 +16,10 @@
  *       repliDessin: fn(g, r),  // symbole dessiné si texture absente
  *       // --- Texte + couleurs (ce qui change selon le bouton) --------
  *       label: "Réglages",
+ *       ligneHaut: "30 🪙",     // OPTIONNEL, sans icône : 2e ligne de
+ *                               // texte AU-DESSUS du label (ex. le prix
+ *                               // au-dessus de « Acheter » en boutique)
+ *       couleurLigneHaut: "#F2B93D",
  *       couleur: "#141210",     // fond du bouton — NOIR par défaut
  *       ombre: "rgba(20,18,16,0.28)",
  *       police: "system-ui, …",
@@ -45,6 +49,7 @@
  *   - avec icône : icône EN HAUT (taille 0.45 × hauteur), libellé blanc
  *     EN DESSOUS À L'INTÉRIEUR (taille 0.23 × hauteur) ;
  *   - sans icône (texte simple) : libellé CENTRÉ (taille 0.4 × hauteur) ;
+ *   - sans icône AVEC ligneHaut : 2 lignes centrées (0.30 × hauteur) ;
  *   - feedback au clic : rétricissement 10 % centré (Back.Out), scale
  *     RELATIVE à la base de chaque objet (_baseScale) ;
  *   - zone cliquable = bouton entier ; tailles en % du plus petit côté.
@@ -113,6 +118,24 @@
             return resultat;
         };
     })();
+
+    /**
+     * Réduit la police d'un texte jusqu'à ce qu'il tienne dans la largeur
+     * utile du bouton (90 % — il reste une marge de chaque côté). Descend
+     * au plus jusqu'à 40 % de la taille demandée : en dessous, ce n'est
+     * plus lisible et c'est le bouton qu'il faut élargir, pas le texte
+     * qu'il faut rapetisser.
+     */
+    function tenirDansLaLargeur(texte, largeur) {
+        if (!texte || !largeur) return;
+        var dispo = largeur * 0.9;
+        var fs = parseFloat(texte.style.fontSize);
+        var plancher = Math.max(6, fs * 0.4);
+        while (texte.width > dispo && fs > plancher) {
+            fs -= 1;
+            texte.setFontSize(Math.round(fs) + "px");
+        }
+    }
 
     /**
      * Composant bouton réutilisable (style spec 709 révision 08/08).
@@ -187,6 +210,23 @@
         // Lisible sur ciel clair comme sur fond sombre (optionnel).
         if (o.stroke) {
             txt.setStroke(o.stroke, Math.max(2, Arcade.UI.u(scene, 0.35)));
+        }
+
+        // Ligne HAUTE optionnelle (bouton texte à 2 lignes, ex. le prix
+        // au-dessus du mot « Acheter » dans une boutique). Sans icône :
+        // ligne haute en haut, libellé en dessous. Absente par défaut →
+        // aucun changement pour les boutons existants.
+        var haut = null;
+        if (o.ligneHaut) {
+            haut = scene.add
+                .text(0, 0, o.ligneHaut, {
+                    fontFamily: police,
+                    color: o.couleurLigneHaut || o.textColor || "#ffffff",
+                    align: "center"
+                })
+                .setOrigin(0.5)
+                .setDepth(profondeur + 2)
+                .setScrollFactor(0);
         }
 
         var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
@@ -323,11 +363,27 @@
                 // Libellé BLANC EN DESSOUS, À L'INTÉRIEUR du bouton.
                 txt.setFontSize(Math.round(hauteur * 0.23) + "px");
                 txt.setPosition(x, y + hauteur * 0.28);
+            } else if (haut) {
+                // Bouton TEXTE À 2 LIGNES : ligne haute (ex. le prix)
+                // au-dessus, libellé en dessous — les deux À L'INTÉRIEUR.
+                haut.setFontSize(Math.round(hauteur * 0.30) + "px");
+                haut.setPosition(x, y - hauteur * 0.21);
+                txt.setFontSize(Math.round(hauteur * 0.30) + "px");
+                txt.setPosition(x, y + hauteur * 0.23);
             } else {
                 // Bouton TEXTE SIMPLE : libellé centré.
                 txt.setFontSize(Math.round(hauteur * 0.4) + "px");
                 txt.setPosition(x, y);
             }
+            // ⭐ GARDE-FOU 09/08 (bug vu par John sur la Boutique mobile) :
+            // la police est déduite de la HAUTEUR du bouton. Un bouton plus
+            // haut que large (82 × 119 px) donnait donc un texte de 36 px
+            // large de 138 px pour 82 px disponibles — le libellé sortait
+            // par les côtés. Le composant rétrécit maintenant lui-même son
+            // texte jusqu'à ce qu'il tienne : AUCUN bouton de l'arcade ne
+            // peut plus déborder, quelles que soient ses proportions.
+            tenirDansLaLargeur(txt, largeur);
+            if (haut) tenirDansLaLargeur(haut, largeur);
 
             zone.setPosition(x, y).setSize(largeur, hauteur);
             if (zone.input && zone.input.hitArea) {
@@ -363,6 +419,7 @@
                 ombreG.setAlpha(a);
                 corps.setAlpha(a);
                 if (icone) icone.setAlpha(a);
+                if (haut) haut.setAlpha(a);
                 txt.setAlpha(a);
                 zone.setAlpha(a);
                 return this;
@@ -371,6 +428,7 @@
                 ombreG.setDepth(d);
                 corps.setDepth(d + 1);
                 if (icone) icone.setDepth(d + 2);
+                if (haut) haut.setDepth(d + 2);
                 txt.setDepth(d + 2);
                 zone.setDepth(d + 3);
                 return this;
@@ -379,12 +437,16 @@
                 ombreG.destroy();
                 corps.destroy();
                 if (icone) icone.destroy();
+                if (haut) haut.destroy();
                 txt.destroy();
                 zone.destroy();
             },
             // Dimensions courantes (pour le positionnement).
             largeur: function () { return largeur; },
-            hauteur: function () { return hauteur; }
+            hauteur: function () { return hauteur; },
+            // Objet texte du libellé (pour les boutons bascule — ex.
+            // SettingsScene son on/off : btn.label.setText(...)).
+            label: txt
         };
         bouton.setPosition(x, y);
 
@@ -403,6 +465,7 @@
         zone.on("pointerdown", function () {
             var cibles = [ombreG, corps];
             if (icone) cibles.push(icone);
+            if (haut) cibles.push(haut);
             cibles.push(txt, zone);
             enfoncer(cibles);
             // Marqueur lu par les scènes qui écoutent le pointerup GLOBAL
@@ -413,6 +476,7 @@
         var relacherBouton = function () {
             var cibles = [ombreG, corps];
             if (icone) cibles.push(icone);
+            if (haut) cibles.push(haut);
             cibles.push(txt, zone);
             relacher(cibles);
         };
