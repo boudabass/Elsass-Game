@@ -12,8 +12,8 @@
  *     bornée à la map, zoom de base + boutons zoom +/− (toujours visibles) ;
  *   - grille = la tilemap (worldToTileXY / tileToWorldXY) ; clic/tap →
  *     tuile ciblée ; zone d'action Chebyshev (rayonAction) sinon
- *     déplacement BFS suivi en Arcade Physics (la collision avec la couche
- *     "obstacles" reste la garde-fou) ;
+ *     déplacement BFS suivi en setPosition déterministe (vitesse en
+ *     tuiles/s) — le BFS ne traverse que des tuiles passables ;
  *   - portails data-driven (zones.json) : simple → restart direct, à choix →
  *     popup de confirmation (Arcade.UI.bouton, une option par choix) ;
  *   - machine à états sol (sol.js), rendu par tuile labourée + emoji de
@@ -116,10 +116,12 @@ class GameScene extends Phaser.Scene {
         })
             .setOrigin(0.5)
             .setDepth(C.profondeurs.joueur);
-        this.physics.add.existing(this.joueur);
-        const body = this.joueur.body;
-        body.setSize(tuile * 0.7, tuile * 0.7);
-        this.physics.add.collider(this.joueur, this.map.getLayer("obstacles").tilemapLayer);
+        // ⭐ FIX 5e QA : déplacement DÉTERMINISTE (setPosition le long du
+        // chemin BFS) — plus de corps Arcade sur le joueur. Sur les 4
+        // passes QA, setVelocity sur le body du texte n'a JAMAIS déplacé
+        // le joueur (S2 échec à chaque passe). Le BFS ne traverse que des
+        // tuiles passables → la collision Arcade était redondante ; le
+        // déplacement manuel est indépendant du corps.
 
         this.tuileJoueur = { x: p.x, y: p.y };
         E.position = { zone: this.zoneId, x: p.x, y: p.y };
@@ -137,12 +139,19 @@ class GameScene extends Phaser.Scene {
         // vraiment fixe à l'écran (indépendante du zoom ET du scroll) exige
         // donc une CAMÉRA UI DÉDIÉE, rendue par-dessus la caméra du monde :
         //   - camUI : zoom 1, scroll 0, pas de follow → espace écran ;
-        //   - container HUD : Tous les objets d'interface y vivent ; le
-        //     container est exclu de la caméra du monde via cameraFilter
-        //     (les enfants héritent du filtre : addChildCallback fait
-        //     child.displayList = container, et willRender consulte
-        //     displayList.willRender) ;
+        //   - chaque objet HUD est EXCLU de la caméra du monde via
+        //     cameraFilter = main.id (helper _hud) → il n'est rendu QUE
+        //     par la camUI, et reçoit les clics via la camUI
+        //     (inputCandidate exige willRender) ;
         //   - le monde (couches, joueur, emojis) est exclu de la camUI.
+        // ⭐ FIX 5e QA (CAUSE COMMUNE) : PLUS DE CONTAINER. Dans ce build
+        // Phaser 4.2.1, les enfants d'un Container ont displayList = null
+        // (addHandler → removeFromDisplayList, sans réassignation) →
+        // GameObject.willRender(camera) renvoie false → le rendu du
+        // container IGNORE les enfants ET inputCandidate() les ignore
+        // (il exige willRender) : HUD invisible + boutons zoom/barre
+        // d'outils/popups morts (4 passes QA, fixes 3 et 4 impuissants).
+        // Le filtre s'applique donc OBJET PAR OBJET, jamais via container.
         // ⭐ FIX 4e QA : la camUI est recalée à CHAQUE layout. En
         // Scale.RESIZE (boot.js) la taille du canvas évolue (desktop /
         // mobile / rotation) ; le CameraManager.onResize ne redimensionne
@@ -150,8 +159,6 @@ class GameScene extends Phaser.Scene {
         // exactement l'ancienne taille du scale (0×0 au premier frame,
         // jamais rattrapé) → viewport camUI décalé ou vide → HUD invisible.
         this.camUI = this.cameras.add(0, 0, this.scale.width, this.scale.height);
-        this.hud = this.add.container(0, 0);
-        this.hud.cameraFilter = this.cameras.main.id;
         this.camUI.ignore([this.coucheSol, this.coucheObstacles, this.coucheDecors, this.joueur]);
         Arcade.UI.layout(this, (w, h) => this.camUI.setViewport(0, 0, w, h));
 
@@ -189,12 +196,25 @@ class GameScene extends Phaser.Scene {
         };
     }
 
+    /**
+     * ⭐ FIX 5e QA : place un objet d'interface dans l'espace ÉCRAN (caméra
+     * UI dédiée) en l'excluant de la caméra du monde. cameraFilter = id de
+     * la caméra principale → willRender(main) = false (non rendu par le
+     * monde) et willRender(camUI) = true (rendu + cliquable via la camUI,
+     * zoom 1 / scroll 0 → fixe sous zoom/scroll). Sans container (voir
+     * create() — cause commune HUD + clics).
+     */
+    _hud(obj) {
+        obj.cameraFilter = this.cameras.main.id;
+        return obj;
+    }
+
     update(time, delta) {
         const E = this.E;
         // Compteur unique t, cumulé avec le facteur (1 s réelle = 60 s jeu).
         E.horloge.t += delta * this.C.horloge.facteur;
         this._rafraichirHorloge(false);
-        this._suivreChemin();
+        this._suivreChemin(time, delta);
     }
 
     // ======================================================================
@@ -335,8 +355,12 @@ class GameScene extends Phaser.Scene {
         return null;
     }
 
-    /** Suit le chemin tuile par tuile (velocity Arcade, vitesse en tuiles/s). */
-    _suivreChemin() {
+    /**
+     * Suit le chemin tuile par tuile (fix 5e QA : setPosition DÉTERMINISTE,
+     * vitesse en tuiles/s — indépendant du corps Arcade qui n'a jamais
+     * déplacé le joueur sur les 4 passes QA).
+     */
+    _suivreChemin(time, delta) {
         if (!this.chemin || !this.chemin.length) return;
         const C = this.C;
         const tuile = this.map.tileWidth;
@@ -345,20 +369,19 @@ class GameScene extends Phaser.Scene {
         const dx = pos.x - this.joueur.x;
         const dy = pos.y - this.joueur.y;
         const dist = Math.hypot(dx, dy);
+        const pasMax = C.grille.vitesseTuilesParSeconde * tuile * (delta / 1000);
 
-        if (dist < 2) {
+        if (dist <= Math.max(2, pasMax)) {
             // Tuile atteinte : on passe à la suivante.
-            this.joueur.body.setVelocity(0, 0);
             this.joueur.setPosition(pos.x, pos.y);
             this.chemin.shift();
             this.tuileJoueur = { x: cible.x, y: cible.y };
             this.E.position = { zone: this.zoneId, x: cible.x, y: cible.y };
             if (!this.chemin.length) this._arrive();
         } else {
-            const vitesse = C.grille.vitesseTuilesParSeconde * tuile;
-            this.joueur.body.setVelocity(
-                (dx / dist) * vitesse,
-                (dy / dist) * vitesse
+            this.joueur.setPosition(
+                this.joueur.x + (dx / dist) * pasMax,
+                this.joueur.y + (dy / dist) * pasMax
             );
         }
     }
@@ -402,9 +425,10 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
             .setStroke(C.couleurs.contour, 3);
 
-        // Espace écran (fix 3e QA) : le popup vit dans le container HUD.
-        this.hud.add(fond);
-        this.hud.add(titre);
+        // Espace écran (fix 3e QA) : le popup est rendu par la caméra UI.
+        // Fix 5e QA : filtre par objet (cameraFilter), sans container.
+        this._hud(fond);
+        this._hud(titre);
 
         const boutons = p.choix.map((ch) => this._creerBoutonHUD({
             label: ch.label,
@@ -459,9 +483,10 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
             .setStroke(C.couleurs.contour, 3);
 
-        // Espace écran (fix 3e QA) : le popup vit dans le container HUD.
-        this.hud.add(fond);
-        this.hud.add(titre);
+        // Espace écran (fix 3e QA) : le popup est rendu par la caméra UI.
+        // Fix 5e QA : filtre par objet (cameraFilter), sans container.
+        this._hud(fond);
+        this._hud(titre);
 
         const oui = this._creerBoutonHUD({
             label: C.textes.dormirOui,
@@ -500,11 +525,11 @@ class GameScene extends Phaser.Scene {
         const E = this.E;
 
         // Voile de nuit (fondu) — recalculé à la rotation. Espace écran
-        // (fix 3e QA) : vit dans le container HUD.
+        // (fix 3e QA) : rendu par la caméra UI (fix 5e QA : _hud).
         if (!this.voile) {
             this.voile = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
                 .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.nuit + 1);
-            this.hud.add(this.voile);
+            this._hud(this.voile);
             Arcade.UI.layout(this, (w, h) => this.voile.setSize(w, h));
         }
 
@@ -546,12 +571,12 @@ class GameScene extends Phaser.Scene {
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
-        this.hud.add(this.hudHorloge);
+        this._hud(this.hudHorloge);
 
         // Barre d'outils (bas, 5 slots — point 3). Le clic sur une icône ne
         // traverse pas vers la grille (stopPropagation du composant).
-        // Les objets créés par le composant sont déplacés dans le container
-        // HUD (espace écran, caméra UI) via l'API objets(cle).
+        // Les objets créés par le composant sont passés à la caméra UI
+        // (espace écran) via l'API objets(cle) + _hud.
         this.barre = Arcade.UI.barreIcones(this, {
             items: [
                 { cle: "pelle", icone: "⛏️" },
@@ -571,16 +596,17 @@ class GameScene extends Phaser.Scene {
         C.outils.forEach((it) => {
             const o = this.barre.objets(it.cle);
             if (!o) return;
-            this.hud.add(o.fond);
-            this.hud.add(o.icone);
-            this.hud.add(o.badge);
-            this.hud.add(o.zone);
+            // Espace écran (fix 5e QA) : filtre par objet, sans container.
+            this._hud(o.fond);
+            this._hud(o.icone);
+            this._hud(o.badge);
+            this._hud(o.zone);
         });
 
         // Boutons zoom +/− (toujours visibles — point 3). marqueurClic :
         // le clic sur un bouton ne déclenche pas le déplacement (_clic).
         // Créés via le helper HUD : les objets internes du composant sont
-        // déplacés dans le container (espace écran, caméra UI).
+        // filtrés vers la caméra UI (espace écran) par _hud.
         this.zoomPlus = this._creerBoutonHUD({
             label: "+",
             couleur: C.couleurs.boutonSecondaire,
@@ -623,17 +649,18 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Crée un bouton core (Arcade.UI.bouton) puis déplace les objets Phaser
-     * qu'il a ajoutés à la scène dans le container HUD (espace écran, caméra
-     * UI dédiée — fix 3e QA : l'UI doit rester fixe sous zoom/scroll).
-     * Le composant crée ses objets via scene.add.* : on les capture dans le
-     * displayList entre l'avant et l'après de l'appel.
+     * Crée un bouton core (Arcade.UI.bouton) puis filtre les objets Phaser
+     * qu'il a ajoutés à la scène vers la caméra UI (espace écran — fix 3e
+     * QA : l'UI doit rester fixe sous zoom/scroll ; fix 5e QA : _hud par
+     * objet, sans container). Le composant crée ses objets via scene.add.* :
+     * on les capture dans le displayList entre l'avant et l'après de l'appel.
      */
     _creerBoutonHUD(options) {
         const enfants = this.sys.displayList.getChildren();
         const avant = enfants.length;
         const bouton = Arcade.UI.bouton(this, options);
-        enfants.slice(avant).forEach((o) => this.hud.add(o));
+        // Espace écran (fix 5e QA) : filtre par objet, sans container.
+        enfants.slice(avant).forEach((o) => this._hud(o));
         return bouton;
     }
 
@@ -676,12 +703,12 @@ class GameScene extends Phaser.Scene {
         );
 
         // Teinte jour/nuit : overlay plein écran coloré par plage horaire.
-        // Espace écran (fix 3e QA) : vit dans le container HUD.
+        // Espace écran (fix 3e QA) : rendu par la caméra UI (fix 5e QA : _hud).
         const teinte = this._teinte(h);
         if (!this.nuit) {
             this.nuit = this.add.rectangle(0, 0, 10, 10, 0x000000, 0)
                 .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.nuit);
-            this.hud.add(this.nuit);
+            this._hud(this.nuit);
             Arcade.UI.layout(this, (w, hh) => this.nuit.setSize(w, hh));
         }
         this.nuit.setFillStyle(
