@@ -126,10 +126,37 @@ class GameScene extends Phaser.Scene {
         this.tuileJoueur = { x: p.x, y: p.y };
         E.position = { zone: this.zoneId, x: p.x, y: p.y };
 
-        // --- Caméra : suit le joueur, bornée à la map, zoom de base -------
-        this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
-        this.cameras.main.startFollow(this.joueur, true, 0.12, 0.12);
-        this.cameras.main.setZoom(C.camera.zoomDefaut);
+        // --- Caméra à paliers adaptés à la zone (décision John 11/08) -----
+        // nbPaliers = (plus grande dimension de la zone + 10) ÷ 10, arrondi
+        // au supérieur, borné [1, paliersMax]. Palier i = casesParPalier × i
+        // cases visibles sur le PETIT côté de l'écran (zoom 1 = 10×10 cases
+        // min). Le dézoom est borné par la marge : jamais plus de 5 cases de
+        // vide autour de la zone → zoomMin = max(écranW/((W+10)×tuile),
+        // écranH/((H+10)×tuile)). Les paliers dont le zoom théorique descend
+        // sous zoomMin sont écrasés (dédupliqués) : le nombre EFFECTIF peut
+        // être < nbPaliers (ex. ferme en portrait → 2 paliers au lieu de 4).
+        // Au dézoom, la caméra glisse le long de la ligne perso → centre de
+        // la zone : on suit un point factice interpolé (t = 0 sur le perso
+        // au palier 1, t = 1 sur le centre au palier max).
+        this._cibleCam = this.add.zone(0, 0, 1, 1);
+        this.palier = 0;
+        this._calculerPaliers();
+        const marge = C.camera.margeMaxCases * this.map.tileWidth;
+        this.cameras.main.setBounds(
+            -marge,
+            -marge,
+            this.map.widthInPixels + 2 * marge,
+            this.map.heightInPixels + 2 * marge
+        );
+        this.cameras.main.startFollow(this._cibleCam, true,
+            C.camera.glisse, C.camera.glisse);
+        // Recalcul au redimensionnement (rotation, plein écran) : les zooms
+        // des paliers dépendent de la taille de l'écran.
+        Arcade.UI.layout(this, () => {
+            this._calculerPaliers();
+            this._appliquerPalier(false);
+        });
+        this._appliquerPalier(true);
 
         // --- Caméra UI dédiée (fix 3e QA — bug John « l'UI bouge avec le
         // zoom ») ---------------------------------------------------------
@@ -209,12 +236,83 @@ class GameScene extends Phaser.Scene {
         return obj;
     }
 
+    // ======================================================================
+    // Caméra à paliers (décision John 11/08)
+    // ======================================================================
+
+    /**
+     * Calcule la liste des zooms de paliers pour la zone courante.
+     *   nbPaliers = (plus grande dimension de la zone + 10) ÷ 10, arrondi au
+     *   supérieur, borné [1, paliersMax] ; palier i = casesParPalier × i
+     *   cases visibles sur le PETIT côté de l'écran.
+     * Le dézoom est borné par la marge (jamais plus de 5 cases de vide
+     * autour de la zone) : zoomMin = max(écranW/((W+10)×tuile),
+     * écranH/((H+10)×tuile)) — les paliers dont le zoom théorique descend
+     * sous zoomMin sont écrasés (dédupliqués) : le nombre EFFECTIF peut
+     * être < nbPaliers (ex. ferme en portrait → 2 paliers au lieu de 4).
+     * Recalculé à chaque layout (la taille d'écran change les zooms).
+     */
+    _calculerPaliers() {
+        const C = this.C;
+        const tuile = this.map.tileWidth;
+        const W = this.map.width;
+        const H = this.map.height;
+        const maxDim = Math.max(W, H);
+        const nbPaliers = Phaser.Math.Clamp(
+            Math.ceil((maxDim + 10) / 10), 1, C.camera.paliersMax);
+        const marge = C.camera.margeMaxCases;
+        const zoomMin = Math.max(
+            this.scale.width / ((W + 2 * marge) * tuile),
+            this.scale.height / ((H + 2 * marge) * tuile)
+        );
+        const petitCote = Math.min(this.scale.width, this.scale.height);
+        const paliers = [];
+        for (let i = 1; i <= nbPaliers; i++) {
+            const z = Math.max(
+                petitCote / (C.camera.casesParPalier * i * tuile), zoomMin);
+            if (!paliers.length || z < paliers[paliers.length - 1] - 1e-6) {
+                paliers.push(z);
+            }
+        }
+        this._paliers = paliers;
+        // t le long de la ligne perso → centre de la zone pour chaque palier
+        // effectif : 0 = sur le perso (zoom 1), 1 = sur le centre (zoom max).
+        this._tPaliers = paliers.map((_, j) =>
+            paliers.length > 1 ? j / (paliers.length - 1) : 0);
+        if (this.palier >= paliers.length) this.palier = paliers.length - 1;
+    }
+
+    /** Applique le zoom du palier courant (et cale la cible si demandé). */
+    _appliquerPalier(instantane) {
+        const z = this._paliers[this.palier]
+            || this._paliers[this._paliers.length - 1];
+        this.cameras.main.setZoom(z);
+        if (instantane) this._positionnerCible();
+    }
+
+    /**
+     * Positionne la cible suivie sur la ligne perso → centre de la zone,
+     * à la fraction t du palier courant (0 = perso, 1 = centre). Appelé à
+     * chaque frame : la caméra glisse (lerp du follow) quand le palier ou
+     * la position du joueur change.
+     */
+    _positionnerCible() {
+        const t = this._tPaliers[this.palier] || 0;
+        const cx = this.map.widthInPixels / 2;
+        const cy = this.map.heightInPixels / 2;
+        this._cibleCam.setPosition(
+            this.joueur.x + t * (cx - this.joueur.x),
+            this.joueur.y + t * (cy - this.joueur.y)
+        );
+    }
+
     update(time, delta) {
         const E = this.E;
         // Compteur unique t, cumulé avec le facteur (1 s réelle = 60 s jeu).
         E.horloge.t += delta * this.C.horloge.facteur;
         this._rafraichirHorloge(false);
         this._suivreChemin(time, delta);
+        this._positionnerCible();
     }
 
     // ======================================================================
@@ -561,6 +659,21 @@ class GameScene extends Phaser.Scene {
     _creerHUD() {
         const C = this.C;
 
+        // Nom de zone (décision John 11/08) : affiché en haut à gauche quand
+        // le joueur change de zone. Espace écran (fix 5e QA : _hud par
+        // objet, sans container). Texte depuis config.textes.zones.
+        this.hudZone = this.add.text(0, 0,
+            C.textes.zones[this.zoneId] || this.zoneId, {
+                fontFamily: C.police.famille,
+                color: C.couleurs.texte,
+                align: "left"
+            })
+            .setOrigin(0, 0.5)
+            .setScrollFactor(0)
+            .setDepth(C.profondeurs.hud)
+            .setStroke(C.couleurs.contour, 3);
+        this._hud(this.hudZone);
+
         // Horloge (haut, centré).
         this.hudHorloge = this.add.text(0, 0, "", {
             fontFamily: C.police.famille,
@@ -627,6 +740,9 @@ class GameScene extends Phaser.Scene {
         // Mise en page recalculée à chaque rotation.
         Arcade.UI.layout(this, (w, h) => {
             const u = (n) => Arcade.UI.u(this, n);
+            this.hudZone
+                .setFontSize(Math.round(u(C.hud.tailleZoneU)) + "px")
+                .setPosition(u(C.hud.margeU), u(C.hud.margeU));
             this.hudHorloge
                 .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
                 .setPosition(w / 2, u(C.hud.margeU));
@@ -674,15 +790,17 @@ class GameScene extends Phaser.Scene {
         this.barre.setActif(actif);
     }
 
-    /** Zoom caméra, borné (config.camera.zoomMin/Max). */
+    /**
+     * Zoom caméra : change de palier (paliers adaptés à la zone, décision
+     * John 11/08). pas > 0 = zoom avant (palier suivant vers le rapproché),
+     * pas < 0 = dézoom (vers la vue d'ensemble). La position de la caméra
+     * glisse le long de la ligne perso → centre via _positionnerCible()
+     * appelé à chaque frame (update).
+     */
     _zoom(pas) {
-        const C = this.C;
-        const z = Phaser.Math.Clamp(
-            this.cameras.main.zoom + pas,
-            C.camera.zoomMin,
-            C.camera.zoomMax
-        );
-        this.cameras.main.setZoom(z);
+        const nb = this._paliers.length;
+        this.palier = Phaser.Math.Clamp(this.palier - pas, 0, nb - 1);
+        this._appliquerPalier(false);
     }
 
     // ======================================================================
@@ -769,11 +887,15 @@ class GameScene extends Phaser.Scene {
         }
 
         // Les cases qui ne sont plus actives (ex. récoltée → vide) reviennent
-        // à la tuile d'origine (herbe).
+        // à la tuile de base de la zone courante (décision John 11/08 : les
+        // cartes de test ont un sol distinct — ferme = terre, maison-rdc =
+        // parquet, maison-etage = bois clair), avec repli sur l'herbe.
+        const baseId = (C.sol.tuileBaseParZone
+            && C.sol.tuileBaseParZone[this.zoneId]) || C.sol.tuileHerbeId;
         for (const k in this._labourees) {
             if (!actives[k]) {
                 const [x, y] = k.split(",").map(Number);
-                this.map.putTileAt(C.sol.tuileHerbeId + 1, x, y, true, "sol");
+                this.map.putTileAt(baseId + 1, x, y, true, "sol");
             }
         }
         this._labourees = actives;

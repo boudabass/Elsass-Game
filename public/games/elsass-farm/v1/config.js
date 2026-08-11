@@ -25,6 +25,15 @@ window.FarmConfig = {
         hudHorloge: "Jour {jour} · {saison} · {heure}h",
         saisons: ["Printemps", "Été", "Automne", "Hiver"],
 
+        // Nom de zone affiché dans le HUD (décision John 11/08) : une
+        // entrée par id de zone de zones.json, montrée en haut à gauche
+        // quand le joueur change de zone.
+        zones: {
+            ferme: "Ferme",
+            "maison-rdc": "Maison RDC",
+            "maison-etage": "Maison étage"
+        },
+
         // Popup sommeil (interaction sur le lit).
         dormir: "Dormir jusqu'au lendemain ?",
         dormirOui: "Dormir",
@@ -58,11 +67,22 @@ window.FarmConfig = {
         vitesseTuilesParSeconde: 6   // vitesse de suivi du chemin BFS
     },
 
-    // --- Caméra (proposition point 3) --------------------------------------
+    // --- Caméra à paliers (décision John 11/08) ----------------------------
+    // Le nombre de paliers est adapté à la taille de la zone :
+    //   paliers = (plus grande dimension de la zone + 10) ÷ 10, arrondi au
+    //   supérieur, borné [1, paliersMax]. Ferme 28×18 → (28+10)/10 = 3.8 → 4
+    //   paliers (10/20/30/40 cases). Zone 0-10 → 1 palier. Zone 90-100 → 10.
+    // Le palier i = casesParPalier × i cases visibles sur le PETIT côté de
+    // l'écran (zoom 1 = 10×10 cases min, centré sur le perso). Le dézoom ne
+    // dépasse jamais la zone + margeMaxCases cases de chaque côté (bounds
+    // étendus : le perso ne s'approche pas du bord de l'écran à moins de 5
+    // cases). Au dézoom, la caméra glisse le long de la ligne perso → centre
+    // de la zone (zoom 1 = perso, zoom max = centre).
     camera: {
-        zoomDefaut: 0.85,   // ferme (28×18 tuiles) entière visible sur mobile
-        zoomMin: 0.5,
-        zoomMax: 3
+        casesParPalier: 10,
+        paliersMax: 10,
+        margeMaxCases: 5,
+        glisse: 0.12   // lissage du suivi caméra (X et Y)
     },
 
     // --- Machine à états sol (proposition point 5) -------------------------
@@ -74,8 +94,17 @@ window.FarmConfig = {
         // Ids des tuiles dans le tileset sol_16px (calculés par
         // scripts/generer_maps_test.py, alignés sur le .tsx) — à ajuster
         // si le tileset change (pnpm assets:atlas).
-        tuileHerbeId: 465,    // sol/town_herbe_centre.png (case vide)
-        tuileLaboureeId: 138  // sol/farm_sol_butte_seul_v1.png (labourée)
+        tuileHerbeId: 465,    // repli : sol/town_herbe_centre.png (case vide)
+        tuileLaboureeId: 138, // sol/farm_sol_butte_seul_v1.png (labourée)
+        // Sol de base PAR ZONE (décision John 11/08 : cartes de test
+        // différenciées visuellement — ferme = terre, maison-rdc = parquet,
+        // maison-etage = bois clair). Ids alignés sur le générateur
+        // scripts/generer_maps_test.py (luminances : scripts/lum_tuiles.py).
+        tuileBaseParZone: {
+            ferme: 392,            // sol/rogrpg_terre_v1.png
+            "maison-rdc": 286,     // sol/rogrpg_plancher_v1.png
+            "maison-etage": 289    // sol/rogrpg_plancher_v3.png
+        }
     },
 
     // --- Barre d'outils (proposition point 3 : 5 slots) --------------------
@@ -124,6 +153,7 @@ window.FarmConfig = {
 
     // --- HUD en jeu ---------------------------------------------------------
     hud: {
+        tailleZoneU: 2.8,    // nom de zone (haut gauche, décision John 11/08)
         tailleTexteU: 3.4,     // horloge (heure/saison/jour)
         margeU: 1.5
     },
@@ -141,7 +171,7 @@ window.FarmConfig = {
     // --- Boutons zoom +/− ---------------------------------------------------
     zoom: {
         tailleBoutonU: 10,
-        pas: 0.25,
+        pas: 1,   // un palier de zoom par clic (paliers adaptés à la zone)
         margeU: 1.5
     },
 

@@ -75,12 +75,19 @@ bat_ids = verifier("batiment", 16, "batiment_16px.tsx")
 dec_ids = verifier("decor", 16, "decor_16px.tsx")
 
 # --- Tuiles choisies --------------------------------------------------------
-HERBE = sol_ids["town_herbe_centre"]
+# Sols de TEST différenciés par zone (décision John 11/08) : ferme = terre,
+# maison-rdc = parquet, maison-etage = bois clair. Choisies dans le tileset
+# sol_16px existant par luminance moyenne (scripts/lum_tuiles.py) :
+#   rogrpg_terre_v1 (392) / rogrpg_plancher_v1 (286) / rogrpg_plancher_v3 (289).
+# Les ids ci-dessous sont alignés sur config.sol.tuileBaseParZone.
+TERRE = sol_ids["rogrpg_terre_v1"]
+PARQUET = sol_ids["rogrpg_plancher_v1"]
+BOIS_CLAIR = sol_ids["rogrpg_plancher_v3"]
 BUTTE = sol_ids["farm_sol_butte_seul_v1"]
 MUR = bat_ids["farm_grange_mur_brique1_centre"]
 LIT = dec_ids["rogrpg_lit_vert_v1"]
-SOL_INT = sol_ids["town_dalles_herbe"]  # dalles grises = sol intérieur (test)
-print(f"ids: herbe={HERBE} butte={BUTTE} mur={MUR} lit={LIT} sol_int={SOL_INT}")
+print(f"ids: terre={TERRE} parquet={PARQUET} bois_clair={BOIS_CLAIR} "
+      f"butte={BUTTE} mur={MUR} lit={LIT}")
 
 # --- Construction des maps ---------------------------------------------------
 def tuiles_inline(cat, px, tsx):
@@ -146,9 +153,9 @@ def murs_bordure(w, h, gid_mur, ouvertures=None):
                     exc[(x, y)] = gid_mur
     return exc
 
-# --- ferme 28x18 ------------------------------------------------------------
+# --- ferme 28x18 (sol = TERRE) ----------------------------------------------
 W, H = 28, 18
-sol_ferme = couche("sol", W, H, HERBE + 1)
+sol_ferme = couche("sol", W, H, TERRE + 1)
 mur_ferme = couche("obstacles", W, H, 0, murs_bordure(W, H, MUR + 1, {(5, 0)}))
 dec_ferme = couche("decors", W, H, 0)
 ferme = map_json("ferme-test", W, H,
@@ -157,9 +164,9 @@ ferme = map_json("ferme-test", W, H,
                   tuiles_inline("batiment", 16, "batiment_16px.tsx")])
 ferme["properties"] = [{"name": "test", "type": "bool", "value": True}]
 
-# --- maison-rdc 12x10 --------------------------------------------------------
+# --- maison-rdc 12x10 (sol = PARQUET) ---------------------------------------
 W, H = 12, 10
-sol_rdc = couche("sol", W, H, SOL_INT + 1)
+sol_rdc = couche("sol", W, H, PARQUET + 1)
 mur_rdc = couche("obstacles", W, H, 0,
                  murs_bordure(W, H, MUR + 1, {(6, 0), (11, 2)}))
 dec_rdc = couche("decors", W, H, 0, {(2, 2): LIT + 1})
@@ -170,9 +177,9 @@ rdc = map_json("maison-rdc-test", W, H,
                 tuiles_inline("decor", 16, "decor_16px.tsx")])
 rdc["properties"] = [{"name": "test", "type": "bool", "value": True}]
 
-# --- maison-etage 12x10 ------------------------------------------------------
+# --- maison-etage 12x10 (sol = BOIS CLAIR) ----------------------------------
 W, H = 12, 10
-sol_et = couche("sol", W, H, SOL_INT + 1)
+sol_et = couche("sol", W, H, BOIS_CLAIR + 1)
 mur_et = couche("obstacles", W, H, 0,
                 murs_bordure(W, H, MUR + 1, {(6, 0)}))
 dec_et = couche("decors", W, H, 0)
