@@ -1,0 +1,107 @@
+{
+ "zones": [
+  {
+   "id": "ferme",
+   "tiled": "assets/maps/ferme-test.json",
+   "apparition": {
+    "x": 49,
+    "y": 77
+   },
+   "portails": [
+    {
+     "id": "ferme-vers-maison",
+     "type": "simple",
+     "tuile": {
+      "x": 49,
+      "y": 74
+     },
+     "cible": {
+      "zone": "maison-rdc",
+      "apparition": {
+       "x": 6,
+       "y": 8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "maison-rdc",
+   "tiled": "assets/maps/maison-rdc-test.json",
+   "apparition": {
+    "x": 6,
+    "y": 8
+   },
+   "lit": {
+    "x": 2,
+    "y": 2
+   },
+   "portails": [
+    {
+     "id": "rdc-vers-etage",
+     "type": "choix",
+     "tuile": {
+      "x": 11,
+      "y": 2
+     },
+     "choix": [
+      {
+       "label": "Monter à l'étage",
+       "cible": {
+        "zone": "maison-etage",
+        "apparition": {
+         "x": 6,
+         "y": 9
+        }
+       }
+      },
+      {
+       "label": "Rester ici",
+       "cible": null
+      }
+     ]
+    },
+    {
+     "id": "maison-vers-ferme",
+     "type": "simple",
+     "tuile": {
+      "x": 6,
+      "y": 0
+     },
+     "cible": {
+      "zone": "ferme",
+      "apparition": {
+       "x": 49,
+       "y": 76
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "maison-etage",
+   "tiled": "assets/maps/maison-etage-test.json",
+   "apparition": {
+    "x": 6,
+    "y": 9
+   },
+   "portails": [
+    {
+     "id": "etage-vers-rdc",
+     "type": "simple",
+     "tuile": {
+      "x": 6,
+      "y": 0
+     },
+     "cible": {
+      "zone": "maison-rdc",
+      "apparition": {
+       "x": 11,
+       "y": 3
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
