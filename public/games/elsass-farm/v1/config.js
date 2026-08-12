@@ -73,15 +73,17 @@ window.FarmConfig = {
     //   supérieur, borné [1, paliersMax]. Ferme 28×18 → (28+10)/10 = 3.8 → 4
     //   paliers (10/20/30/40 cases). Zone 0-10 → 1 palier. Zone 90-100 → 10.
     // Le palier i = casesParPalier × i cases visibles sur le PETIT côté de
-    // l'écran (zoom 1 = 10×10 cases min, centré sur le perso). Le dézoom ne
-    // dépasse jamais la zone + margeMaxCases cases de chaque côté (bounds
-    // étendus : le perso ne s'approche pas du bord de l'écran à moins de 5
-    // cases). Au dézoom, la caméra glisse le long de la ligne perso → centre
-    // de la zone (zoom 1 = perso, zoom max = centre).
+    // l'écran (zoom 1 = 10×10 cases min, centré sur le perso). La marge qui
+    // sépare le perso du bord de l'écran GRANDIT de margeCasesParPalier cases
+    // à chaque palier, dès le palier 1 : marge(palier i) = margeCasesParPalier
+    // × i (3 cases au palier 1, 6 au palier 2, … — consigne 13/08). Le dézoom
+    // ne dépasse jamais la zone + cette marge de chaque côté. Au dézoom, la
+    // caméra glisse le long de la ligne perso → centre de la zone (zoom 1 =
+    // perso, zoom max = centre).
     camera: {
         casesParPalier: 10,
         paliersMax: 10,
-        margeMaxCases: 5,
+        margeCasesParPalier: 3,   // marge(palier i) = 3 × i cases (13/08)
         glisse: 0.12   // lissage du suivi caméra (X et Y)
     },
 

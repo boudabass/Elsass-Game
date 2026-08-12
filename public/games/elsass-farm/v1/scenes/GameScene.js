@@ -139,18 +139,25 @@ class GameScene extends Phaser.Scene {
         // nbPaliers = (plus grande dimension de la zone + 10) ÷ 10, arrondi
         // au supérieur, borné [1, paliersMax]. Palier i = casesParPalier × i
         // cases visibles sur le PETIT côté de l'écran (zoom 1 = 10×10 cases
-        // min). Le dézoom est borné par la marge : jamais plus de 5 cases de
-        // vide autour de la zone → zoomMin = max(écranW/((W+10)×tuile),
-        // écranH/((H+10)×tuile)). Les paliers dont le zoom théorique descend
-        // sous zoomMin sont écrasés (dédupliqués) : le nombre EFFECTIF peut
-        // être < nbPaliers (ex. ferme en portrait → 2 paliers au lieu de 4).
+        // min). Le dézoom est borné par une marge PROGRESSIVE (consigne 13/08)
+        // : à chaque palier i, marge(i) = margeCasesParPalier × i cases autour
+        // de la zone → zoomMin(i) = max(écranW/((W+2·marge(i))×tuile),
+        // écranH/((H+2·marge(i))×tuile)). Les paliers dont le zoom théorique
+        // descend sous leur zoomMin sont écrasés (dédupliqués) : le nombre
+        // EFFECTIF peut être < nbPaliers (ex. ferme en portrait → 2 paliers
+        // au lieu de 4).
         // Au dézoom, la caméra glisse le long de la ligne perso → centre de
         // la zone : on suit un point factice interpolé (t = 0 sur le perso
         // au palier 1, t = 1 sur le centre au palier max).
         this._cibleCam = this.add.zone(0, 0, 1, 1);
         this.palier = 0;
         this._calculerPaliers();
-        const marge = C.camera.margeMaxCases * this.map.tileWidth;
+        // Bounds caméra étendus à la marge MAX du dernier palier effectif
+        // (margeCasesParPalier × nbPaliersEffectifs) : _positionnerCible
+        // borne la cible à cette marge au palier max, le setBounds doit donc
+        // la couvrir pour ne jamais brider le suivi.
+        const marge = C.camera.margeCasesParPalier * this._paliers.length
+            * this.map.tileWidth;
         this.cameras.main.setBounds(
             -marge,
             -marge,
@@ -269,11 +276,12 @@ class GameScene extends Phaser.Scene {
      *   nbPaliers = (plus grande dimension de la zone + 10) ÷ 10, arrondi au
      *   supérieur, borné [1, paliersMax] ; palier i = casesParPalier × i
      *   cases visibles sur le PETIT côté de l'écran.
-     * Le dézoom est borné par la marge (jamais plus de 5 cases de vide
-     * autour de la zone) : zoomMin = max(écranW/((W+10)×tuile),
-     * écranH/((H+10)×tuile)) — les paliers dont le zoom théorique descend
-     * sous zoomMin sont écrasés (dédupliqués) : le nombre EFFECTIF peut
-     * être < nbPaliers (ex. ferme en portrait → 2 paliers au lieu de 4).
+     * Le dézoom est borné par une marge PROGRESSIVE (consigne 13/08) : à
+     * chaque palier i, marge(i) = margeCasesParPalier × i cases → zoomMin(i)
+     * = max(écranW/((W+2·marge(i))×tuile), écranH/((H+2·marge(i))×tuile)).
+     * Les paliers dont le zoom théorique descend sous leur zoomMin sont
+     * écrasés (dédupliqués) : le nombre EFFECTIF peut être < nbPaliers
+     * (ex. ferme en portrait → 2 paliers au lieu de 4).
      * Recalculé à chaque layout (la taille d'écran change les zooms).
      */
     _calculerPaliers() {
@@ -284,14 +292,17 @@ class GameScene extends Phaser.Scene {
         const maxDim = Math.max(W, H);
         const nbPaliers = Phaser.Math.Clamp(
             Math.ceil((maxDim + 10) / 10), 1, C.camera.paliersMax);
-        const marge = C.camera.margeMaxCases;
-        const zoomMin = Math.max(
-            this.scale.width / ((W + 2 * marge) * tuile),
-            this.scale.height / ((H + 2 * marge) * tuile)
-        );
         const petitCote = Math.min(this.scale.width, this.scale.height);
         const paliers = [];
         for (let i = 1; i <= nbPaliers; i++) {
+            // Marge progressive (consigne 13/08) : marge(i) = margeCasesParPalier
+            // × i cases. Le plancher zoomMin est donc calculé PAR PALIER, et
+            // non plus une seule fois pour tous (3 cases au palier 1, 6 au 2, …).
+            const marge = C.camera.margeCasesParPalier * i;
+            const zoomMin = Math.max(
+                this.scale.width / ((W + 2 * marge) * tuile),
+                this.scale.height / ((H + 2 * marge) * tuile)
+            );
             const z = Math.max(
                 petitCote / (C.camera.casesParPalier * i * tuile), zoomMin);
             if (!paliers.length || z < paliers[paliers.length - 1] - 1e-6) {
@@ -320,18 +331,17 @@ class GameScene extends Phaser.Scene {
      * chaque frame : la caméra glisse (lerp du follow) quand le palier ou
      * la position du joueur change.
      *
-     * ⭐ FIX retour John 11/08 : la règle des 5 cases s'applique à TOUS les
-     * paliers. Sans garde-fou, la cible glisse vers le centre dès le palier
-     * 2 et, quand le perso est près du bord de la zone, la caméra s'éloigne
-     * du bord (vide > 5 cases en paysage, perso/bord de zone hors-écran en
-     * portrait). On borne donc la cible pour que la vue garde :
-     *   - le perso à ≥ margeMaxCases du bord de l'écran (jamais de bord de
-     *     zone collé à l'écran, le bord reste à 5 cases quand le perso est
-     *     au bord) ;
-     *   - la zone à ≤ margeMaxCases de vide autour d'elle (bornes zone+marge,
+     * ⭐ Marge progressive (consigne 13/08) : la marge n'est plus une
+     * constante, elle vaut marge(i) = margeCasesParPalier × i cases pour le
+     * palier courant (i = this.palier + 1). On borne donc la cible pour que
+     * la vue garde :
+     *   - le perso à ≥ marge(i) du bord de l'écran (jamais de bord de zone
+     *     collé à l'écran : le bord reste à 3 cases au palier 1, 6 au palier
+     *     2, … quand le perso est au bord) ;
+     *   - la zone à ≤ marge(i) de vide autour d'elle (bornes zone+marge,
      *     doublon sûr du setBounds).
-     * À zoom 1 (demi-vue = 5 cases sur le petit côté) la fenêtre se réduit
-     * au perso lui-même → centrage zoom 1 strictement inchangé.
+     * Conséquence assumée et validée par John : au zoom 1 le perso n'est plus
+     * pile centré, il peut s'approcher jusqu'à 3 cases du bord (voulu).
      */
     _positionnerCible() {
         const C = this.C;
@@ -343,9 +353,10 @@ class GameScene extends Phaser.Scene {
         // Cible de glissement le long de la ligne perso → centre (inchangée).
         const gx = this.joueur.x + t * (cx - this.joueur.x);
         const gy = this.joueur.y + t * (cy - this.joueur.y);
-        // Règle des 5 cases à tous les paliers : demi-vue (px monde) à zoom
-        // courant, marge en px, fenêtre autorisée pour la cible.
-        const marge = C.camera.margeMaxCases * this.map.tileWidth;
+        // Marge progressive du palier courant (consigne 13/08) : marge(i) =
+        // margeCasesParPalier × i cases, i = this.palier + 1 (indexé à 0).
+        const marge = C.camera.margeCasesParPalier * (this.palier + 1)
+            * this.map.tileWidth;
         const dX = this.scale.width / (2 * z);
         const dY = this.scale.height / (2 * z);
         const minX = Math.max(this.joueur.x - dX + marge, -marge + dX);
