@@ -295,14 +295,44 @@ class GameScene extends Phaser.Scene {
      * à la fraction t du palier courant (0 = perso, 1 = centre). Appelé à
      * chaque frame : la caméra glisse (lerp du follow) quand le palier ou
      * la position du joueur change.
+     *
+     * ⭐ FIX retour John 11/08 : la règle des 5 cases s'applique à TOUS les
+     * paliers. Sans garde-fou, la cible glisse vers le centre dès le palier
+     * 2 et, quand le perso est près du bord de la zone, la caméra s'éloigne
+     * du bord (vide > 5 cases en paysage, perso/bord de zone hors-écran en
+     * portrait). On borne donc la cible pour que la vue garde :
+     *   - le perso à ≥ margeMaxCases du bord de l'écran (jamais de bord de
+     *     zone collé à l'écran, le bord reste à 5 cases quand le perso est
+     *     au bord) ;
+     *   - la zone à ≤ margeMaxCases de vide autour d'elle (bornes zone+marge,
+     *     doublon sûr du setBounds).
+     * À zoom 1 (demi-vue = 5 cases sur le petit côté) la fenêtre se réduit
+     * au perso lui-même → centrage zoom 1 strictement inchangé.
      */
     _positionnerCible() {
+        const C = this.C;
         const t = this._tPaliers[this.palier] || 0;
         const cx = this.map.widthInPixels / 2;
         const cy = this.map.heightInPixels / 2;
+        const z = this._paliers[this.palier]
+            || this._paliers[this._paliers.length - 1];
+        // Cible de glissement le long de la ligne perso → centre (inchangée).
+        const gx = this.joueur.x + t * (cx - this.joueur.x);
+        const gy = this.joueur.y + t * (cy - this.joueur.y);
+        // Règle des 5 cases à tous les paliers : demi-vue (px monde) à zoom
+        // courant, marge en px, fenêtre autorisée pour la cible.
+        const marge = C.camera.margeMaxCases * this.map.tileWidth;
+        const dX = this.scale.width / (2 * z);
+        const dY = this.scale.height / (2 * z);
+        const minX = Math.max(this.joueur.x - dX + marge, -marge + dX);
+        const maxX = Math.min(this.joueur.x + dX - marge,
+            this.map.widthInPixels + marge - dX);
+        const minY = Math.max(this.joueur.y - dY + marge, -marge + dY);
+        const maxY = Math.min(this.joueur.y + dY - marge,
+            this.map.heightInPixels + marge - dY);
         this._cibleCam.setPosition(
-            this.joueur.x + t * (cx - this.joueur.x),
-            this.joueur.y + t * (cy - this.joueur.y)
+            Phaser.Math.Clamp(gx, minX, maxX),
+            Phaser.Math.Clamp(gy, minY, maxY)
         );
     }
 
