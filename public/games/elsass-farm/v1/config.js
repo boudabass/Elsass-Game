@@ -92,16 +92,19 @@ window.FarmConfig = {
         graineTest: "🥕",
         etapesPousse: 3,      // seuil : etapes >= etapesPousse → prête
         // Ids des tuiles dans le tileset sol_16px (calculés par
-        // scripts/generer_maps_test.py, alignés sur le .tsx) — à ajuster
-        // si le tileset change (pnpm assets:atlas).
+        // scripts/generer_maps.mjs, alignés sur le .tsx) — à ajuster si le
+        // tileset change (pnpm assets:atlas).
         tuileHerbeId: 465,    // repli : sol/town_herbe_centre.png (case vide)
         tuileLaboureeId: 138, // sol/farm_sol_butte_seul_v1.png (labourée)
-        // Sol de base PAR ZONE (décision John 11/08 : cartes de test
-        // différenciées visuellement — ferme = terre, maison-rdc = parquet,
-        // maison-etage = bois clair). Ids alignés sur le générateur
-        // scripts/generer_maps_test.py (luminances : scripts/lum_tuiles.py).
+        // Sol de base PAR ZONE (cartes de test différenciées visuellement).
+        // Ferme = herbe (12/08 : la ferme était en terre nue déjà "labourée"
+        // partout, ce qui ne correspondait à aucun état de la machine à
+        // états — l'herbe est déjà tuileHerbeId, l'état "vide" cohérent ;
+        // la ferme démarre en prairie, le joueur laboure au fur et à
+        // mesure). Maison-rdc = parquet, maison-etage = bois clair
+        // (inchangés). Ids alignés sur scripts/generer_maps.mjs.
         tuileBaseParZone: {
-            ferme: 392,            // sol/rogrpg_terre_v1.png
+            ferme: 465,            // sol/town_herbe_centre.png
             "maison-rdc": 286,     // sol/rogrpg_plancher_v1.png
             "maison-etage": 289    // sol/rogrpg_plancher_v3.png
         }

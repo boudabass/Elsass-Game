@@ -20,7 +20,15 @@ window.FarmHorloge = {
 
     /** Heure de jeu 0..23. */
     heure: function (t) {
-        return this.minutes(t) % 24;
+        // ⭐ FIX horloge 60x trop rapide : minutes(t) est le total de
+        // MINUTES de jeu écoulées (cf. jour(), qui divise par 1440 = 24×60
+        // minutes/jour) — il faut diviser par 60 pour obtenir l'heure du
+        // jour, pas prendre le modulo 24 directement sur des minutes.
+        // Avant ce fix, l'horloge (et la teinte jour/nuit, dérivée de
+        // heure()) bouclait sur 24 "heures" toutes les 24 MINUTES de jeu
+        // (24 secondes réelles à facteur=60) au lieu de 24 heures de jeu
+        // (24 minutes réelles) — 60x trop vite.
+        return Math.floor(this.minutes(t) / 60) % 24;
     },
 
     /** Jour de jeu 1..112 (cycle de 112 jours, puis année suivante). */

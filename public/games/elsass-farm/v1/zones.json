@@ -4,16 +4,16 @@
    "id": "ferme",
    "tiled": "assets/maps/ferme-test.json",
    "apparition": {
-    "x": 14,
-    "y": 16
+    "x": 49,
+    "y": 77
    },
    "portails": [
     {
      "id": "ferme-vers-maison",
      "type": "simple",
      "tuile": {
-      "x": 5,
-      "y": 0
+      "x": 49,
+      "y": 74
      },
      "cible": {
       "zone": "maison-rdc",
@@ -71,8 +71,8 @@
      "cible": {
       "zone": "ferme",
       "apparition": {
-       "x": 5,
-       "y": 3
+       "x": 49,
+       "y": 76
       }
      }
     }

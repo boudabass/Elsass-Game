@@ -62,7 +62,16 @@ class GameScene extends Phaser.Scene {
             return;
         }
         this.zoneId = this.zone.id;
-        this.load.tilemapTiledJSON("carte", this.zone.tiled);
+        // ⭐ FIX gel/mauvaise zone post-portail (2) : clé de chargement PAR
+        // ZONE, pas une clé fixe "carte" partagée. Avec une clé fixe,
+        // rejouer this.load.tilemapTiledJSON("carte", <autre fichier>) à un
+        // 2e passage dans preload() (scene.restart) ne remplaçait pas la
+        // tilemap déjà en cache : create() retombait sur l'ancienne carte
+        // malgré this.zoneId/le HUD correctement mis à jour sur la nouvelle
+        // zone. Bug préexistant, jamais détecté par le studio car ses 5
+        // passes QA échouaient toutes avant d'atteindre un vrai changement
+        // de zone (clic mort, cf. fix this.voile ci-dessous).
+        this.load.tilemapTiledJSON("carte-" + this.zoneId, this.zone.tiled);
 
         // Tilesets partagés de l'arcade (public/games/assets/tilesets/,
         // consigne 704) : les textures DOIVENT exister dans le
@@ -81,7 +90,7 @@ class GameScene extends Phaser.Scene {
         this.E = E;
 
         // --- Tilemap Tiled : la grille (point 3) ---------------------------
-        this.map = this.make.tilemap({ key: "carte" });
+        this.map = this.make.tilemap({ key: "carte-" + this.zoneId });
         const tsSol = this.map.addTilesetImage("sol_16px");
         const tsBat = this.map.addTilesetImage("batiment_16px");
         const tsDec = this.map.addTilesetImage("decor_16px");
@@ -188,6 +197,9 @@ class GameScene extends Phaser.Scene {
         this.camUI = this.cameras.add(0, 0, this.scale.width, this.scale.height);
         this.camUI.ignore([this.coucheSol, this.coucheObstacles, this.coucheDecors, this.joueur]);
         Arcade.UI.layout(this, (w, h) => this.camUI.setViewport(0, 0, w, h));
+        // Nettoyage défensif : Phaser détruit déjà camUI au shutdown (scene.restart
+        // fait stop+start), mais on le rend explicite pour documenter l'intention.
+        this.events.once("shutdown", () => this.cameras.remove(this.camUI));
 
         // --- Sols : rendu initial (tuile labourée + emojis de pousse) -----
         this._emojis = {};
@@ -199,11 +211,23 @@ class GameScene extends Phaser.Scene {
 
         // --- Clic / tap (point 3) ------------------------------------------
         this.chemin = [];
-        this.input.on("pointerdown", (pointeur) => this._clic(pointeur));
+        this._actionApresArrivee = null;
+        const surClic = (pointeur) => this._clic(pointeur);
+        this.input.on("pointerdown", surClic);
+        // Nettoyage défensif (cf. commentaire camUI ci-dessus, même raison).
+        this.events.once("shutdown", () => this.input.off("pointerdown", surClic));
 
         // --- Horloge : état initial de l'affichage --------------------------
         this.derniereHeure = null;
         this.nuit = null;
+        // ⭐ FIX gel post-portail : this.voile (voile de l'écran de sommeil,
+        // créé paresseusement dans _dormir() via `if (!this.voile)`) est une
+        // propriété d'INSTANCE, pas de la scène Phaser — elle survit à
+        // scene.restart(). Sans ce reset, le voile de la zone précédente
+        // (détruit par Phaser avec le display-list) reste référencé : au 2e
+        // sommeil, `if (!this.voile)` est faux, aucun voile n'est recréé, et
+        // le tween anime un GameObject détruit.
+        this.voile = null;
         this._rafraichirHorloge(true);
     }
 
@@ -385,9 +409,52 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
+        // ⭐ FIX interaction objet bloquant (lit) depuis une seule direction :
+        // un clic lointain DIRECTEMENT sur le lit (passable=false depuis le
+        // fix collision) faisait échouer le BFS en silence (_bfs refuse une
+        // destination non praticable) — AUCUN déplacement, donc rien ne se
+        // passait, sauf quand le clic tombait par chance sur une case
+        // adjacente libre plutôt que sur le lit lui-même (d'où l'impression
+        // que ça ne marchait que depuis un seul côté). Restreint au lit
+        // (objet interactif connu) : un mur/la clôture cliqués de loin
+        // restent un no-op, pas une marche inutile jusqu'au mur.
+        const lit = FarmZones.lit(this, this.zoneId);
+        if (lit && lit.x === cible.x && lit.y === cible.y) {
+            const voisin = this._voisinPraticableLePlusProche(cible);
+            if (voisin) {
+                const chemin = this._bfs(this.tuileJoueur, voisin);
+                if (chemin) {
+                    this.chemin = chemin;
+                    this._actionApresArrivee = cible;
+                }
+            }
+            return;
+        }
+
         // Sinon : déplacement BFS vers la tuile cliquée.
         const chemin = this._bfs(this.tuileJoueur, cible);
         if (chemin) this.chemin = chemin;
+    }
+
+    /** Case praticable la plus proche (chemin le plus court) autour de `cible` (8 voisins). */
+    _voisinPraticableLePlusProche(cible) {
+        const voisins = [
+            { x: cible.x, y: cible.y - 1 }, { x: cible.x, y: cible.y + 1 },
+            { x: cible.x - 1, y: cible.y }, { x: cible.x + 1, y: cible.y },
+            { x: cible.x - 1, y: cible.y - 1 }, { x: cible.x + 1, y: cible.y - 1 },
+            { x: cible.x - 1, y: cible.y + 1 }, { x: cible.x + 1, y: cible.y + 1 },
+        ];
+        let meilleur = null;
+        let meilleureLongueur = Infinity;
+        for (const v of voisins) {
+            if (v.x < 0 || v.y < 0 || v.x >= this.map.width || v.y >= this.map.height) continue;
+            const chemin = this._bfs(this.tuileJoueur, v);
+            if (chemin && chemin.length < meilleureLongueur) {
+                meilleur = v;
+                meilleureLongueur = chemin.length;
+            }
+        }
+        return meilleur;
     }
 
     /** Action immédiate sur une case dans la zone d'action (point 5). */
@@ -519,7 +586,23 @@ class GameScene extends Phaser.Scene {
         const portails = FarmZones.portails(this, this.zoneId);
         const p = portails.find((p) =>
             p.tuile.x === this.tuileJoueur.x && p.tuile.y === this.tuileJoueur.y);
-        if (p) this._activerPortail(p);
+        if (p) {
+            this._activerPortail(p);
+            return;
+        }
+
+        // Action en attente (clic lointain sur une case bloquante-mais-
+        // interactive, ex. le lit) : on vient de marcher jusqu'à la case
+        // libre la plus proche, on déclenche l'action maintenant.
+        if (this._actionApresArrivee) {
+            const cible = this._actionApresArrivee;
+            this._actionApresArrivee = null;
+            const dist = Math.max(
+                Math.abs(cible.x - this.tuileJoueur.x),
+                Math.abs(cible.y - this.tuileJoueur.y)
+            );
+            if (dist <= this.C.grille.rayonAction) this._action(cible);
+        }
     }
 
     // ======================================================================
