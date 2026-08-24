@@ -887,7 +887,7 @@ class GameScene extends Phaser.Scene {
                 color: C.couleurs.texte,
                 align: "left"
             })
-            .setOrigin(0, 0.5)
+            .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
@@ -899,11 +899,27 @@ class GameScene extends Phaser.Scene {
             color: C.couleurs.texte,
             align: "center"
         })
-            .setOrigin(0.5)
+            .setOrigin(0.5, 0)
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
         this._hud(this.hudHorloge);
+
+        // 3e bloc (décision John 13/08) : zone libre à DROITE, réservée au
+        // futur indicateur or / énergie. Vide pour l'instant (config.textes.
+        // hudDroit = "") mais créée et positionnée pour réserver la place —
+        // quand l'or / l'énergie arrivera, il suffira de remplir le texte
+        // (config) et d'appeler setText : la position est déjà en place.
+        this.hudDroit = this.add.text(0, 0, C.textes.hudDroit || "", {
+            fontFamily: C.police.famille,
+            color: C.couleurs.texte,
+            align: "right"
+        })
+            .setOrigin(1, 0)
+            .setScrollFactor(0)
+            .setDepth(C.profondeurs.hud)
+            .setStroke(C.couleurs.contour, 3);
+        this._hud(this.hudDroit);
 
         // Barre d'outils (bas, 5 slots — point 3). Le clic sur une icône ne
         // traverse pas vers la grille (stopPropagation du composant).
@@ -959,12 +975,27 @@ class GameScene extends Phaser.Scene {
         // Mise en page recalculée à chaque rotation.
         Arcade.UI.layout(this, (w, h) => {
             const u = (n) => Arcade.UI.u(this, n);
+
+            // 3 blocs répartis sur toute la largeur (décision John 13/08) :
+            //   GAUCHE  nom de zone (origine 0 → ancré à gauche)
+            //   CENTRE  horloge (origine 0.5 → ancrée au centre, x = w/2)
+            //   DROITE  zone libre or/énergie (origine 1 → ancrée à droite)
+            // Origines ré-affirmées ici : un setStroke / setFontSize / setText
+            // ne doit pas casser l'ancrage, et ça documente l'intention.
+            // w/h proviennent de scene.scale.width/height (réels — Arcade.UI.
+            // layout passe bien la taille courante, pas 0).
             this.hudZone
                 .setFontSize(Math.round(u(C.hud.tailleZoneU)) + "px")
+                .setOrigin(0, 0)
                 .setPosition(u(C.hud.margeU), u(C.hud.margeU));
             this.hudHorloge
                 .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
+                .setOrigin(0.5, 0)
                 .setPosition(w / 2, u(C.hud.margeU));
+            this.hudDroit
+                .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
+                .setOrigin(1, 0)
+                .setPosition(w - u(C.hud.margeU), u(C.hud.margeU));
 
             const cote = u(C.barreOutils.tailleIconeU);
             this.barre.placer({

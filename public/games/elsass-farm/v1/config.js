@@ -23,6 +23,10 @@ window.FarmConfig = {
 
         // HUD (GameScene).
         hudHorloge: "Jour {jour} · {saison} · {heure}h",
+        // 3e bloc du HUD (décision John 13/08) : zone libre à DROITE,
+        // réservée au futur indicateur or / énergie. Vide pour l'instant
+        // (zone libre) — la place est réservée dans le layout de GameScene.
+        hudDroit: "",
         saisons: ["Printemps", "Été", "Automne", "Hiver"],
 
         // Nom de zone affiché dans le HUD (décision John 11/08) : une
@@ -157,6 +161,10 @@ window.FarmConfig = {
     },
 
     // --- HUD en jeu ---------------------------------------------------------
+    // 3 blocs répartis sur toute la largeur (décision John 13/08) :
+    //   GAUCHE  nom de zone (tailleZoneU)
+    //   CENTRE  horloge jour · saison · heure (tailleTexteU)
+    //   DROITE  zone libre or/énergie (tailleTexteU, vide pour l'instant)
     hud: {
         tailleZoneU: 5,      // nom de zone (haut gauche, décision John 11/08)
                              // — 13/08 : 2.8 → 5, aligné sur Similitude
