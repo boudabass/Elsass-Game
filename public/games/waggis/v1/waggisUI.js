@@ -77,13 +77,19 @@
                 .setInteractive({ useHandCursor: true })
                 .setDepth(52);
 
+            // Même feedback que core/ui/button.js (25/08) : appui à 0,96 et
+            // tween précédent tué avant d'en lancer un autre. La flèche reste
+            // hors core/ (surface propre à Waggis) mais elle ne doit pas
+            // s'enfoncer autrement que les boutons posés juste à côté.
             zone.on("pointerdown", function () {
                 [ombre, corps, chevron, zone].forEach(function (c) {
-                    scene.tweens.add({ targets: c, scale: 0.9, duration: 70, ease: "Linear" });
+                    scene.tweens.killTweensOf(c);
+                    scene.tweens.add({ targets: c, scale: 0.96, duration: 70, ease: "Linear" });
                 });
             });
             var relacher = function () {
                 [ombre, corps, chevron, zone].forEach(function (c) {
+                    scene.tweens.killTweensOf(c);
                     scene.tweens.add({ targets: c, scale: 1, duration: 170, ease: "Back.Out" });
                 });
             };

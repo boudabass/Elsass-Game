@@ -774,14 +774,50 @@ class GameScene extends Phaser.Scene {
         });
 
         this.popup = { fond: fond, titre: titre, boutons: boutons };
+        this._fondrePopup(this.popup, 0, 1, 150);
+    }
+
+    /**
+     * Fondu d'ouverture d'un popup (25/08). Le sommeil et le portail à choix
+     * sont des interactions RARES : une entrée douce y est justifiée, là où
+     * animer un geste répété (le choix d'un outil) coûterait de l'attention
+     * à chaque clic. Le voile noir plein écran surgissait d'un coup.
+     * L'alpha est porté par un objet intermédiaire plutôt que par le tween
+     * lui-même : les boutons core exposent setAlpha(), pas une propriété.
+     */
+    _fondrePopup(popup, de, vers, duree, onFini) {
+        const etat = { a: de };
+        const appliquer = () => {
+            popup.fond.setAlpha(etat.a);
+            popup.titre.setAlpha(etat.a);
+            popup.boutons.forEach((b) => b.setAlpha(etat.a));
+        };
+        appliquer();
+        this.tweens.add({
+            targets: etat,
+            a: vers,
+            duration: duree,
+            ease: "Sine.Out",
+            onUpdate: appliquer,
+            onComplete: () => {
+                appliquer();
+                if (onFini) onFini();
+            }
+        });
     }
 
     _fermerPopup() {
         if (!this.popup) return;
-        this.popup.fond.destroy();
-        this.popup.titre.destroy();
-        this.popup.boutons.forEach((b) => b.destroy());
+        // Référence relâchée AVANT le fondu : le clic suivant n'est pas
+        // bloqué par un popup en train de disparaître. La sortie est plus
+        // courte que l'entrée — on quitte plus vite qu'on n'arrive.
+        const popup = this.popup;
         this.popup = null;
+        this._fondrePopup(popup, 1, 0, 120, () => {
+            popup.fond.destroy();
+            popup.titre.destroy();
+            popup.boutons.forEach((b) => b.destroy());
+        });
     }
 
     // ======================================================================
@@ -835,6 +871,7 @@ class GameScene extends Phaser.Scene {
         });
 
         this.popup = { fond: fond, titre: titre, boutons: [oui, non] };
+        this._fondrePopup(this.popup, 0, 1, 150);
     }
 
     _dormir() {
@@ -926,13 +963,15 @@ class GameScene extends Phaser.Scene {
         // Les objets créés par le composant sont passés à la caméra UI
         // (espace écran) via l'API objets(cle) + _hud.
         this.barre = Arcade.UI.barreIcones(this, {
-            items: [
-                { cle: "pelle", icone: "⛏️" },
-                { cle: "arrosoir", icone: "🚿" },
-                { cle: "main", icone: "✋" },
-                { cle: "graines", icone: C.sol.graineTest },
-                { cle: "libre", icone: "❔" }
-            ],
+            // Les 5 slots viennent de config.outils (règle du projet : aucun
+            // texte ni emoji en dur dans une scène). Ils y étaient recopiés
+            // en double : changer une icône dans config.js ne changeait rien
+            // à l'écran. Seules les graines suivent C.sol.graineTest, comme
+            // annoncé par le commentaire de config.outils.
+            items: C.outils.map((it) => ({
+                cle: it.cle,
+                icone: it.cle === "graines" ? C.sol.graineTest : it.icone
+            })),
             couleurFond: C.couleurs.boutonSecondaire,
             couleurBordure: "#3d6b52",
             couleurActif: C.barreOutils.eclatCouleur,
@@ -984,29 +1023,58 @@ class GameScene extends Phaser.Scene {
             // ne doit pas casser l'ancrage, et ça documente l'intention.
             // w/h proviennent de scene.scale.width/height (réels — Arcade.UI.
             // layout passe bien la taille courante, pas 0).
+            const marge = u(C.hud.margeU);
             this.hudZone
                 .setFontSize(Math.round(u(C.hud.tailleZoneU)) + "px")
                 .setOrigin(0, 0)
-                .setPosition(u(C.hud.margeU), u(C.hud.margeU));
+                .setPosition(marge, marge);
             this.hudHorloge
                 .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
-                .setOrigin(0.5, 0)
-                .setPosition(w / 2, u(C.hud.margeU));
+                .setOrigin(0.5, 0);
             this.hudDroit
                 .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
                 .setOrigin(1, 0)
-                .setPosition(w - u(C.hud.margeU), u(C.hud.margeU));
+                .setPosition(w - marge, marge);
 
-            const cote = u(C.barreOutils.tailleIconeU);
+            // Les 3 blocs tiennent-ils VRAIMENT sur une ligne ? Largeurs
+            // mesurées (.width, texte réellement rendu), pas estimées : le
+            // nom de zone et l'horloge dépendent de la langue et du contenu
+            // ({saison} va de « Été » à « Printemps »). Si le compte n'y est
+            // pas, l'horloge descend sous le nom de zone au lieu de le
+            // chevaucher ; le bloc droit reste en haut à droite, la ligne du
+            // haut lui étant alors laissée avec le nom de zone.
+            const ecart = u(C.hud.ecartMinU);
+            const finZone = marge + this.hudZone.width;
+            const debutDroit = w - marge - this.hudDroit.width;
+            const demiHorloge = this.hudHorloge.width / 2;
+            const tientSurUneLigne =
+                (w / 2 - demiHorloge >= finZone + ecart) &&
+                (w / 2 + demiHorloge <= debutDroit - ecart);
+            this.hudHorloge.setPosition(
+                w / 2,
+                tientSurUneLigne
+                    ? marge
+                    : marge + this.hudZone.height + u(C.hud.interligneU)
+            );
+
+            // Plancher tactile 44 px (cibleMinPx) : sous 412 px de petit
+            // côté, 10 u tombait à 36-41 px. L'emoji et la quantité suivent
+            // le côté RÉEL de la case, en gardant les proportions de config
+            // (6.5/10 et 3.8/10) — sinon une case relevée à 44 px afficherait
+            // un emoji resté calibré pour 36.
+            const cote = Math.max(
+                C.barreOutils.cibleMinPx, u(C.barreOutils.tailleIconeU));
             this.barre.placer({
                 x: w / 2,
                 y: h - cote / 2 - u(C.barreOutils.margeU),
                 cote: cote,
-                tailleIcone: u(C.barreOutils.tailleEmojiU),
-                tailleBadge: u(C.barreOutils.tailleQuantiteU)
+                tailleIcone:
+                    cote * (C.barreOutils.tailleEmojiU / C.barreOutils.tailleIconeU),
+                tailleBadge:
+                    cote * (C.barreOutils.tailleQuantiteU / C.barreOutils.tailleIconeU)
             });
 
-            const zb = u(C.zoom.tailleBoutonU);
+            const zb = Math.max(C.zoom.cibleMinPx, u(C.zoom.tailleBoutonU));
             const xZoom = w - u(C.zoom.margeU) - zb / 2;
             this.zoomPlus.redimensionner(zb, zb).setPosition(xZoom, h * 0.42);
             this.zoomMoins.redimensionner(zb, zb)
@@ -1063,11 +1131,16 @@ class GameScene extends Phaser.Scene {
         if (!force && h === this.derniereHeure) return;
         this.derniereHeure = h;
 
+        // Heure sur 2 chiffres : « 06h », « 12h ». Le HUD est centré, donc
+        // toute variation de largeur décale les DEUX côtés du bloc — à 9h→10h
+        // l'horloge sautait à chaque heure de jeu (une minute réelle). Deux
+        // chiffres constants, c'est l'équivalent des chiffres à chasse fixe
+        // dans un compteur qui se met à jour.
         this.hudHorloge.setText(
             C.textes.hudHorloge
                 .replace("{jour}", FarmHorloge.jour(E.horloge.t))
                 .replace("{saison}", FarmHorloge.saisonNom(E.horloge.t, C))
-                .replace("{heure}", h)
+                .replace("{heure}", String(h).padStart(2, "0"))
         );
 
         // Teinte jour/nuit : overlay plein écran coloré par plage horaire.

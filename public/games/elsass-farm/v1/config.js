@@ -170,7 +170,18 @@ window.FarmConfig = {
                              // — 13/08 : 2.8 → 5, aligné sur Similitude
                              // (hudTailleTextePct 5), lisible sur mobile
         tailleTexteU: 5,     // horloge (heure/saison/jour) — 13/08 : 3.4 → 5
-        margeU: 1.5
+        margeU: 1.5,
+        // Repli sur 2 lignes (25/08). À 5 u, les 3 blocs ne tiennent pas
+        // côte à côte en PORTRAIT : « Maison étage » et l'horloge se
+        // chevauchaient de 25 px (360×800) à 65 px (768×1024, mesuré au
+        // Canvas 2D, même moteur de texte que Phaser). Plutôt que de
+        // rapetisser le texte — il vient justement d'être agrandi pour
+        // mobile le 13/08 — l'horloge descend d'une ligne quand la place
+        // manque, comme Waggis réduit le NOMBRE d'éléments par page et non
+        // leur taille. En paysage et sur desktop il reste 189 à 219 px
+        // libres : la disposition 3 blocs du 13/08 y est inchangée.
+        ecartMinU: 2,        // vide exigé entre deux blocs voisins
+        interligneU: 1       // écart vertical zone → horloge en repli
     },
 
     // --- Barre d'outils (tailles u(), pattern barreJokers Similitude) ------
@@ -182,13 +193,27 @@ window.FarmConfig = {
         tailleEmojiU: 6.5,    // emoji dans l'icône (4.5 → 6.5)
         tailleQuantiteU: 3.8, // nombre sous l'icône (2.6 → 3.8)
         margeU: 1.5,
-        grisAlpha: 0.25,
+        // Plancher tactile en PIXELS ABSOLUS — même entorse assumée au
+        // « tout en % » que policeMinPx / tuileMinPx de Waggis : 44 px est
+        // la cible tactile iOS/Android, un seuil d'accessibilité qui doit
+        // rester fixe (en u() il suivrait l'écran et raterait justement le
+        // cas qu'il attrape). À 10 u, une icône tombait à 36 px sur un
+        // mobile 360×800 et 41 px sur 412×915.
+        cibleMinPx: 44,
+        // 25/08 : 0.25 → 1. Le grisage de core/ui/iconbar.js signale une
+        // QUANTITÉ à zéro ; aucun outil du Bloc A n'a de quantité (pelle,
+        // arrosoir, main…), donc setBadge n'est jamais appelé et les 5
+        // icônes restaient à 25 % d'opacité en permanence — une barre qui
+        // paraissait désactivée alors qu'elle est pleinement cliquable.
+        // À remettre à 0.25 le jour où un outil aura un stock.
+        grisAlpha: 1,
         eclatCouleur: "#fff3c4"   // fond de l'icône ARMÉE
     },
 
     // --- Boutons zoom +/− ---------------------------------------------------
     zoom: {
         tailleBoutonU: 10,
+        cibleMinPx: 44,   // même plancher tactile que barreOutils.cibleMinPx
         pas: 1,   // un palier de zoom par clic (paliers adaptés à la zone)
         margeU: 1.5
     },

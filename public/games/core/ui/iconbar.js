@@ -68,6 +68,13 @@
         // l'icône est légèrement remontée pour laisser le nombre en bas.
         var ratioIcone = o.ratioIcone !== undefined ? o.ratioIcone : 0.64;
         var ratioBadge = o.ratioBadge !== undefined ? o.ratioBadge : 0.37;
+        // Épaisseur de la bordure en PROPORTION du côté de la case (25/08).
+        // Elle était figée à 1 px — seule valeur en pixels du composant :
+        // invisible sur un écran dense, et sur une grande tablette un trait
+        // d'un pixel autour d'une case de 90 px ne tient plus le contour.
+        // 3 % du côté = 1 px sur mobile (rendu identique à avant) et 3 px
+        // sur desktop.
+        var ratioBordure = o.ratioBordure !== undefined ? o.ratioBordure : 0.03;
 
         var cases = {};     // cle → { fond, icone, badge, zone, valeur }
         var actif = null;   // clé de l'icône « armée », ou null
@@ -149,10 +156,13 @@
                 var tBadge = p.tailleBadge !== undefined
                     ? p.tailleBadge : cote * ratioBadge;
 
+                var epaisseur = Math.max(1, Math.round(cote * ratioBordure));
+
                 items.forEach(function (it, i) {
                     var c = cases[it.cle];
                     var x = x0 + i * pas;
                     c.fond.setPosition(x, p.y).setSize(cote, cote);
+                    c.fond.setStrokeStyle(epaisseur, couleurBordure);
                     if (c.icone.setFontSize) {
                         c.icone.setFontSize(Math.round(tIcone) + "px");
                     } else {
