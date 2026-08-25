@@ -23,6 +23,10 @@ window.FarmConfig = {
 
         // HUD (GameScene).
         hudHorloge: "Jour {jour} · {saison} · {heure}h",
+        // 3e bloc du HUD (décision John 13/08) : zone libre à DROITE,
+        // réservée au futur indicateur or / énergie. Vide pour l'instant
+        // (zone libre) — la place est réservée dans le layout de GameScene.
+        hudDroit: "",
         saisons: ["Printemps", "Été", "Automne", "Hiver"],
 
         // Nom de zone affiché dans le HUD (décision John 11/08) : une
@@ -157,17 +161,26 @@ window.FarmConfig = {
     },
 
     // --- HUD en jeu ---------------------------------------------------------
+    // 3 blocs répartis sur toute la largeur (décision John 13/08) :
+    //   GAUCHE  nom de zone (tailleZoneU)
+    //   CENTRE  horloge jour · saison · heure (tailleTexteU)
+    //   DROITE  zone libre or/énergie (tailleTexteU, vide pour l'instant)
     hud: {
-        tailleZoneU: 2.8,    // nom de zone (haut gauche, décision John 11/08)
-        tailleTexteU: 3.4,     // horloge (heure/saison/jour)
+        tailleZoneU: 5,      // nom de zone (haut gauche, décision John 11/08)
+                             // — 13/08 : 2.8 → 5, aligné sur Similitude
+                             // (hudTailleTextePct 5), lisible sur mobile
+        tailleTexteU: 5,     // horloge (heure/saison/jour) — 13/08 : 3.4 → 5
         margeU: 1.5
     },
 
     // --- Barre d'outils (tailles u(), pattern barreJokers Similitude) ------
+    // 13/08 : agrandie pour être lisible sur mobile (constat John) — icône
+    // alignée sur le bouton zoom (10 u), emoji et quantité agrandies en
+    // proportion. Tout reste en u() = % du plus petit côté.
     barreOutils: {
-        tailleIconeU: 7,
-        tailleEmojiU: 4.5,
-        tailleQuantiteU: 2.6,
+        tailleIconeU: 10,     // côté d'une icône (7 → 10)
+        tailleEmojiU: 6.5,    // emoji dans l'icône (4.5 → 6.5)
+        tailleQuantiteU: 3.8, // nombre sous l'icône (2.6 → 3.8)
         margeU: 1.5,
         grisAlpha: 0.25,
         eclatCouleur: "#fff3c4"   // fond de l'icône ARMÉE

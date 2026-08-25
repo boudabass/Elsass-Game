@@ -52,6 +52,12 @@ class GameScene extends Phaser.Scene {
                 typeof E.position.x === "number" && typeof E.position.y === "number") {
             this.apparition = { x: E.position.x, y: E.position.y };
         }
+
+        // Zone d'ORIGINE au passage de portail (consigne 704, 13/08) : sert
+        // à calculer l'apparition DEVANT le portail d'arrivée (celui qui
+        // ramène vers cette zone), au lieu du milieu de la zone. Null au
+        // premier lancement (→ apparition par défaut de la zone).
+        this.arriveeDe = data.arriveeDe || null;
     }
 
     preload() {
@@ -112,7 +118,7 @@ class GameScene extends Phaser.Scene {
         // API Phaser 4.2.1 : Tilemap expose tileWidth/tileHeight (camelCase) —
         // map.tilewidth (minuscule) est undefined → NaN partout (fix 2e QA).
         const tuile = this.map.tileWidth;
-        const p = this.apparition || this.zone.apparition || { x: 1, y: 1 };
+        const p = this._apparition();
         // API Phaser 4.2.1 : Tilemap.tileToWorldXY(tileX, tileY, point,
         // camera, layer) — le dernier argument est la COUCHE (nom, index ou
         // TilemapLayer), pas un décalage de tuile. On passe la couche "sol"
@@ -252,6 +258,57 @@ class GameScene extends Phaser.Scene {
             x: pos.x + this.map.tileWidth / 2,
             y: pos.y + this.map.tileHeight / 2
         };
+    }
+
+    /**
+     * Tuile (x, y) praticable ? Même règle que le BFS : hors grille ou
+     * tuile d'obstacles marquée passable=false → non praticable.
+     */
+    _passable(x, y) {
+        const map = this.map;
+        if (x < 0 || y < 0 || x >= map.width || y >= map.height) return false;
+        const t = map.getTileAt(x, y, true, "obstacles");
+        if (t && t.properties && t.properties.passable === false) return false;
+        return true;
+    }
+
+    /**
+     * Case d'apparition (consigne 704, 13/08). Si le joueur ARRIVE par un
+     * portail (arriveeDe = zone d'origine), il apparaît sur la case libre
+     * immédiatement à côté du portail de RETOUR (celui dont cible.zone ===
+     * arriveeDe) — pas au milieu de la zone. Sinon (premier lancement,
+     * reprise de sauvegarde) : apparition transmise / position sauvegardée /
+     * point par défaut de la zone. Repli sur {1,1} en dernier recours.
+     */
+    _apparition() {
+        if (this.arriveeDe) {
+            const retour = FarmZones.portails(this, this.zoneId).find((q) =>
+                q.cible && q.cible.zone === this.arriveeDe);
+            if (retour) {
+                const voisin = this._caseLibreVoisine(retour.tuile.x, retour.tuile.y);
+                if (voisin) return voisin;
+            }
+        }
+        return this.apparition || this.zone.apparition || { x: 1, y: 1 };
+    }
+
+    /**
+     * Première case libre (praticable) ORTHOGONALEMENT adjacente à (x, y).
+     * Ordre déterministe bas/haut/gauche/droite : les portes des cartes de
+     * test sont en haut de mur → apparaître dessous, cas le plus courant.
+     * Retourne null si aucune case libre autour (portail encerclé).
+     */
+    _caseLibreVoisine(x, y) {
+        const voisins = [
+            { x: x, y: y + 1 },
+            { x: x, y: y - 1 },
+            { x: x - 1, y: y },
+            { x: x + 1, y: y }
+        ];
+        for (const v of voisins) {
+            if (this._passable(v.x, v.y)) return v;
+        }
+        return null;
     }
 
     /**
@@ -410,6 +467,16 @@ class GameScene extends Phaser.Scene {
         if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return;
         const cible = { x: tx, y: ty };
 
+        // ⭐ Portail / lit (objets interactifs, potentiellement posés sur une
+        // tuile NON passable) : le clic doit fonctionner à n'importe quelle
+        // distance (consigne 704, 13/08) — à 1 case activation directe, à
+        // distance le perso s'y déplace (ou vers la case libre la plus
+        // proche si l'objet est sur un mur) puis l'active à l'arrivée.
+        if (this._estInteractif(cible)) {
+            this._allerVersOuActiver(cible);
+            return;
+        }
+
         // Zone d'action Chebyshev : distance = max(|dx|, |dy|) en tuiles.
         const dist = Math.max(
             Math.abs(tx - this.tuileJoueur.x),
@@ -420,31 +487,51 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // ⭐ FIX interaction objet bloquant (lit) depuis une seule direction :
-        // un clic lointain DIRECTEMENT sur le lit (passable=false depuis le
-        // fix collision) faisait échouer le BFS en silence (_bfs refuse une
-        // destination non praticable) — AUCUN déplacement, donc rien ne se
-        // passait, sauf quand le clic tombait par chance sur une case
-        // adjacente libre plutôt que sur le lit lui-même (d'où l'impression
-        // que ça ne marchait que depuis un seul côté). Restreint au lit
-        // (objet interactif connu) : un mur/la clôture cliqués de loin
-        // restent un no-op, pas une marche inutile jusqu'au mur.
-        const lit = FarmZones.lit(this, this.zoneId);
-        if (lit && lit.x === cible.x && lit.y === cible.y) {
-            const voisin = this._voisinPraticableLePlusProche(cible);
-            if (voisin) {
-                const chemin = this._bfs(this.tuileJoueur, voisin);
-                if (chemin) {
-                    this.chemin = chemin;
-                    this._actionApresArrivee = cible;
-                }
-            }
-            return;
-        }
-
         // Sinon : déplacement BFS vers la tuile cliquée.
         const chemin = this._bfs(this.tuileJoueur, cible);
         if (chemin) this.chemin = chemin;
+    }
+
+    /** Case interactive (portail ou lit) sur la tuile cliquée ? */
+    _estInteractif(cible) {
+        const lit = FarmZones.lit(this, this.zoneId);
+        if (lit && lit.x === cible.x && lit.y === cible.y) return true;
+        return FarmZones.portails(this, this.zoneId).some((p) =>
+            p.tuile.x === cible.x && p.tuile.y === cible.y);
+    }
+
+    /**
+     * Marche vers l'objet interactif cliqué puis l'active — ou l'active
+     * directement s'il est à portée (consigne 704, 13/08). Si l'objet est
+     * sur une tuile non passable, on vise la case libre la plus proche et
+     * on active à l'arrivée (même mécanisme que l'ancien cas du lit).
+     */
+    _allerVersOuActiver(cible) {
+        const C = this.C;
+        const dist = Math.max(
+            Math.abs(cible.x - this.tuileJoueur.x),
+            Math.abs(cible.y - this.tuileJoueur.y)
+        );
+        if (dist <= C.grille.rayonAction) {
+            this._action(cible);
+            return;
+        }
+        if (this._passable(cible.x, cible.y)) {
+            // Tuile praticable : on marche dessus, _arrive() détecte le
+            // portail (ou l'action en attente) à l'arrivée.
+            const chemin = this._bfs(this.tuileJoueur, cible);
+            if (chemin) this.chemin = chemin;
+            return;
+        }
+        // Objet sur un mur : marche vers la case libre la plus proche, puis
+        // déclenche l'action (portail/lit) à l'arrivée.
+        const voisin = this._voisinPraticableLePlusProche(cible);
+        if (!voisin) return;
+        const chemin = this._bfs(this.tuileJoueur, voisin);
+        if (chemin) {
+            this.chemin = chemin;
+            this._actionApresArrivee = cible;
+        }
     }
 
     /** Case praticable la plus proche (chemin le plus court) autour de `cible` (8 voisins). */
@@ -472,6 +559,15 @@ class GameScene extends Phaser.Scene {
     _action(cible) {
         const C = this.C;
         const E = this.E;
+
+        // Portail : activation directe (consigne 704, 13/08) — le clic à 1
+        // case ne doit pas être avalé par le rayon d'action outils/lit.
+        const portail = FarmZones.portails(this, this.zoneId).find((p) =>
+            p.tuile.x === cible.x && p.tuile.y === cible.y);
+        if (portail) {
+            this._activerPortail(portail);
+            return;
+        }
 
         // Sommeil : interaction sur le lit (déclaré dans zones.json).
         const lit = FarmZones.lit(this, this.zoneId);
@@ -518,16 +614,7 @@ class GameScene extends Phaser.Scene {
      * cible est inaccessible.
      */
     _bfs(depart, cible) {
-        const map = this.map;
-        const W = map.width;
-        const H = map.height;
-        const passable = (x, y) => {
-            if (x < 0 || y < 0 || x >= W || y >= H) return false;
-            const t = map.getTileAt(x, y, true, "obstacles");
-            if (t && t.properties && t.properties.passable === false) return false;
-            return true;
-        };
-        if (!passable(cible.x, cible.y)) return null;
+        if (!this._passable(cible.x, cible.y)) return null;
 
         const cle = (x, y) => x + "," + y;
         const pred = new Map();
@@ -551,7 +638,7 @@ class GameScene extends Phaser.Scene {
             ];
             for (const v of voisins) {
                 const k = cle(v.x, v.y);
-                if (!vu.has(k) && passable(v.x, v.y)) {
+                if (!vu.has(k) && this._passable(v.x, v.y)) {
                     vu.add(k);
                     pred.set(k, cur);
                     file.push(v);
@@ -622,7 +709,11 @@ class GameScene extends Phaser.Scene {
     _activerPortail(p) {
         if (p.type === "simple") {
             this._sauvegarder();
-            this.scene.restart({ zone: p.cible.zone, apparition: p.cible.apparition });
+            this.scene.restart({
+                zone: p.cible.zone,
+                arriveeDe: this.zoneId,
+                apparition: p.cible.apparition
+            });
         } else if (p.type === "choix") {
             this._popupChoix(p);
         }
@@ -661,7 +752,11 @@ class GameScene extends Phaser.Scene {
                 this._fermerPopup();
                 if (ch.cible) {
                     this._sauvegarder();
-                    this.scene.restart({ zone: ch.cible.zone, apparition: ch.cible.apparition });
+                    this.scene.restart({
+                        zone: ch.cible.zone,
+                        arriveeDe: this.zoneId,
+                        apparition: ch.cible.apparition
+                    });
                 }
             }
         }));
@@ -792,7 +887,7 @@ class GameScene extends Phaser.Scene {
                 color: C.couleurs.texte,
                 align: "left"
             })
-            .setOrigin(0, 0.5)
+            .setOrigin(0, 0)
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
@@ -804,11 +899,27 @@ class GameScene extends Phaser.Scene {
             color: C.couleurs.texte,
             align: "center"
         })
-            .setOrigin(0.5)
+            .setOrigin(0.5, 0)
             .setScrollFactor(0)
             .setDepth(C.profondeurs.hud)
             .setStroke(C.couleurs.contour, 3);
         this._hud(this.hudHorloge);
+
+        // 3e bloc (décision John 13/08) : zone libre à DROITE, réservée au
+        // futur indicateur or / énergie. Vide pour l'instant (config.textes.
+        // hudDroit = "") mais créée et positionnée pour réserver la place —
+        // quand l'or / l'énergie arrivera, il suffira de remplir le texte
+        // (config) et d'appeler setText : la position est déjà en place.
+        this.hudDroit = this.add.text(0, 0, C.textes.hudDroit || "", {
+            fontFamily: C.police.famille,
+            color: C.couleurs.texte,
+            align: "right"
+        })
+            .setOrigin(1, 0)
+            .setScrollFactor(0)
+            .setDepth(C.profondeurs.hud)
+            .setStroke(C.couleurs.contour, 3);
+        this._hud(this.hudDroit);
 
         // Barre d'outils (bas, 5 slots — point 3). Le clic sur une icône ne
         // traverse pas vers la grille (stopPropagation du composant).
@@ -864,12 +975,27 @@ class GameScene extends Phaser.Scene {
         // Mise en page recalculée à chaque rotation.
         Arcade.UI.layout(this, (w, h) => {
             const u = (n) => Arcade.UI.u(this, n);
+
+            // 3 blocs répartis sur toute la largeur (décision John 13/08) :
+            //   GAUCHE  nom de zone (origine 0 → ancré à gauche)
+            //   CENTRE  horloge (origine 0.5 → ancrée au centre, x = w/2)
+            //   DROITE  zone libre or/énergie (origine 1 → ancrée à droite)
+            // Origines ré-affirmées ici : un setStroke / setFontSize / setText
+            // ne doit pas casser l'ancrage, et ça documente l'intention.
+            // w/h proviennent de scene.scale.width/height (réels — Arcade.UI.
+            // layout passe bien la taille courante, pas 0).
             this.hudZone
                 .setFontSize(Math.round(u(C.hud.tailleZoneU)) + "px")
+                .setOrigin(0, 0)
                 .setPosition(u(C.hud.margeU), u(C.hud.margeU));
             this.hudHorloge
                 .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
+                .setOrigin(0.5, 0)
                 .setPosition(w / 2, u(C.hud.margeU));
+            this.hudDroit
+                .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
+                .setOrigin(1, 0)
+                .setPosition(w - u(C.hud.margeU), u(C.hud.margeU));
 
             const cote = u(C.barreOutils.tailleIconeU);
             this.barre.placer({
