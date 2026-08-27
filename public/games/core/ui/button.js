@@ -63,6 +63,15 @@
     window.Arcade = window.Arcade || {};
     Arcade.UI = Arcade.UI || {};
 
+    /*
+     * Échelle du bouton pendant l'appui (25/08 : 0.9 → 0.96, tous les jeux).
+     * À 0.9 le bouton se ramassait de 10 % : l'appui « avalait » le bouton
+     * au lieu de l'accuser. 0,96 est la valeur qui se ressent sans se voir —
+     * en dessous de 0,95 l'effet devient une animation en soi. Le rebond
+     * Back.Out du relâchement est conservé (style spec 709).
+     */
+    var APPUI = 0.96;
+
     /**
      * Cadre une texture sur son contenu OPAQUE (bbox des pixels non
      * transparents). Les assets d'icônes font tous 16×16 mais leur
@@ -237,17 +246,25 @@
         // --- Feedback au clic (rétricissement 10 % centré, Back.Out) ----
         // Scale RELATIVE à la base de chaque objet (l'icône image a une
         // base ≠ 1, cadrée sur son contenu opaque) — jamais écrasée.
+        // ⭐ 25/08 : le tween en cours est TUÉ avant d'en lancer un nouveau.
+        // Sans ça, un tapotement rapide laissait cohabiter l'animation
+        // d'enfoncement et celle de relâchement sur le même objet : les deux
+        // écrivaient la même propriété et le bouton pouvait rester coincé à
+        // une taille intermédiaire. Une animation d'ÉTAT doit toujours être
+        // interruptible — c'est le pendant Phaser d'une transition CSS.
         var enfoncer = function (cibles) {
             for (var i = 0; i < cibles.length; i++) {
                 var base = (cibles[i].getData &&
                     cibles[i].getData("_baseScale")) || 1;
-                scene.tweens.add({ targets: cibles[i], scale: base * 0.9, duration: 70, ease: "Linear" });
+                scene.tweens.killTweensOf(cibles[i]);
+                scene.tweens.add({ targets: cibles[i], scale: base * APPUI, duration: 70, ease: "Linear" });
             }
         };
         var relacher = function (cibles) {
             for (var i = 0; i < cibles.length; i++) {
                 var base = (cibles[i].getData &&
                     cibles[i].getData("_baseScale")) || 1;
+                scene.tweens.killTweensOf(cibles[i]);
                 scene.tweens.add({ targets: cibles[i], scale: base, duration: 170, ease: "Back.Out" });
             }
         };
@@ -326,9 +343,13 @@
             corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, 1);
             corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
             // Dégradé léger : voile clair sur la moitié haute (spec 709).
+            // Coins HAUTS au rayon du bouton (le voile épouse le corps),
+            // coins BAS droits : le rayon du corps vaut 58 % de la hauteur
+            // du voile, ses coins bas s'arrondissaient donc en plein milieu
+            // du bouton au lieu de couper net (25/08).
             corps.fillStyle(0xffffff, 0.16);
             corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                largeur, hauteur * 0.52, r);
+                largeur, hauteur * 0.52, { tl: r, tr: r, bl: 0, br: 0 });
             corps.setPosition(x, y);
 
             var coteIcone = hauteur * 0.45;  // même proportion partout
