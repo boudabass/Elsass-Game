@@ -230,8 +230,8 @@
             // couleur passée EXPLICITEMENT (jamais le défaut noir du
             // composant) : style.couleur du jeu (C.couleurs.bouton, rouge)
             // ou défaut socle rouge ci-dessous.
-            var couleur = style.couleur || "#E31B23";      // rouge Waggis
-            var ombre = style.ombre || "rgba(20, 18, 16, 0.28)";
+            var couleur = style.couleur || Arcade.UI.tokens.rouge;
+            var ombre = style.ombre || Arcade.UI.tokens.ombre;
             var police = style.police ||
                 "system-ui, -apple-system, Segoe UI, sans-serif";
 

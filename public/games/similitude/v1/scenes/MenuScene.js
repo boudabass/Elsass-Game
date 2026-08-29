@@ -129,49 +129,29 @@ class MenuScene extends Phaser.Scene {
                 .setShadow(0, 3, "rgba(20, 18, 16, 0.35)", 3, false, true)
         );
 
-        // --- Bouton principal « Jouer » (pleine largeur) -------------------
-        // LE composant bouton réutilisable core/ui/button.js
-        // (Arcade.UI.bouton) — variante TEXTE SIMPLE (sans icône), même
-        // style partagé (fond, coins arrondis, ombre, feedback clic).
-        this.boutonJouer = Arcade.UI.bouton(this, {
-            label: C.textes.jouer,
-            couleur: C.couleurs.boutonJouer,  // VERT charte (Jouer — spec 728 §7)
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => this.jouer()
-        });
-
-        // --- Grille 2×2 des boutons secondaires ---------------------------
-        // Boutique · Inventaire · Classement · Comment jouer (spec 728 §7).
-        // Chaque bouton sur DEUX LIGNES — icône en haut, texte BLANC en
-        // dessous, centré DANS le bouton (composant partagé, variante
-        // icône + texte). La configuration (libellé + emoji + clé de
-        // scène) vit dans config.js menu.secondaires.
-        this.icones = C.menu.secondaires.map((sec) => ({
-            bouton: Arcade.UI.bouton(this, {
+        // --- Bloc d'actions du menu (Jouer + grille + Réglages) -----------
+        // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : le
+        // composant porte lui-même les couleurs du design system The
+        // Elsassisch et adapte la grille au nombre de tuiles secondaires
+        // (4 -> 2×2, comme avant — spec 728 §7 non touchée). Valeurs de
+        // layout reprises de config.js menu.* (déjà identiques aux
+        // défauts du composant, gardées explicites ici car déjà
+        // externalisées côté config).
+        const M = C.menu;
+        Arcade.UI.menuActions(this, {
+            jouer: { label: C.textes.jouer, onClick: () => this.jouer() },
+            secondaires: M.secondaires.map((sec) => ({
                 icone: sec.emoji,
                 label: sec.texte,
-                couleur: C.couleurs.boutonSecondaire,  // NOIR charte
-                // Tuile légèrement translucide + liseré clair (refonte menu
-                // in-game, alignement visuel avec le nouveau design system) :
-                // même couleur/contraste qu'avant (spec 728 §7 non touchée),
-                // juste un bord "verre dépoli" en plus.
-                alphaCorps: 0.92,
-                contourAlpha: 0.18,
-                ombre: C.couleurs.ombreBouton,
-                police: C.police.famille,
                 onClick: () => this.ouvrirSecondaire(sec.cle)
-            })
-        }));
-
-        // --- ⚙️ Réglages : VRAI bouton en bas à droite (rouge charte) -----
-        this.boutonReglages = Arcade.UI.bouton(this, {
-            icone: "⚙️",
-            label: C.textes.reglages,
-            couleur: C.couleurs.bouton,  // ROUGE (Réglages — spec 728 §7)
-            ombre: C.couleurs.ombreBouton,
+            })),
+            reglages: { label: C.textes.reglages, onClick: () => this.aller(SettingsScene.KEY) },
             police: C.police.famille,
-            onClick: () => this.aller(SettingsScene.KEY)
+            largeurJouerPct: M.largeurJouerPct,
+            hauteurJouerU: M.hauteurJouerU,
+            hauteurSecondaireU: M.hauteurSecondaireU,
+            largeurReglagesU: M.largeurReglagesU,
+            espaceU: M.espaceU
         });
 
         // --- Mise en page (recalculée à chaque rotation) -------------------
@@ -283,53 +263,9 @@ class MenuScene extends Phaser.Scene {
                 this._positionnerSaveurs(w / 2, yIllu, u);
             }
 
-            // « Jouer » pleine largeur (M.largeurJouerPct % de la largeur
-            // d'écran). Sa largeur est la RÉFÉRENCE de la page : chaque
-            // ligne de la grille 2×2 reprend exactement cette largeur.
-            const largeurJouer = w * (M.largeurJouerPct / 100);
-            const hauteurJouer = u(M.hauteurJouerU);
-
-            // Grille 2×2 : CHAQUE LIGNE a la MÊME LARGEUR TOTALE que le
-            // bouton « Jouer » : les 2 boutons d'une ligne se partagent
-            // cette largeur, séparés par le même espace u(espaceU).
-            const espace = u(M.espaceU);
-            const largeurSec = (largeurJouer - espace) / 2;
-            const hauteurSec = u(M.hauteurSecondaireU);
-            const pasX = largeurSec + espace;
-            const pasY = hauteurSec + espace;
-            const xCol0 = w / 2 - pasX / 2;
-            const xCol1 = w / 2 + pasX / 2;
-            const ySol = h * 0.965;
-            const hauteurGrille = hauteurSec + pasY;
-
-            // Empilement ancré EN BAS (départ du sol) : ligne vide u(10.5)
-            // + espace u(4.5), puis chaque étage remonte d'un espace.
-            const yReglages = ySol - hauteurSec / 2;
-            const basGrille = yReglages - hauteurSec / 2 - espace;
-            const hautGrille = basGrille - hauteurGrille;
-            const basJouer = hautGrille - espace;
-            const yJouer = basJouer - hauteurJouer / 2;
-            const yLigne1 = hautGrille + hauteurSec / 2;
-            const yLigne2 = yLigne1 + pasY;
-
-            this.boutonJouer
-                .redimensionner(largeurJouer, hauteurJouer)
-                .setPosition(w / 2, yJouer);
-
-            this.icones.forEach((ic, i) => {
-                const x = i % 2 === 0 ? xCol0 : xCol1;
-                const y = i < 2 ? yLigne1 : yLigne2;
-                ic.bouton.redimensionner(largeurSec, hauteurSec).setPosition(x, y);
-            });
-
-            // ⚙️ Réglages : vrai bouton en bas à droite, dans la ligne vide
-            // sous la grille (pattern Waggis) — taille compacte découplée
-            // (u(15)), posé sur le sol, séparé de la grille par le MÊME
-            // espace — jamais superposé (règle John).
-            const largeurReglages = u(M.largeurReglagesU);
-            this.boutonReglages
-                .redimensionner(largeurReglages, hauteurSec)
-                .setPosition(w - u(8.5), yReglages);
+            // Jouer + grille + Réglages : géré par Arcade.UI.menuActions
+            // (core/ui/menuActions.js), abonné à son propre Arcade.UI.layout
+            // — plus rien à positionner ici pour ce bloc.
         };
 
         UI.layout(this, this._miseEnPage);

@@ -29,14 +29,15 @@ class MenuScene extends Phaser.Scene {
 
         const titre = UI.text(this, 0, 0, C.titre, 11, C.couleurs.texte);
         const record = UI.text(this, 0, 0, "", 4.5, C.couleurs.texte);
-        // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : LE
-        // composant bouton réutilisable core/ui/button.js (Arcade.UI.bouton)
-        // — variante TEXTE SIMPLE, même style partagé que Waggis.
-        const bouton = Arcade.UI.bouton(this, {
-            label: "Commencer",
-            couleur: C.couleurs.boutonJouer,  // VERT (Commencer — décision John 08/08)
-            textColor: C.couleurs.texteClair,
-            onClick: () => this.scene.start(GameScene.KEY)
+
+        // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : le
+        // bloc d'actions (ici juste « Commencer », pas de tuile secondaire)
+        // porte lui-même les couleurs du design system et se positionne —
+        // plus de bouton construit/positionné à la main dans la scène.
+        Arcade.UI.menuActions(this, {
+            jouer: { label: "Commencer", onClick: () => this.scene.start(GameScene.KEY) },
+            secondaires: [],
+            reglages: null
         });
 
         // Mise en page recalculée à chaque rotation de l'écran
@@ -47,8 +48,6 @@ class MenuScene extends Phaser.Scene {
                  .setFontSize(Math.round(UI.u(this, 11)) + "px");
             record.setPosition(w / 2, h * 0.52)
                   .setFontSize(Math.round(UI.u(this, 4.5)) + "px");
-            bouton.redimensionner(UI.u(this, 40), UI.u(this, 12))
-                  .setPosition(w / 2, h * 0.68);
         });
 
         // Petit vol stationnaire
