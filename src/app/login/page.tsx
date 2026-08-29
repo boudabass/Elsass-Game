@@ -47,19 +47,14 @@ function LoginForm() {
   };
 
   return (
-    // -mx-4 sm:-mx-6 -my-6 sm:-my-8 : reprend tout l'espace laissé par
-    // LayoutWrapper pour centrer la carte, mobile-first (min-h-dvh évite
-    // le décalage du clavier virtuel sur téléphone).
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 min-h-[calc(100dvh-3.5rem)] sm:min-h-[calc(100dvh-4rem)] flex items-center justify-center p-4">
+    // LayoutWrapper (mode "auth") ne pose plus aucun padding : la page gère
+    // seule son centrage plein écran.
+    <div className="flex min-h-dvh items-center justify-center bg-elsass-cream p-4">
       <Card className="w-full max-w-md overflow-hidden border-elsass-line shadow-sm">
-        {/* Liseré tricolore, clin d'œil au bandeau du site principal */}
-        <div className="h-1.5 w-full flex">
-          <div className="flex-1 bg-elsass-black" />
-          <div className="flex-1 bg-elsass-gold" />
-          <div className="flex-1 bg-elsass-red" />
-        </div>
-
         <CardHeader className="text-center pt-8 pb-2">
+          <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-elsass-black">
+            <span className="font-heading text-2xl text-elsass-gold">E</span>
+          </div>
           <CardTitle className="font-heading font-normal text-3xl text-elsass-ink">
             Connexion
           </CardTitle>

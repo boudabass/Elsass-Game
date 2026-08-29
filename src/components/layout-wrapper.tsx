@@ -1,43 +1,29 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ArcadeNav } from "@/components/arcade-nav";
-import { cn } from "@/lib/utils";
+import { AppShell } from "@/components/app-shell";
+
+// Écrans authentifiés avec nav persistante (barre du bas / rail) — voir
+// app-shell.tsx. Même liste que iframe-resizer.tsx (mode "game" côté Odoo).
+const PREFIXES_COQUILLE = ["/dashboard", "/games", "/scores", "/profile", "/admin"];
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const isGamePage = pathname?.startsWith("/play/");
+    const pathname = usePathname() || "";
+    const isGamePage = pathname.startsWith("/play/");
+    const isShellPage = PREFIXES_COQUILLE.some((p) => pathname.startsWith(p));
 
-    /*
-     * Plus d'en-tête noir : l'arcade vit dans une page Odoo qui a déjà le
-     * sien (voir arcade-nav.tsx). Reste une barre de sous-menu discrète,
-     * masquée pendant une partie — l'écran est au jeu.
-     *
-     * `min-h-screen` uniquement en mode jeu : hors jeu, la page Odoo donne
-     * à l'iframe la hauteur du contenu, et forcer 100vh ferait grandir
-     * l'iframe à chaque mesure (le contenu vaudrait toujours la hauteur
-     * courante de l'iframe).
-     */
-    return (
-        <div
-            className={cn(
-                // Fond blanc, comme la page Odoo qui embarque l'iframe.
-                "flex flex-col bg-white",
-                isGamePage && "min-h-screen"
-            )}
-        >
-            {!isGamePage && <ArcadeNav />}
+    // Jeu : GameShell occupe 100% de l'espace, aucun chrome autour.
+    if (isGamePage) {
+        return <div className="min-h-screen bg-white">{children}</div>;
+    }
 
-            <main
-                className={cn(
-                    "w-full flex-1",
-                    isGamePage
-                        ? "p-0"
-                        : "mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8"
-                )}
-            >
-                {children}
-            </main>
-        </div>
-    );
+    // Accueil/Jeux/Scores/Profil/Admin : coquille app native (nav + contenu
+    // scrollable en interne), largeur laissée au choix de chaque page.
+    if (isShellPage) {
+        return <AppShell>{children}</AppShell>;
+    }
+
+    // Landing (/) et /login : pas de nav, ces pages gèrent leur propre
+    // centrage plein-écran (hauteur pilotée par leur contenu côté Odoo).
+    return <div className="min-h-dvh bg-elsass-cream">{children}</div>;
 }

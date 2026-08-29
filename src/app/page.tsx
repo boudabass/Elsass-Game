@@ -9,8 +9,9 @@ export default function LandingPage() {
   const { user, isLoading } = useAuth();
 
   return (
-    // -mx-4 sm:-mx-6 -my-6 sm:-my-8 : reprend l'espace laissé par LayoutWrapper.
-    <div className="-mx-4 sm:-mx-6 -my-6 sm:-my-8 min-h-[calc(100dvh-3.5rem)] sm:min-h-[calc(100dvh-4rem)] flex flex-col items-center justify-center px-6 text-center">
+    // LayoutWrapper (mode "auth") ne pose plus aucun padding : la page gère
+    // seule son centrage plein écran.
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-elsass-cream px-6 text-center">
       <span className="text-elsass-gold text-xs font-semibold uppercase tracking-[0.25em] mb-3">
         Arcade
       </span>
