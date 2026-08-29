@@ -218,7 +218,7 @@
             // iconesPlateforme })) : libellés + style du bouton.
             var opts = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
             var style = opts.style || {};
-            var texteRetour = opts.retour || "Retour";
+            var texteRetour = opts.retour || "Quitter";
             var textePleinEcran = opts.pleinEcran || "Plein écran";
 
             // STYLE DU BOUTON — reprend EXACTEMENT le bouton Réglages

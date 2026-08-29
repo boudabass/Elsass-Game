@@ -18,7 +18,7 @@ window.FarmConfig = {
     textes: {
         jouer: "Jouer",
         accroche: "Une ferme alsacienne à faire pousser…",
-        retour: "Retour",
+        retour: "Quitter",
         pleinEcran: "Plein écran",
 
         // HUD (GameScene).

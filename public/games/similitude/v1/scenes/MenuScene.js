@@ -152,6 +152,12 @@ class MenuScene extends Phaser.Scene {
                 icone: sec.emoji,
                 label: sec.texte,
                 couleur: C.couleurs.boutonSecondaire,  // NOIR charte
+                // Tuile légèrement translucide + liseré clair (refonte menu
+                // in-game, alignement visuel avec le nouveau design system) :
+                // même couleur/contraste qu'avant (spec 728 §7 non touchée),
+                // juste un bord "verre dépoli" en plus.
+                alphaCorps: 0.92,
+                contourAlpha: 0.18,
                 ombre: C.couleurs.ombreBouton,
                 police: C.police.famille,
                 onClick: () => this.ouvrirSecondaire(sec.cle)

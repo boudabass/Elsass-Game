@@ -95,7 +95,7 @@ window.SimilitudeConfig = {
 
         // Libellés des icônes persistantes Quitter / Plein écran (lus par
         // Arcade.UI.iconesPlateforme via les options de boot — main.js).
-        retour: "Retour",
+        retour: "Quitter",
         pleinEcran: "Plein écran",
 
         // Écrans Boutique / Inventaire (spec 728 §5, §6 — SIM-8).

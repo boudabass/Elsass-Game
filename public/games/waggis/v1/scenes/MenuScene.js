@@ -164,6 +164,12 @@ class MenuScene extends Phaser.Scene {
                 icone: ic.emoji,
                 label: ic.label,
                 couleur: C.couleurs.boutonSecondaire,  // NOIR (secondaires — décision John 08/08)
+                // Tuile légèrement translucide + liseré clair (refonte menu
+                // in-game, alignement visuel avec le nouveau design system) :
+                // même couleur/contraste qu'avant, juste un bord "verre
+                // dépoli" en plus — aucune action retirée, aucun décor touché.
+                alphaCorps: 0.92,
+                contourAlpha: 0.18,
                 ombre: C.couleurs.ombreBouton,
                 police: C.police.famille,
                 onClick: ic.onClick
