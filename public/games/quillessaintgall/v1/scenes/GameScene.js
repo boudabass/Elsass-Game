@@ -1,49 +1,42 @@
 /*
- * TestScene — scène de test UNIQUE du spike « collision boule/quilles » de
- * Quilles Saint-Gall (PRD 875 §3-6).
+ * GameScene — Quilles Saint-Gall, une VRAIE partie (PRD 875 §7-9) : 17
+ * jets en 6 phases, par-dessus la mécanique de tir et la physique de
+ * collision du spike v1, VALIDÉES par John le 30/08/2026 (commit
+ * 6fa096e) et NON MODIFIÉES ici : placement dans un demi-cercle, visée
+ * par boutons ◄/►, force réglable, jauge de précision à zone fixe,
+ * collision boule/quilles par test de distance manuel (cf. commentaires
+ * de chaque méthode concernée, tous conservés tels quels).
  *
- * Ce que cette scène valide :
- *   1. VUE DU DESSUS + 9 QUILLES en carré 3×3 (numérotées 1-9 comme dans le
- *      PRD, quille 5 = le Roi, plus grande).
- *   2. PHYSIQUE DE COLLISION boule/quilles (test de distance manuel, à
- *      chaque frame — plus simple et plus fiable qu'un corps Arcade
- *      circulaire ré-échelonné à chaque resize) : la boule roule en ligne
- *      droite, chaque quille touchée tombe et sort du jeu ; la boule
- *      continue sa route (elle peut toucher plusieurs quilles, comme en
- *      vrai).
- *   3. TIR EN 2 ÉTAPES RÉUTILISÉ de Schieweschlawe (873 §5), revu plusieurs
- *      fois le 30/08 (demandes John) : la boule se place n'importe où dans
- *      un DEMI-CERCLE (glisser libre 2D) dont le côté plat est collé à la
- *      ligne de lancer et fait toute la largeur de la piste ; la DIRECTION
- *      du tir vient de 2 BOUTONS ◄/► EN BAS de la zone de recul, sous le
- *      demi-cercle (jamais superposés — 1° par clic, max 10°) ; la FORCE
- *      vient de 2 BOUTONS -/+ EN HAUT de la colonne de droite (au-dessus de
- *      « Tirer », avec une barre de niveau) — plus haute = tir plus rapide
- *      MAIS zone orange de la jauge plus étroite. Puis jauge à aiguille
- *      mobile + zone orange fixe (dont la largeur dépend de la force) : la
- *      déviation d'un tir raté est un ANGLE qui s'ajoute à l'angle choisi.
+ * Ce que cette scène ajoute (30/08/2026, PRD §7-9, hors studio) :
+ *   1. LES 17 JETS / 6 PHASES (config.jets) : chaque jet démarre avec un
+ *      sous-ensemble de quilles debout (toutes, sauf en phase C — figure,
+ *      cf. §8), et un barème propre (points/quille, figure, ordre imposé).
+ *   2. LE SCORE CUMULÉ (0-200), affiché en colonne de gauche à la place
+ *      du compteur de quilles tombées EN DIRECT du spike (PRD §3).
+ *   3. L'ORDRE IMPOSÉ (phases D/E) : la chute de chaque quille est
+ *      horodatée (`ordreChute`) pendant le jet ; à l'arrêt de la boule,
+ *      on vérifie que les quilles REQUISES sont tombées dans le bon
+ *      ordre, sans que 2 d'entre elles tombent au même frame (sinon jet
+ *      ANNULÉ, quilles relevées, jusqu'à `config.partie.tentativesMax`
+ *      essais — cf. _calculerOrdreJet, interprétation prototype
+ *      documentée dans l'en-tête de config.js).
+ *   4. L'ÉCRAN DE FIN DE PARTIE (jet 17 résolu) : score final /200,
+ *      envoi à Arcade.Score (meilleur score), bouton pour rejouer une
+ *      partie complète depuis le jet 1.
  *
- * Volontairement HORS SCOPE de ce spike (à construire ensuite, PRD §6-8) :
- * les 6 phases et les 17 jets d'une vraie partie, le barème de points par
- * phase, les figures et les ordres de quilles imposés. Ici : un seul jet
- * « jeu plein » (les 9 quilles debout), rejouable à l'infini, qui compte
- * juste le nombre de quilles tombées — de quoi valider la physique et la
- * sensation de viser/tirer avant de complexifier.
- *
- * Contrôles (clic/tap uniquement) : glisser la boule dans le demi-cercle de
- * placement, boutons ◄/► (en bas) pour orienter la visée, boutons -/+ (en
- * haut à droite) pour la force, bouton vert « Tirer » pour lancer la
- * jauge, reclic pour arrêter l'aiguille.
+ * Volontairement HORS SCOPE (PRD §10/12, non tranché par John) : paliers
+ * de difficulté, mode tutoriel, scène Menu séparée — la partie démarre
+ * directement au jet 1 à l'ouverture du jeu, comme le spike.
  */
-class TestScene extends Phaser.Scene {
-    static KEY = "test";
+class GameScene extends Phaser.Scene {
+    static KEY = "jeu";
 
     constructor() {
-        super(TestScene.KEY);
+        super(GameScene.KEY);
     }
 
     /**
-     * Génère les textures du spike (aucune image téléchargée). Appelé une
+     * Génère les textures du jeu (aucune image téléchargée). Appelé une
      * seule fois depuis preload() de main.js.
      */
     static genererTextures(scene) {
@@ -73,38 +66,22 @@ class TestScene extends Phaser.Scene {
     }
 
     create() {
-        const C = window.QuillesSaintGallConfig;
-
         // Vue du dessus : pas de gravité de monde.
         this.physics.world.gravity.y = 0;
 
-        // États : placement → jauge → feedback → lancer → resultat.
+        // États : placement → jauge → feedback → lancer → jetResultat →
+        // (placement du jet suivant, OU finPartie après le jet 17).
         this.etat = "placement";
         this.glisse = false;
-        // Position de la boule dans le cercle de placement, en fraction du
-        // rayon (-1..1 sur chaque axe, résiste au resize/rotation d'écran —
-        // même principe que les coordonnées 0-100 de Schieweschlawe).
-        this.placementFracX = 0;
-        this.placementFracY = 0.5;      // centrée dans la hauteur du demi-cercle
-        // Angle de visée choisi via les boutons ◄/► (degrés, 0 = tout droit).
-        this.aimAngleDeg = 0;
-        // Force du tir, choisie via les boutons -/+ (0-100, cf. config
-        // `force`) : plus haute = tir plus rapide MAIS zone orange de la
-        // jauge plus étroite (plus difficile).
-        this.force = C.force.defaut;
-        // Largeur réelle de la zone orange pour LE TIR EN COURS, figée au
-        // moment où la jauge démarre (interpolée depuis la force) — cf.
-        // _demarrerJauge / _dessinerJaugeBarre / _arreterJauge.
-        this.jaugeZoneOrangeLargeurPctActuelle = C.jauge.zoneOrangeLargeurMaxPct;
 
+        // Jauge de précision (état interne au tir en cours, indépendant
+        // du jet/de la partie).
         this.jaugeTemps = 0;
         this.jaugeNeedle = 0.5;
         this.jaugeZoneCentre = 0.5;
         this.jaugeDeviation = 0;
+        this.jaugeZoneOrangeLargeurPctActuelle = window.QuillesSaintGallConfig.jauge.zoneOrangeLargeurMaxPct;
         this.feedbackRestant = 0;
-
-        this.quillesTombeesCount = 0;
-        this.roiTombe = false;
         this.boutonRejouer = null;
 
         this._creerDecor();
@@ -117,7 +94,11 @@ class TestScene extends Phaser.Scene {
         this._creerBarreForce();
         this._creerBoutonsForce();
         this._creerTextes();
-        this._majTexteCompteur();
+
+        // Démarre la partie (jet 1) : ne positionne rien visuellement tant
+        // que la géométrie de l'écran (this.w/this.h) n'est pas connue —
+        // _demarrerJet() s'en charge lui-même (cf. son commentaire).
+        this._demarrerPartie();
 
         // Zone de saisie globale (clic/tap).
         this.zoneGlobale = this.add.zone(0, 0, 10, 10)
@@ -151,6 +132,224 @@ class TestScene extends Phaser.Scene {
         this._glisserQuillesTombees(dt);
     }
 
+    // --- Partie / jets (PRD §7-9) ----------------------------------------------
+
+    /** Démarre une NOUVELLE partie complète : score à 0, jet 1. */
+    _demarrerPartie() {
+        this.scoreTotal = 0;
+        this.tentativeCourante = 1;
+        this._masquerRetourJet();
+        this._demarrerJet(1);
+    }
+
+    /**
+     * Démarre (ou REJOUE, si `n` est le même jet après une annulation
+     * d'ordre imposé) le jet `n` : résout sa config, remet les quilles à
+     * l'état de CE jet (toutes debout, sauf en phase C où seules les 4
+     * quilles de la figure sont présentes — les 5 autres sont ABSENTES,
+     * cf. _appliquerEtatQuille), remet visée/force par défaut.
+     *
+     * Ne positionne RIEN visuellement tant que `this.w` n'est pas encore
+     * connu (1er appel, depuis create(), avant que Arcade.UI.layout ait
+     * tourné une première fois) — le layout initial s'en chargera. Pour
+     * tous les appels suivants (jet suivant, retry, rejouer la partie),
+     * `this.w` existe déjà : on peut directement redessiner via
+     * _recalculerGeometrie(), qui fait tout le travail (quilles, visée,
+     * boule, textes) sans rien dupliquer.
+     */
+    _demarrerJet(n) {
+        const C = window.QuillesSaintGallConfig;
+        this.numeroJet = n;
+        this.jetConfig = C.jets[n - 1];
+        this.ordreChute = [];
+        this.frameId = 0;
+        this.quillesTombeesCount = 0;
+        this.roiTombe = false;
+
+        const figureIndices = this.jetConfig.type === "figure"
+            ? this.jetConfig.figure.indices : null;
+        this.quilles.forEach((q) => {
+            const idx = q.getData("index");
+            const dansLeJet = !figureIndices || figureIndices.includes(idx);
+            q.setData("debout", dansLeJet);
+            q.setData("absente", !dansLeJet);
+            q.setData("vx", 0);
+            q.setData("vy", 0);
+            q.setAngle(0);
+        });
+
+        this.force = C.force.defaut;
+        this.placementFracX = 0;
+        this.placementFracY = 0.5;
+        this.aimAngleDeg = 0;
+        this.etat = "placement";
+
+        this._majTextesProgression();
+        this._majConsigneJet();
+        this._montrerConsignes();
+        this._masquerRetourJet();
+
+        if (this.w !== undefined) this._recalculerGeometrie();
+    }
+
+    /** Avance au jet suivant, ou termine la partie après le jet 17. */
+    _avancerApresJet() {
+        if (this.numeroJet < 17) {
+            this._demarrerJet(this.numeroJet + 1);
+        } else {
+            this._terminerPartie();
+        }
+    }
+
+    /**
+     * Fin de partie (jet 17 résolu, succès ou échec définitif) : envoie
+     * le score au classement (Arcade.Score ne garde que le meilleur),
+     * affiche le score final et propose de rejouer une partie complète.
+     */
+    async _terminerPartie() {
+        const C = window.QuillesSaintGallConfig;
+        this.etat = "finPartie";
+        this._cacherConsignes();
+
+        const nouveauRecord = await Arcade.Score.submit(this.scoreTotal);
+        const texteRecord = nouveauRecord
+            ? C.textes.nouveauRecord
+            : C.textes.meilleurScore.replace("{score}", Arcade.Score.best);
+
+        this.texteResultat.setText(
+            C.textes.finPartie + "\n" +
+            C.textes.scoreFinalTexte.replace("{score}", this.scoreTotal) + "\n" +
+            texteRecord
+        ).setVisible(true);
+
+        if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
+        this.boutonRejouer = Arcade.UI.bouton(this, {
+            label: C.textes.rejouerPartie,
+            couleur: C.couleurs.bouton,
+            textColor: C.couleurs.texte,
+            onClick: () => this._demarrerPartie()
+        });
+
+        this._positionnerTextes();
+    }
+
+    /** Texte de progression de la colonne de gauche : « Jet n/17 · Score ». */
+    _majTextesProgression() {
+        const C = window.QuillesSaintGallConfig;
+        const jet = C.textes.jetProgression.replace("{n}", this.numeroJet);
+        const score = C.textes.scoreCumule.replace("{score}", this.scoreTotal);
+        this.texteCompteur.setText(jet + "\n" + score);
+    }
+
+    /**
+     * consigne2 (2e ligne d'instructions) devient spécifique au jet en
+     * cours pour les phases C (prépondérante) et D/E (ordre imposé) — les
+     * phases A/B gardent l'instruction générique sur la force.
+     */
+    _majConsigneJet() {
+        const C = window.QuillesSaintGallConfig;
+        const jc = this.jetConfig;
+        if (jc.type === "figure") {
+            this.consigne2.setText(
+                C.textes.prependerante.replace("{n}", jc.figure.prependerante + 1));
+        } else if (jc.type === "ordre") {
+            const sequence = jc.ordreImpose.map((i) => i + 1).join(" → ");
+            this.consigne2.setText(C.textes.ordreARespecter.replace("{sequence}", sequence));
+        } else {
+            this.consigne2.setText(C.textes.consigneLigne2);
+        }
+    }
+
+    _masquerRetourJet() {
+        if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
+        this.texteResultat.setVisible(false).setText("");
+    }
+
+    /**
+     * Affiche l'écran entre 2 jets (résultat du jet qui vient de se
+     * terminer + un bouton dont le libellé et l'action dépendent du cas :
+     * jet suivant, nouvel essai (ordre non respecté), ou fin de partie.
+     * Le bouton est toujours RECRÉÉ (jamais réutilisé) : Arcade.UI.bouton
+     * ne permet pas de changer son onClick après coup.
+     */
+    _afficherRetourJet(o) {
+        this.etat = "jetResultat";
+        this._cacherConsignes();
+        this.texteResultat.setText(o.texte).setVisible(true);
+
+        if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
+        const C = window.QuillesSaintGallConfig;
+        this.boutonRejouer = Arcade.UI.bouton(this, {
+            label: o.boutonLabel,
+            couleur: C.couleurs.bouton,
+            textColor: C.couleurs.texte,
+            onClick: o.onContinuer
+        });
+
+        this._positionnerTextes();
+    }
+
+    // --- Score du jet (PRD §7-9) -------------------------------------------
+
+    /**
+     * Calcule le résultat du jet qui vient de se terminer, selon son
+     * type (cf. config.jets) : { annule, points }. `annule` ne peut être
+     * vrai que pour un jet à ordre imposé (D/E) — cf. _calculerOrdreJet.
+     */
+    _calculerScoreJet() {
+        const jc = this.jetConfig;
+        if (jc.type === "plein") {
+            return { annule: false, points: this.quillesTombeesCount * jc.pointsParQuille };
+        }
+        if (jc.type === "figure") {
+            const prependeranteEstTombee = this._quilleEstTombee(jc.figure.prependerante);
+            const parQuille = prependeranteEstTombee ? jc.pointsSiPrependerante : jc.pointsSinon;
+            return { annule: false, points: this.quillesTombeesCount * parQuille };
+        }
+        return this._calculerOrdreJet(jc);
+    }
+
+    _quilleEstTombee(index) {
+        const q = this.quilles[index];
+        return !!q && !q.getData("debout") && !q.getData("absente");
+    }
+
+    /**
+     * Ordre imposé (phases D/E, PRD §9) — interprétation prototype
+     * (documentée dans l'en-tête de config.js, non fixée par le PRD) :
+     *   - 2+ quilles REQUISES tombées au MÊME frame → jet annulé
+     *     (« quilles multiples tombées en même temps », PRD §9) ;
+     *   - une quille requise tombe avant une autre qui devait la
+     *     précéder → jet annulé (« ordre non respecté ») ;
+     *   - séquence complète et dans l'ordre → points = maxPoints du jet ;
+     *   - séquence partielle mais SANS violation (le lancer s'arrête
+     *     avant d'abattre toute la séquence) → score proportionnel,
+     *     arrondi au chiffre inférieur.
+     */
+    _calculerOrdreJet(jc) {
+        const requis = jc.ordreImpose;
+        const chutes = this.ordreChute.filter((c) => requis.includes(c.index));
+
+        const parFrame = {};
+        chutes.forEach((c) => {
+            (parFrame[c.frame] = parFrame[c.frame] || []).push(c.index);
+        });
+        for (const f in parFrame) {
+            if (parFrame[f].length > 1) return { annule: true };
+        }
+
+        const ordreReel = chutes.map((c) => c.index);
+        for (let i = 0; i < ordreReel.length; i++) {
+            if (ordreReel[i] !== requis[i]) return { annule: true };
+        }
+
+        const complet = ordreReel.length === requis.length;
+        const points = complet
+            ? jc.maxPoints
+            : Math.floor((ordreReel.length / requis.length) * jc.maxPoints);
+        return { annule: false, points: points };
+    }
+
     // --- Création des éléments ------------------------------------------------
 
     _creerDecor() {
@@ -159,16 +358,30 @@ class TestScene extends Phaser.Scene {
     }
 
     _creerQuilles() {
+        const C = window.QuillesSaintGallConfig;
         this.quilles = [];
+        this.numerosQuille = [];
+        // Marqueur (anneau) de la quille prépondérante — phase C uniquement.
+        this.prependeranteG = this.add.graphics().setDepth(4.5);
+
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
             q.setData("roi", i === 4);
             q.setData("debout", true);
+            q.setData("absente", false);
             q.setData("rayon", 0);
             q.setData("vx", 0);
             q.setData("vy", 0);
             this.quilles.push(q);
+
+            // Numéro (1-9) affiché UNIQUEMENT pendant les jets à ordre
+            // imposé (D/E) — indispensable pour que le joueur sache quelle
+            // quille est laquelle (le PRD §6 ne prévoyait cette
+            // numérotation que comme référence interne à config.js).
+            const num = Arcade.UI.text(this, 0, 0, String(i + 1), 2.4, C.couleurs.texteSombre)
+                .setDepth(5).setVisible(false);
+            this.numerosQuille.push(num);
         }
     }
 
@@ -466,6 +679,8 @@ class TestScene extends Phaser.Scene {
         this.rayonQuille = UI.u(this, C.quille.rayonPct);
         this.rayonRoi = UI.u(this, C.quille.rayonRoiPct);
 
+        const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
+
         this.quilles.forEach((q, i) => {
             const row = Math.floor(i / 3);
             const col = i % 3;
@@ -480,11 +695,46 @@ class TestScene extends Phaser.Scene {
             q.setData("rayon", rayonVisuel * C.quille.rayonCollisionFacteur);
 
             this._appliquerEtatQuille(q);
+
+            const num = this.numerosQuille[i];
+            num.setPosition(x, y).setFontSize(Math.round(UI.u(this, 2.4)) + "px");
+            num.setVisible(showNumeros && q.getData("debout"));
         });
+
+        this._dessinerMarqueurPrependerante();
     }
 
+    /**
+     * Anneau doré autour de la quille prépondérante du jet en cours
+     * (phase C uniquement) — nécessaire pour que le joueur sache laquelle
+     * compte le plus, sans quoi le barème « 5 bois si la prépondérante
+     * tombe » n'est pas jouable.
+     */
+    _dessinerMarqueurPrependerante() {
+        const C = window.QuillesSaintGallConfig;
+        const UI = Arcade.UI;
+        this.prependeranteG.clear();
+        if (!this.jetConfig || this.jetConfig.type !== "figure") return;
+        const q = this.quilles[this.jetConfig.figure.prependerante];
+        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.quilleRoi).color;
+        this.prependeranteG.lineStyle(UI.u(this, 0.5), coul, 0.9);
+        this.prependeranteG.strokeCircle(q.x, q.y, this.rayonQuille * 1.5);
+    }
+
+    /**
+     * `absente` (nouveau, PRD §7 phase C) : la quille n'est PAS présente
+     * sur la piste pour ce jet (hors figure) — entièrement invisible,
+     * jamais collisionnable (elle reste `debout=false`, déjà exclue par
+     * _suivreBoule). Distinct d'une quille simplement TOMBÉE (visible,
+     * grisée).
+     */
     _appliquerEtatQuille(q) {
         const C = window.QuillesSaintGallConfig;
+        if (q.getData("absente")) {
+            q.setVisible(false);
+            return;
+        }
+        q.setVisible(true);
         const debout = q.getData("debout");
         const roi = q.getData("roi");
         q.setAlpha(debout ? 1 : 0.45);
@@ -499,7 +749,12 @@ class TestScene extends Phaser.Scene {
         this._appliquerEtatQuille(quille);
         this.quillesTombeesCount++;
         if (quille.getData("roi")) this.roiTombe = true;
-        this._majTexteCompteur();
+
+        // Horodatage de la chute (frame courant) — utilisé par
+        // _calculerOrdreJet pour vérifier l'ordre imposé et détecter les
+        // chutes simultanées (phases D/E uniquement, inoffensif sinon).
+        this.ordreChute.push({ index: quille.getData("index"), frame: this.frameId });
+        this.numerosQuille[quille.getData("index")].setVisible(false);
 
         // Petite chute visuelle (rotation + tassement).
         this.tweens.add({
@@ -509,13 +764,6 @@ class TestScene extends Phaser.Scene {
             duration: 220,
             ease: "Quad.easeOut"
         });
-    }
-
-    _majTexteCompteur() {
-        const C = window.QuillesSaintGallConfig;
-        let t = C.textes.quillesTombees.replace("{n}", this.quillesTombeesCount);
-        if (this.roiTombe) t += C.textes.roiTombe;
-        this.texteCompteur.setText(t);
     }
 
     // --- Visée (placement dans le cercle + rotation par boutons) -------------
@@ -729,6 +977,10 @@ class TestScene extends Phaser.Scene {
         const C = window.QuillesSaintGallConfig;
         this.ombreBoule.setPosition(this.boule.x, this.boule.y);
 
+        // Un frame de plus pour cette course de la boule (sert à détecter
+        // les chutes simultanées d'un ordre imposé, cf. _calculerOrdreJet).
+        this.frameId++;
+
         // Collision boule/quilles : test de distance manuel (cf. commentaire
         // de classe) contre chaque quille encore debout. Si le choc est
         // trop faible (vitesseMinRenversePct), la quille agit comme un mur
@@ -778,7 +1030,7 @@ class TestScene extends Phaser.Scene {
         // — on l'arrête plutôt que de la laisser trembler indéfiniment.
         const v = this.boule.body.velocity;
         const tropLente = Math.hypot(v.x, v.y) < (C.boule.vitesseArretPct / 100) * this.h;
-        if (dehors || tropLente) this._arreterBoule();
+        if (dehors || tropLente) this._jetTermine();
     }
 
     _vitesseMaxLancer() {
@@ -883,64 +1135,54 @@ class TestScene extends Phaser.Scene {
         });
     }
 
-    _arreterBoule() {
+    /**
+     * La boule s'arrête : le jet est terminé — calcule le score (ou
+     * l'annulation) via _calculerScoreJet(), puis affiche l'écran de
+     * retour de jet avec l'action appropriée (nouvel essai / jet suivant
+     * / fin de partie). Remplace l'ancien `_arreterBoule` du spike (qui
+     * ne faisait que compter les quilles tombées et proposer "Rejouer").
+     */
+    _jetTermine() {
         const C = window.QuillesSaintGallConfig;
-        this.etat = "resultat";
+        this.etat = "jetResultat";
         this.boule.body.setVelocity(0, 0);
         this.ombreBoule.setVisible(false);
 
-        const texte = this.quillesTombeesCount === 0
+        const resultat = this._calculerScoreJet();
+
+        if (resultat.annule) {
+            this.tentativeCourante++;
+            if (this.tentativeCourante <= C.partie.tentativesMax) {
+                this._afficherRetourJet({
+                    texte: C.textes.ordreNonRespecte.replace("{n}", this.tentativeCourante),
+                    boutonLabel: C.textes.rejouerJet,
+                    onContinuer: () => this._demarrerJet(this.numeroJet)
+                });
+                return;
+            }
+            // 3 essais épuisés : 0 point pour ce jet, on avance.
+            this.tentativeCourante = 1;
+            this._afficherRetourJet({
+                texte: C.textes.jetAnnuleDefinitif,
+                boutonLabel: this.numeroJet < 17 ? C.textes.continuer : C.textes.finPartie,
+                onContinuer: () => this._avancerApresJet()
+            });
+            return;
+        }
+
+        this.scoreTotal += resultat.points;
+        this.tentativeCourante = 1;
+        this._majTextesProgression();
+
+        const texteQuilles = this.quillesTombeesCount === 0
             ? C.textes.aucune
             : C.textes.quillesTombees.replace("{n}", this.quillesTombeesCount) +
               (this.roiTombe ? C.textes.roiTombe : "");
-        this.texteResultat.setText(texte).setVisible(true);
-
-        if (!this.boutonRejouer) {
-            this.boutonRejouer = Arcade.UI.bouton(this, {
-                label: C.textes.rejouer,
-                couleur: C.couleurs.bouton,
-                textColor: C.couleurs.texte,
-                onClick: () => this._reinitialiser()
-            });
-        }
-        this._positionnerTextes();
-    }
-
-    _reinitialiser() {
-        const C = window.QuillesSaintGallConfig;
-        this.etat = "placement";
-        this.force = C.force.defaut;
-        this._dessinerBarreForce();
-
-        // Remet chaque quille debout puis recalcule taille/position via
-        // _positionnerQuilles() (ne PAS faire setScale(1,1) ici : la taille
-        // affichée est un % d'écran, pas la taille native de la texture).
-        this.quilles.forEach((q) => {
-            q.setData("debout", true);
-            q.setData("vx", 0);
-            q.setData("vy", 0);
-            q.setAngle(0);
+        this._afficherRetourJet({
+            texte: texteQuilles + "\n" + C.textes.pointsGagnes.replace("{n}", resultat.points),
+            boutonLabel: this.numeroJet < 17 ? C.textes.continuer : C.textes.finPartie,
+            onContinuer: () => this._avancerApresJet()
         });
-        this._positionnerQuilles();
-        this.quillesTombeesCount = 0;
-        this.roiTombe = false;
-        this._majTexteCompteur();
-
-        if (this.boutonRejouer) {
-            this.boutonRejouer.destroy();
-            this.boutonRejouer = null;
-        }
-        this.texteResultat.setVisible(false).setText("");
-        this.texteJauge.setVisible(false);
-
-        this.placementFracX = 0;
-        this.placementFracY = 0.5;      // centrée dans la hauteur du demi-cercle
-        this.aimAngleDeg = 0;
-        this._majVisee();
-        this._poserBouleVisuel();
-        this._dessinerVisee();
-        this._montrerConsignes();
-        this._positionnerTextes();
     }
 
     // --- Mise en page des textes / boutons ---------------------------------------
@@ -978,7 +1220,9 @@ class TestScene extends Phaser.Scene {
         this.texteSousTitre.setPosition(w / 2, h * 0.035 + UI.u(this, 4))
             .setFontSize(Math.round(UI.u(this, 3)) + "px");
 
-        // Colonne de gauche : compteur de quilles debout/tombées en direct.
+        // Colonne de gauche : progression de la partie (jet n/17 + score
+        // cumulé) — remplace le compteur de quilles tombées en direct du
+        // spike (PRD §3).
         this.texteCompteur.setPosition(w3 / 2, this.ligneLancerY + (h - this.ligneLancerY) * 0.5)
             .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
             .setWordWrapWidth(w3 * 0.85, true);
@@ -987,7 +1231,8 @@ class TestScene extends Phaser.Scene {
             this.consigne1.setPosition(w * 0.5, h * 0.55)
                 .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
             this.consigne2.setPosition(w * 0.5, h * 0.55 + UI.u(this, 4.2))
-                .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
+                .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
+                .setWordWrapWidth(w * 0.85, true);
         }
 
         if (this.texteJauge.visible) {
@@ -1004,7 +1249,7 @@ class TestScene extends Phaser.Scene {
 
         if (this.boutonRejouer) {
             this.boutonRejouer.redimensionner(UI.u(this, 30), UI.u(this, 10))
-                .setPosition(w / 2, h * 0.56);
+                .setPosition(w / 2, h * 0.6);
         }
     }
 

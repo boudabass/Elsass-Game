@@ -1,14 +1,12 @@
 /*
- * config.js — réglages du spike « collision boule/quilles » de Quilles
- * Saint-Gall (PRD article 875 §3-6).
+ * config.js — réglages de Quilles Saint-Gall (PRD article 875).
  *
- * Prototype isolé (une scène de test) : AUCUN niveau, AUCUNE des 6 phases
- * des 17 jets (article 875 §6-8) — un seul jet « jeu plein » rejouable à
- * l'infini. Ce spike valide, avant de construire la structure complète :
+ * La visée/physique (§3-6) est le spike v1 VALIDÉ par John le 30/08/2026
+ * (commit 6fa096e) — non modifiée ici :
  *   1. la VUE DU DESSUS + les 9 quilles en carré 3×3 (numérotées 1-9,
  *      quille 5 = le Roi, plus grande) ;
  *   2. la PHYSIQUE DE COLLISION boule/quilles (test de distance manuel,
- *      cf. TestScene) : la boule roule en ligne droite vers le haut,
+ *      cf. GameScene) : la boule roule en ligne droite vers le haut,
  *      chaque quille touchée tombe et sort du jeu ;
  *   3. le TIR EN 2 ÉTAPES RÉUTILISÉ de Schieweschlawe (873 §5) : placement
  *      de la boule dans un DEMI-CERCLE (glisser libre 2D) dont le côté
@@ -23,6 +21,18 @@
  *      dévier la trajectoire de la boule par rapport à l'angle choisi
  *      plutôt que de rater le terrain.
  *
+ * Section `jets` (§7-9, ajoutée le 30/08/2026) : la VRAIE structure d'une
+ * partie — 17 jets en 6 phases, barème fidèle aux règles fédérales (max
+ * 200 points). ⚠️ Comme le PRD le signale déjà en §8-9 : les figures
+ * (phase C) et les ordres imposés (phases D/E) sont une interprétation
+ * maison (aucun schéma fédéral officiel exploitable trouvé) — à valider
+ * ou remplacer si John obtient un schéma lisible. La FORMULE de score des
+ * jets à ordre imposé (score partiel si séquence incomplète mais non
+ * violée) et la répartition des points de la phase E (6/6/6/7) sont EN
+ * PLUS une interprétation du studio (le PRD ne fixe que le mécanisme
+ * d'annulation et les totaux par phase, pas cette formule) — à signaler
+ * à John, pas à traiter comme définitif.
+ *
  * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
  * ICI, tous les textes joueur dans `textes`, tailles en % d'écran (u() pour
  * polices/hauteurs/marges, % de largeur réelle pour la jauge).
@@ -33,7 +43,7 @@ window.QuillesSaintGallConfig = {
 
     // --- Textes (libellés français, tous les textes joueur) ----------------
     textes: {
-        sousTitre: "Spike — collision boule / quilles",
+        sousTitre: "Partie complète — 17 jets, 6 phases",
         consigneLigne1: "Place la boule, oriente avec ◄ ►",
         consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
         force: "Force",
@@ -44,7 +54,31 @@ window.QuillesSaintGallConfig = {
         rejouer: "Rejouer",
         quillesTombees: "Quilles tombées : {n}/9",
         roiTombe: " · Roi touché !",
-        aucune: "Aucune quille touchée"
+        aucune: "Aucune quille touchée",
+
+        // --- Progression (colonne de gauche, remplace le compteur en
+        // direct du spike — PRD §3) ------------------------------------
+        jetProgression: "Jet {n}/17",
+        scoreCumule: "Score : {score}/200",
+
+        // --- Info du jet en cours (remplace consigneLigne2 pour les
+        // phases C/D/E, cf. GameScene._texteConsigne2PourJet) -----------
+        prependerante: "★ Prépondérante : quille {n}",
+        ordreARespecter: "Ordre : {sequence}",
+
+        // --- Retour de jet (écran entre 2 jets) -------------------------
+        pointsGagnes: "+{n} point(s)",
+        ordreNonRespecte: "Ordre non respecté — nouvel essai ({n}/3)",
+        jetAnnuleDefinitif: "3 essais épuisés — 0 point",
+        continuer: "Jet suivant",
+        rejouerJet: "Nouvel essai",
+
+        // --- Fin de partie ------------------------------------------------
+        finPartie: "Partie terminée !",
+        scoreFinalTexte: "Score : {score}/200",
+        nouveauRecord: "Nouveau record !",
+        meilleurScore: "Meilleur score : {score}/200",
+        rejouerPartie: "Rejouer la partie"
     },
 
     // --- Piste (vue du dessus) ----------------------------------------------
@@ -179,6 +213,62 @@ window.QuillesSaintGallConfig = {
         largeurPct: 60,
         hauteurU: 5
     },
+
+    // --- Structure d'une partie (PRD §7-9) -----------------------------------
+    partie: {
+        // Nombre d'essais avant qu'un jet à ordre imposé (D/E) rejoué sans
+        // succès soit compté à 0 point (PRD §9, proposition retenue).
+        tentativesMax: 3
+    },
+
+    // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
+    // Indices de quilles 0-8 (0 = quille 1 du PRD ... 4 = le Roi/quille 5 ...
+    // 8 = quille 9), même numérotation interne que TestScene._creerQuilles.
+    // type: 'plein' (phases A/B, 9 quilles, points = quilles tombées ×
+    //   pointsParQuille) | 'figure' (phase C, sous-ensemble de 4 quilles,
+    //   points = quilles tombées × (pointsSiPrependerante si la
+    //   prépondérante est tombée, sinon pointsSinon)) | 'ordre' (phases
+    //   D/E, 9 quilles, ordreImpose = séquence à respecter, cf.
+    //   GameScene._calculerScoreJet pour la formule de score/annulation).
+    jets: [
+        // --- Phase A — jeu plein (jets 1-3, 1 bois/quille, max 27) -------
+        { numero: 1, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        { numero: 2, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        { numero: 3, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        // --- Phase B — jeu plein renforcé (jet 4, 2 bois/quille, max 18) -
+        { numero: 4, phase: "B", type: "plein", quillesDebout: "toutes", pointsParQuille: 2 },
+        // --- Phase C — figures (jets 5-8, 1 jet/figure, max 20 chacun) ---
+        // Figure 1 : les 4 coins, prépondérante = quille 1.
+        { numero: 5, phase: "C", type: "figure",
+          figure: { indices: [0, 2, 6, 8], prependerante: 0 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // Figure 2 : la croix, prépondérante = quille 2 (le Roi n'est pas
+        // dans cette figure).
+        { numero: 6, phase: "C", type: "figure",
+          figure: { indices: [1, 3, 5, 7], prependerante: 1 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // Figure 3 : rangée du fond + le Roi, prépondérante = le Roi.
+        { numero: 7, phase: "C", type: "figure",
+          figure: { indices: [0, 1, 2, 4], prependerante: 4 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // Figure 4 : rangée avant + le Roi, prépondérante = le Roi.
+        { numero: 8, phase: "C", type: "figure",
+          figure: { indices: [6, 7, 8, 4], prependerante: 4 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // --- Phase D — ordre imposé court (jets 9-13, max 10 chacun, 50) -
+        { numero: 9, phase: "D", type: "ordre", quillesDebout: "toutes", ordreImpose: [0, 1, 2], maxPoints: 10 },
+        { numero: 10, phase: "D", type: "ordre", quillesDebout: "toutes", ordreImpose: [2, 1, 0], maxPoints: 10 },
+        { numero: 11, phase: "D", type: "ordre", quillesDebout: "toutes", ordreImpose: [0, 4, 8], maxPoints: 10 },
+        { numero: 12, phase: "D", type: "ordre", quillesDebout: "toutes", ordreImpose: [8, 4, 0], maxPoints: 10 },
+        { numero: 13, phase: "D", type: "ordre", quillesDebout: "toutes", ordreImpose: [3, 4, 5], maxPoints: 10 },
+        // --- Phase E — ordre imposé long (jets 14-17, total 25) ----------
+        // Répartition 6/6/6/7 : le PRD ne donne que le total (le « max ~6
+        // par jet » du §9 est indicatif) — arbitraire, somme correcte.
+        { numero: 14, phase: "E", type: "ordre", quillesDebout: "toutes", ordreImpose: [6, 7, 8], maxPoints: 6 },
+        { numero: 15, phase: "E", type: "ordre", quillesDebout: "toutes", ordreImpose: [8, 7, 6], maxPoints: 6 },
+        { numero: 16, phase: "E", type: "ordre", quillesDebout: "toutes", ordreImpose: [1, 4, 7], maxPoints: 6 },
+        { numero: 17, phase: "E", type: "ordre", quillesDebout: "toutes", ordreImpose: [7, 4, 1], maxPoints: 7 }
+    ],
 
     // --- Couleurs (vue du dessus, piste couverte — pas de vent/nuit) --------
     couleurs: {
