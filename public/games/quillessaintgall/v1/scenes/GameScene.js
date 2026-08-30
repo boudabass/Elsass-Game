@@ -166,16 +166,29 @@ class GameScene extends Phaser.Scene {
         this.quillesTombeesCount = 0;
         this.roiTombe = false;
 
+        // Phases D/E (ordre imposé) : la figure reste posée UNE SEULE FOIS
+        // pour toute la phase (règlement fédéral : "jets d'affilée" sur la
+        // même figure, pas remise à neuf à chaque jet) — remplace la
+        // simplification "reset à chaque jet" de la 1re correction, sur
+        // demande explicite de John. `this.ordrePhaseAbattues` (Set des
+        // indices déjà légitimement tombés) n'est réinitialisé qu'au 1er
+        // jet de la phase (9 ou 14) ; cf. _calculerOrdreJet pour son usage.
+        const jc = this.jetConfig;
+        if (jc.type === "ordre" && (n === 9 || n === 14)) {
+            this.ordrePhaseAbattues = new Set();
+        }
+
         // Sous-ensemble de quilles présentes pour ce jet : phase C
-        // (figure) ET phases D/E (ordre imposé) ont désormais toutes les
-        // deux un `figure.indices` propre (schéma fédéral, article 780) —
-        // seules les phases A/B ("plein") gardent les 9 quilles.
-        const figureIndices = (this.jetConfig.type === "figure" || this.jetConfig.type === "ordre")
-            ? this.jetConfig.figure.indices : null;
+        // (figure) ET phases D/E (ordre imposé) ont un `figure.indices`
+        // propre — seules les phases A/B ("plein") gardent les 9 quilles.
+        const figureIndices = (jc.type === "figure" || jc.type === "ordre")
+            ? jc.figure.indices : null;
+        const abattuesPhase = jc.type === "ordre" ? this.ordrePhaseAbattues : null;
         this.quilles.forEach((q) => {
             const idx = q.getData("index");
             const dansLeJet = !figureIndices || figureIndices.includes(idx);
-            q.setData("debout", dansLeJet);
+            const dejaAbattue = !!abattuesPhase && abattuesPhase.has(idx);
+            q.setData("debout", dansLeJet && !dejaAbattue);
             q.setData("absente", !dansLeJet);
             q.setData("vx", 0);
             q.setData("vy", 0);
@@ -196,10 +209,15 @@ class GameScene extends Phaser.Scene {
         if (this.w !== undefined) this._recalculerGeometrie();
     }
 
-    /** Avance au jet suivant, ou termine la partie après le jet 17. */
-    _avancerApresJet() {
-        if (this.numeroJet < 17) {
-            this._demarrerJet(this.numeroJet + 1);
+    /**
+     * Avance au jet suivant (ou de 2, en cas de ricochet validant aussi
+     * le jet suivant d'un coup — cf. _calculerOrdreJet), ou termine la
+     * partie si on dépasse le jet 17.
+     */
+    _avancerApresJet(pas = 1) {
+        const prochain = this.numeroJet + pas;
+        if (prochain <= 17) {
+            this._demarrerJet(prochain);
         } else {
             this._terminerPartie();
         }
@@ -258,6 +276,9 @@ class GameScene extends Phaser.Scene {
                 C.textes.prependerante.replace("{n}", jc.figure.prependerante + 1));
         } else if (jc.type === "ordre") {
             this.consigne2.setText(C.textes.cibleARenverser.replace("{n}", jc.cible + 1));
+        } else if (jc.type === "plein" && jc.prependerante !== undefined) {
+            this.consigne2.setText(
+                C.textes.prependerante.replace("{n}", jc.prependerante + 1));
         } else {
             this.consigne2.setText(C.textes.consigneLigne2);
         }
@@ -302,6 +323,14 @@ class GameScene extends Phaser.Scene {
     _calculerScoreJet() {
         const jc = this.jetConfig;
         if (jc.type === "plein") {
+            // Jet 4 (phase B) : 2 bois/quille SI le Roi (idx4) est tombé,
+            // sinon 1 bois/quille (texte fédéral) — jets 1-3 n'ont pas de
+            // `prependerante` et gardent le barème flat `pointsParQuille`.
+            if (jc.prependerante !== undefined) {
+                const prependeranteEstTombee = this._quilleEstTombee(jc.prependerante);
+                const parQuille = prependeranteEstTombee ? jc.pointsSiPrependerante : jc.pointsSinon;
+                return { annule: false, points: this.quillesTombeesCount * parQuille };
+            }
             return { annule: false, points: this.quillesTombeesCount * jc.pointsParQuille };
         }
         if (jc.type === "figure") {
@@ -318,25 +347,45 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Ordre imposé (phases D/E, article 780) : ce jet remet debout LES
-     * QUILLES DE LA FIGURE (jc.figure.indices, fixes pour toute la phase)
-     * et ne vise qu'UNE quille cible (jc.cible), avec sa propre valeur en
-     * points (jc.points) — pas un barème uniforme par jet. Simplification
-     * ASSUMÉE documentée dans l'en-tête de config.js (le schéma fédéral
-     * suggère plutôt une figure posée une seule fois et grignotée jet
-     * après jet ; non modélisé ici).
-     *   - la cible tombe SEULE (aucune autre quille de la figure en même
-     *     temps) → points = jc.points ;
-     *   - la cible ne tombe pas, OU une autre quille de la figure tombe
-     *     (avec ou sans la cible) → jet annulé (nouvel essai, PRD §9).
+     * Ordre imposé (phases D/E, règlement fédéral, persistance des
+     * quilles tombées cf. _demarrerJet) : la figure est posée une seule
+     * fois pour toute la phase, ce jet ne vise qu'UNE quille cible
+     * (jc.cible, les autres quilles ENCORE debout de la figure restent
+     * des obstacles), avec sa propre valeur en points (jc.points).
+     *   - la cible tombe SEULE → points = jc.points, elle reste tombée
+     *     pour la suite de la phase (cf. _jetTermine) ;
+     *   - EXCEPTION fédérale (jc.ricochetAutorise, jets 12/16
+     *     uniquement) : la cible ET la TOUTE DERNIÈRE quille de la phase
+     *     tombent ENSEMBLE (ricochet), rien d'autre → pas une faute, les
+     *     2 jets sont validés d'un coup (cf. _jetTermine, avance de 2) ;
+     *   - tout autre cas (cible non tombée, ou une AUTRE quille tombe) →
+     *     jet annulé (nouvel essai, article 11).
      */
     _calculerOrdreJet(jc) {
-        const requis = jc.figure.indices;
-        const chutes = this.ordreChute.filter((c) => requis.includes(c.index));
-        const cibleTombee = chutes.some((c) => c.index === jc.cible);
-        const autreTombee = chutes.some((c) => c.index !== jc.cible);
-        if (!cibleTombee || autreTombee) return { annule: true };
+        const chutes = this.ordreChute.filter((c) => jc.figure.indices.includes(c.index));
+        const indicesChus = chutes.map((c) => c.index);
+
+        if (jc.ricochetAutorise) {
+            const derniere = this._dernierCiblePhase(jc.phase);
+            const estRicochet = indicesChus.length === 2 &&
+                indicesChus.includes(jc.cible) && indicesChus.includes(derniere.cible);
+            if (estRicochet) {
+                return { annule: false, points: jc.points, ricochet: true,
+                    pointsSupplementaires: derniere.points };
+            }
+        }
+
+        if (indicesChus.length !== 1 || indicesChus[0] !== jc.cible) return { annule: true };
         return { annule: false, points: jc.points };
+    }
+
+    /** Cible + points du DERNIER jet de la phase D ou E (exception de
+     * ricochet, cf. _calculerOrdreJet / _jetTermine). */
+    _dernierCiblePhase(phase) {
+        const C = window.QuillesSaintGallConfig;
+        const jetsPhase = C.jets.filter((j) => j.phase === phase);
+        const dernier = jetsPhase[jetsPhase.length - 1];
+        return { cible: dernier.cible, points: dernier.points };
     }
 
     // --- Création des éléments ------------------------------------------------
@@ -356,7 +405,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
-            q.setData("roi", i === 8);
+            q.setData("roi", i === 4);
             q.setData("debout", true);
             q.setData("absente", false);
             q.setData("rayon", 0);
@@ -721,8 +770,13 @@ class GameScene extends Phaser.Scene {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
         this.prependeranteG.clear();
-        if (!this.jetConfig || this.jetConfig.type !== "figure") return;
-        const q = this.quilles[this.jetConfig.figure.prependerante];
+        const jc = this.jetConfig;
+        if (!jc) return;
+        let idx;
+        if (jc.type === "figure") idx = jc.figure.prependerante;
+        else if (jc.type === "plein" && jc.prependerante !== undefined) idx = jc.prependerante;
+        else return;
+        const q = this.quilles[idx];
         const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.quilleRoi).color;
         this.prependeranteG.lineStyle(UI.u(this, 0.5), coul, 0.9);
         this.prependeranteG.strokeCircle(q.x, q.y, this.rayonQuille * 1.5);
@@ -1155,6 +1209,7 @@ class GameScene extends Phaser.Scene {
         this.boule.body.setVelocity(0, 0);
         this.ombreBoule.setVisible(false);
 
+        const jc = this.jetConfig;
         const resultat = this._calculerScoreJet();
 
         if (resultat.annule) {
@@ -1167,7 +1222,10 @@ class GameScene extends Phaser.Scene {
                 });
                 return;
             }
-            // 3 essais épuisés : 0 point pour ce jet, on avance.
+            // 3 essais épuisés : 0 point pour ce jet, on avance. En ordre
+            // imposé, la cible reste debout (obstacle pour la suite de la
+            // phase, cf. _calculerOrdreJet) — pas ajoutée à
+            // ordrePhaseAbattues puisqu'elle n'est jamais tombée.
             this.tentativeCourante = 1;
             this._afficherRetourJet({
                 texte: C.textes.jetAnnuleDefinitif,
@@ -1177,7 +1235,18 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        this.scoreTotal += resultat.points;
+        // Ordre imposé (D/E) : la cible reste abattue pour le reste de la
+        // phase (persistance, cf. _demarrerJet) ; un ricochet valide (jets
+        // 12/16) abat aussi la toute dernière quille de la phase.
+        if (jc.type === "ordre") {
+            this.ordrePhaseAbattues.add(jc.cible);
+            if (resultat.ricochet) {
+                this.ordrePhaseAbattues.add(this._dernierCiblePhase(jc.phase).cible);
+            }
+        }
+
+        const pointsTotal = resultat.points + (resultat.pointsSupplementaires || 0);
+        this.scoreTotal += pointsTotal;
         this.tentativeCourante = 1;
         this._majTextesProgression();
 
@@ -1185,10 +1254,12 @@ class GameScene extends Phaser.Scene {
             ? C.textes.aucune
             : C.textes.quillesTombees.replace("{n}", this.quillesTombeesCount) +
               (this.roiTombe ? C.textes.roiTombe : "");
+        const pas = resultat.ricochet ? 2 : 1;
+        const dernierJet = this.numeroJet + pas > 17;
         this._afficherRetourJet({
-            texte: texteQuilles + "\n" + C.textes.pointsGagnes.replace("{n}", resultat.points),
-            boutonLabel: this.numeroJet < 17 ? C.textes.continuer : C.textes.finPartie,
-            onContinuer: () => this._avancerApresJet()
+            texte: texteQuilles + "\n" + C.textes.pointsGagnes.replace("{n}", pointsTotal),
+            boutonLabel: dernierJet ? C.textes.finPartie : C.textes.continuer,
+            onContinuer: () => this._avancerApresJet(pas)
         });
     }
 

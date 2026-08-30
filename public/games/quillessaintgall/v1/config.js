@@ -25,49 +25,60 @@
  * partie — 17 jets en 6 phases, barème fidèle aux règles fédérales (max
  * 200 points).
  *
- * CORRECTION DU 30/08/2026 (soir) — disposition ET barème des phases C/D/E
- * refaits d'après le VRAI schéma fédéral (article Odoo 780, image Wikimedia
- * « Schema_emplacements_quilles_saint_gall.png », lue pixel par pixel :
- * la version précédente ci-dessous datée du même jour, plus haut dans
- * l'historique, était une invention studio qui NE respectait PAS ce
- * schéma (carré 3×3 au lieu d'un losange, Roi au centre au lieu d'une
- * pointe isolée, figures et ordres imposés inventés). Ce qui suit est
- * directement lu sur le schéma (fiable), sauf 2 points signalés comme
- * hypothèse assumée, pas tranchée par John :
- *   - Les 9 quilles forment un LOSANGE (quinconce 1-2-3-2-1), pas un
- *     carré. Indices 0-8 numérotés rangée par rangée, fond → avant :
- *     0 = fond (1 quille) ; 1,2 = rangée suivante (2, gauche→droite) ;
- *     3,4,5 = rangée du milieu, la plus large (3) ; 6,7 = rangée
- *     suivante (2) ; 8 = pointe AVANT (1 quille) = LE ROI, plus gros.
- *     Sur les 3 schémas où le Roi apparaît (jets 4, 5, 6), il est
- *     TOUJOURS ce pion isolé en pointe, jamais au centre de la rangée du
- *     milieu (qui reste une quille normale, idx4) — contrairement à la
- *     formule Wikipédia « la quille du milieu nommée le Roi » (probable
- *     imprécision de rédaction ; le schéma, bien plus précis, prime).
- *   - HYPOTHÈSE : le schéma est vu du dessus SANS indiquer quel bout fait
- *     face au lanceur — on place le Roi côté AVANT (près du lanceur,
- *     quillesZoneBasYPct), cohérent avec « la prépondérante doit être
- *     renversée PAR LA BOULE » (1er contact direct). À confirmer avec
- *     John si l'occasion se présente.
- *   - Phase C (figures, jets 5-8) : les 4 sous-ensembles ET la quille
- *     prépondérante de chacun sont ceux lus sur le schéma (cf. `jets`
- *     ci-dessous) — remplace l'ancienne version inventée. Fait notable :
- *     la prépondérante n'est PAS toujours le Roi (jets 7-8 : c'est une
- *     quille normale de la figure — le Roi n'est même pas posé sur ces
- *     2 figures-là).
- *   - Phases D/E (ordre imposé, jets 9-17) : le schéma donne, pour
- *     CHAQUE quille de la figure, un ordre de renversement ET une valeur
- *     de points propre (6/8/10/12/14 en D, 5/5/10/5 en E — total 50 et
- *     25 respectivement, remplace l'ancien barème inventé 10×5 et
- *     6/6/6/7). Simplification ASSUMÉE ici (non tranchée par John) :
- *     chaque jet remet TOUTES les quilles de la figure debout et ne vise
- *     qu'UNE quille cible (`cible`) ; une AUTRE quille de la figure qui
- *     tombe en même temps annule le jet. Le texte fédéral décrit plutôt
- *     une figure posée UNE SEULE FOIS avec un renversement progressif au
- *     fil des jets successifs (les 2 exceptions du texte, sur une quille
- *     qui en renverse une autre par ricochet « sans faute », n'ont de
- *     sens que dans ce 2e modèle) — non modélisé ici, à valider avec
- *     John si la nuance compte pour lui.
+ * CORRECTION DU 30/08/2026, 1re passe (soir) — disposition ET barème des
+ * phases C/D/E refaits d'après l'image Wikimedia « Schema_emplacements_
+ * quilles_saint_gall.png » (article Odoo 780), lue pixel par pixel. Cette
+ * 1re passe avait un défaut : elle plaçait le Roi en pointe isolée du
+ * losange au lieu du centre — cf. correction ci-dessous.
+ *
+ * CORRECTION DU 30/08/2026, 2e passe (même soir, après retour de John :
+ * "au moins la moitié des formes n'est pas bonne") — trouvé et lu le VRAI
+ * règlement technique fédéral (PDF FFBSQ, 26 pages, lien mort sur le site
+ * mais retrouvé via web.archive.org), qui contient un schéma vectoriel
+ * PRÉCIS des 9 quilles (bien plus fiable que l'image Wikimedia à main
+ * levée) + confirme le texte "la quille du milieu nommée le Roi". Ce
+ * schéma déplace le Roi de la pointe isolée (1re passe) au CENTRE de la
+ * rangée du milieu — la cause probable des figures fausses signalées par
+ * John, puisque 2 des 4 figures de la phase C utilisaient le Roi comme
+ * prépondérante. Points tranchés par John dans la foulée :
+ *   - Orientation confirmée par John : le Roi (quille du milieu) est
+ *     bien côté AVANT... au sens où c'est la moitié du losange la plus
+ *     proche du lanceur qui contient le centre — en réalité peu importe
+ *     puisque le Roi est au CENTRE du losange, pas à une pointe (donc
+ *     cette question d'orientation ne change plus rien à sa position).
+ *   - Persistance des quilles tombées en phases D/E IMPLÉMENTÉE (demande
+ *     explicite de John, ne respectait pas le texte fédéral avant) : la
+ *     figure est posée UNE SEULE FOIS pour toute la phase (jets 9-13 ou
+ *     14-17), chaque jet vise la quille SUIVANTE de la séquence, les
+ *     quilles déjà abattues restent à terre pour la suite de la phase
+ *     (`this.ordrePhaseAbattues`, cf. GameScene). Les 2 exceptions de
+ *     ricochet du texte fédéral ("la quille n°4(36) fait tomber la
+ *     quille n°5(50)" en D, idem n°3(20)/n°4(25) en E) sont modélisées
+ *     via `ricochetAutorise` sur les jets 12 et 16 : si LA cible ET la
+ *     toute dernière quille de la phase tombent ensemble, ce n'est pas
+ *     une faute — les 2 jets sont validés d'un coup.
+ *   - Reste NON tranché par John (pas de schéma officiel trouvé pour ce
+ *     niveau de détail) : les 4 sous-ensembles exacts de la phase C
+ *     (jets 5-8, indices lus sur l'image Wikimedia, PAS le PDF fédéral
+ *     qui ne les illustre pas) sont conservés tels quels — seule la
+ *     quille prépondérante de chacun est corrigée à idx4 (le Roi, cf.
+ *     ci-dessous), en partant du principe que le règlement fédéral décrit
+ *     la RÈGLE des 4 figures avec un texte identique mentionnant "la
+ *     quille prépondérante" à chaque fois, ce qui n'a de sens que si le
+ *     Roi fait partie des 4 quilles de CHAQUE figure (vérifié : c'était
+ *     déjà le cas dans les 4 sous-ensembles existants). Si une figure
+ *     reste visuellement fausse malgré ça, c'est que son sous-ensemble
+ *     de 4 quilles (pas seulement la prépondérante) est à refaire — pas
+ *     de source fiable disponible pour ça pour l'instant.
+ *
+ * Disposition (inchangée depuis la 1re passe, toujours un LOSANGE) :
+ * indices 0-8 numérotés rangée par rangée, fond → avant : 0 = fond
+ * (1 quille) ; 1,2 = rangée suivante (2, gauche→droite) ; 3,4,5 = rangée
+ * du milieu, la plus large (3, gauche/CENTRE/droite) ; 6,7 = rangée
+ * suivante (2) ; 8 = pointe avant (1 quille). LE ROI (idx4, plus gros)
+ * est la quille CENTRALE de la rangée du milieu — confirmé par le
+ * schéma vectoriel ET le texte du PDF fédéral, PAS la pointe isolée
+ * (idx8, simple quille normale).
  *
  * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
  * ICI, tous les textes joueur dans `textes`, tailles en % d'écran (u() pour
@@ -265,68 +276,77 @@ window.QuillesSaintGallConfig = {
     // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
     // Indices de quilles 0-8, losange fond → avant (cf. en-tête de fichier) :
     // 0 = fond ; 1,2 = rangée suivante (G/D) ; 3,4,5 = rangée du milieu, la
-    // plus large (G/centre/D) ; 6,7 = rangée suivante (G/D) ; 8 = pointe
-    // avant = LE ROI. Même numérotation dans GameScene._creerQuilles.
+    // plus large (G/CENTRE=LE ROI/D) ; 6,7 = rangée suivante (G/D) ; 8 =
+    // pointe avant. Même numérotation dans GameScene._creerQuilles.
     // type: 'plein' (phases A/B, 9 quilles, points = quilles tombées ×
-    //   pointsParQuille) | 'figure' (phase C, sous-ensemble de 4 quilles,
-    //   points = quilles tombées × (pointsSiPrependerante si la
-    //   prépondérante est tombée, sinon pointsSinon)) | 'ordre' (phases
-    //   D/E, sous-ensemble figé pour toute la phase, `cible` = la seule
-    //   quille à faire tomber CE jet, `points` = valeur propre à ce jet
-    //   (lue sur le schéma fédéral, plus de barème uniforme inventé) — cf.
-    //   GameScene._calculerOrdreJet pour la formule de score/annulation.
+    //   pointsParQuille — ou, si `prependerante` est défini (jet 4),
+    //   × pointsSiPrependerante/pointsSinon selon que le Roi est tombé) |
+    //   'figure' (phase C, sous-ensemble de 4 quilles, points = quilles
+    //   tombées × (pointsSiPrependerante si la prépondérante est tombée,
+    //   sinon pointsSinon)) | 'ordre' (phases D/E, sous-ensemble FIGÉ POUR
+    //   TOUTE LA PHASE — persistance : les quilles restent tombées d'un
+    //   jet à l'autre —, `cible` = la seule quille à faire tomber CE jet,
+    //   `points` = valeur propre à ce jet, `ricochetAutorise` (jets 12/16
+    //   seulement) = si la cible ET la toute dernière quille de la phase
+    //   tombent ensemble, ce n'est pas une faute (exception fédérale) —
+    //   cf. GameScene._calculerOrdreJet / _demarrerJet.
     jets: [
         // --- Phase A — jeu plein (jets 1-3, 1 bois/quille, max 27) -------
         { numero: 1, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
         { numero: 2, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
         { numero: 3, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
-        // --- Phase B — jeu plein renforcé (jet 4, 2 bois/quille, max 18) -
-        { numero: 4, phase: "B", type: "plein", quillesDebout: "toutes", pointsParQuille: 2 },
+        // --- Phase B — jeu plein renforcé (jet 4, max 18) ----------------
+        // 2 bois/quille SI le Roi (idx4) est renversé, sinon 1 bois/quille
+        // (texte fédéral — l'ancienne version appliquait 2 bois/quille à
+        // tort, sans condition).
+        { numero: 4, phase: "B", type: "plein", quillesDebout: "toutes",
+          prependerante: 4, pointsSiPrependerante: 2, pointsSinon: 1 },
         // --- Phase C — figures (jets 5-8, 1 jet/figure, max 20 chacun) ---
-        // Les 4 figures et leur prépondérante sont lues sur le schéma
-        // fédéral (article 780), pas inventées.
-        // Figure 1 : rangée 1 gauche (idx1) + milieu-centre (idx4) +
-        // rangée 2 droite (idx7) + le Roi (idx8) — prépondérante = le Roi.
+        // Sous-ensembles lus sur l'image Wikimedia de l'article 780 (le
+        // PDF fédéral ne les illustre pas). Prépondérante = LE ROI (idx4)
+        // pour les 4 figures : le texte fédéral décrit la même règle
+        // ("quille prépondérante") identiquement pour les 4, ce qui
+        // suppose que le Roi en fait partie à chaque fois — vérifié, il
+        // l'est déjà dans les 4 sous-ensembles ci-dessous.
         { numero: 5, phase: "C", type: "figure",
-          figure: { indices: [1, 4, 7, 8], prependerante: 8 },
+          figure: { indices: [1, 4, 7, 8], prependerante: 4 },
           pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
         // Figure 2 : symétrique de la figure 1 (miroir gauche/droite).
         { numero: 6, phase: "C", type: "figure",
-          figure: { indices: [2, 4, 6, 8], prependerante: 8 },
+          figure: { indices: [2, 4, 6, 8], prependerante: 4 },
           pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
-        // Figure 3 : rangée 1 gauche (idx1) + milieu-centre (idx4) +
-        // milieu-droite (idx5) + rangée 2 droite (idx7) — prépondérante =
-        // idx7 (quille normale : le Roi n'est PAS posé sur cette figure).
         { numero: 7, phase: "C", type: "figure",
-          figure: { indices: [1, 4, 5, 7], prependerante: 7 },
+          figure: { indices: [1, 4, 5, 7], prependerante: 4 },
           pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
         // Figure 4 : symétrique de la figure 3 (miroir gauche/droite).
         { numero: 8, phase: "C", type: "figure",
-          figure: { indices: [2, 3, 4, 6], prependerante: 6 },
+          figure: { indices: [2, 3, 4, 6], prependerante: 4 },
           pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
         // --- Phase D — ordre imposé court (jets 9-13, total 50) ----------
-        // Les 5 quilles (rangées 1 et milieu, idx 1/2/3/4/5) restent
-        // debout pour toute la phase ; l'ordre ET les points par quille
-        // (6/8/10/12/14) sont ceux du schéma, pas un barème uniforme.
+        // Les 5 quilles (rangées 1 et milieu, idx 1/2/3/4/5) sont posées
+        // UNE FOIS pour toute la phase (persistance) ; l'ordre ET les
+        // points par quille (6/8/10/12/14) viennent de l'image Wikimedia.
+        // Exception fédérale sur le jet 12 (ricochet vers le jet 13).
         { numero: 9, phase: "D", type: "ordre",
           figure: { indices: [1, 2, 3, 4, 5] }, cible: 1, points: 6 },
         { numero: 10, phase: "D", type: "ordre",
           figure: { indices: [1, 2, 3, 4, 5] }, cible: 2, points: 8 },
         { numero: 11, phase: "D", type: "ordre",
           figure: { indices: [1, 2, 3, 4, 5] }, cible: 4, points: 10 },
-        { numero: 12, phase: "D", type: "ordre",
+        { numero: 12, phase: "D", type: "ordre", ricochetAutorise: true,
           figure: { indices: [1, 2, 3, 4, 5] }, cible: 3, points: 12 },
         { numero: 13, phase: "D", type: "ordre",
           figure: { indices: [1, 2, 3, 4, 5] }, cible: 5, points: 14 },
         // --- Phase E — ordre imposé long (jets 14-17, total 25) ----------
-        // 4 quilles debout (rangée 1 + milieu-centre + le Roi, idx
-        // 1/2/4/8) ; ordre ET points (5/5/10/5) lus sur le schéma — le Roi
-        // (jet 16) vaut le double des autres, comme en phase B.
+        // 4 quilles debout (rangée 1 + milieu-centre + pointe avant, idx
+        // 1/2/4/8), posées UNE FOIS pour toute la phase (persistance) ;
+        // ordre ET points (5/5/10/5) lus sur l'image Wikimedia. Exception
+        // fédérale sur le jet 16 (ricochet vers le jet 17).
         { numero: 14, phase: "E", type: "ordre",
           figure: { indices: [1, 2, 4, 8] }, cible: 1, points: 5 },
         { numero: 15, phase: "E", type: "ordre",
           figure: { indices: [1, 2, 4, 8] }, cible: 2, points: 5 },
-        { numero: 16, phase: "E", type: "ordre",
+        { numero: 16, phase: "E", type: "ordre", ricochetAutorise: true,
           figure: { indices: [1, 2, 4, 8] }, cible: 8, points: 10 },
         { numero: 17, phase: "E", type: "ordre",
           figure: { indices: [1, 2, 4, 8] }, cible: 4, points: 5 }
