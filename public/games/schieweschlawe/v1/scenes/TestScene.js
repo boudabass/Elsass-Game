@@ -1,24 +1,28 @@
 /*
- * TestScene — scène de test UNIQUE du spike v2 « vue du dessus + visée
- * 3 points » de Schieweschlawe.
+ * TestScene — scène de test UNIQUE du spike v4 « visée proportionnelle au
+ * terrain » de Schieweschlawe (PRD 873 §4-6, consigne 704 v4 du 30/08).
  *
- * Ce que cette scène valide (PRD article 873 §3-6) :
- *   1. VUE DU DESSUS + grille à 2 axes : gauche-droite = décalage latéral,
- *      haut-bas = distance au sol (haut = loin, bas = proche). Pierre de
- *      lancement fixe en bas, cible posée sur la grille.
- *   2. VISÉE À 3 POINTS alignés (pointeur / pierre-pivot / cible, façon
- *      billard-lance-pierre) : le pointeur part juste sous la pierre,
- *      l'éloigner vers le bas augmente la distance, le déplacer à droite
- *      envoie le disque à gauche (miroir par rapport à la pierre).
- *   3. HAUTEUR SIMULÉE PAR ÉCHELLE : le disque grossit à l'écran en montant,
- *      rétrécit en retombant ; la position sol (X/Y réelle) suit séparément
- *      une trajectoire à vitesse initiale + accélération de vent (2 axes).
- *   4. VENT 4 DIRECTIONS (vecteur 2D) : généralisation du spike v1 avec
- *      setAccelerationY en plus de setAccelerationX, flèche 4 directions.
+ * Ce que cette scène valide (remplace le spike v2, ratio fixe 1:5 abandonné) :
+ *   1. VISÉE PROPORTIONNELLE AU TERRAIN : distance_du_tir =
+ *      (position_disque / 100) × longueur_totale_du_terrain_jouable. Disque
+ *      à 50 → cible à mi-terrain, à 100 → bout du terrain. La longueur du
+ *      terrain est PAR NIVEAU (config.js) ; le bouton « Terrain » la fait
+ *      défiler pour vérifier le mapping sur ≥ 2 longueurs.
+ *   2. COORDONNÉES 0-100 SANS NÉGATIF : axe distance (0 = sous la pierre,
+ *      100 = bas de l'écran) + axe latéral (0 = gauche, 100 = droite, 50 =
+ *      centre). Le miroir est DÉDUIT de la position : latéral_visé =
+ *      100 - latéral_disque (jamais de coordonnée signée dans le code).
+ *   3. TIR EN 2 ÉTAPES : (1) placement du disque, (2) bouton vert « Tirer »
+ *      → jauge à indicateur mobile + zone orange défilante → reclic pour
+ *      arrêter. Arrêt dans l'orange = conforme ; sinon déviation calibrée.
+ *   4. ÉCHELLE-HAUTEUR : le disque grossit en montant, rétrécit en retombant ;
+ *      la position sol réelle suit séparément parabole + vent (2 axes).
+ *   5. VENT 4 DIRECTIONS (vecteur 2D) : setAccelerationX + setAccelerationY,
+ *      5 paliers, flèche directionnelle 4 côtés.
  *
- * Contrôles (clic/tap uniquement) : glisser le pointeur pour viser, puis
- * toucher la jauge « Tirer » à droite. Boutons « Vent » (intensité) et
- * « Dir. » (direction) pour explorer les 5 paliers × 4 directions.
+ * Contrôles (clic/tap uniquement) : glisser le disque dans la zone de recul
+ * (sous la pierre), boutons « Vent » / « Dir. » / « Terrain » pour explorer,
+ * bouton vert « Tirer » pour lancer la jauge, reclic pour arrêter l'aiguille.
  * AUCUN niveau, AUCUNE progression — prototype isolé.
  */
 class TestScene extends Phaser.Scene {
@@ -71,17 +75,28 @@ class TestScene extends Phaser.Scene {
         // hauteur est simulée à part, par échelle).
         this.physics.world.gravity.y = 0;
 
-        this.etat = "repos";              // repos | vol | atterri
-        this.glisse = false;              // vrai pendant qu'on tire le pointeur
+        // États : placement → jauge → feedback → vol → atterri.
+        this.etat = "placement";
+        this.glisse = false;               // vrai pendant qu'on déplace le disque
         this.palierIndex = C.vent.palierInitial;
         this.directionIndex = C.vent.directionInitiale;
+        this.terrainIndex = C.terrain.longueurIndexInitial;
+
+        // Coordonnées 0-100 SANS NÉGATIF (les deux axes de la visée).
+        this.posDistance = 50;             // 0 = sous la pierre, 100 = bas de l'écran
+        this.posLateral = 50;              // 0 = gauche, 100 = droite, 50 = centre
+
+        // Jauge (étape 2).
+        this.jaugeTemps = 0;
+        this.jaugeNeedle = 0.5;
+        this.jaugeZoneCentre = 0.5;
+        this.jaugeDeviation = 0;
+        this.feedbackRestant = 0;
+
         this.trainee = [];
         this.traineeTimer = 0;
         this.marqueur = null;
         this.boutonRejouer = null;
-        this.pointer = { x: 0, y: 0 };
-        this.pull = { x: 0, y: 0 };
-        this._pullInitialise = false;
 
         this._creerDecor();
         this._creerGrille();
@@ -89,19 +104,25 @@ class TestScene extends Phaser.Scene {
         this._creerCible();
         this._creerDisqueEtOmbre();
         this._creerVisee();
+        this._creerJauge();
         this._creerBraises();
         this._creerVent();
-        this._creerJauge();
+        this._creerBoutons();
         this._creerTextes();
 
-        // Zone de visée : la partie basse de l'écran (sous la pierre), où
-        // l'on tire le pointeur. Interactive → ne gêne pas les boutons
-        // (rendus au-dessus, hit-test Phaser topOnly).
-        this.zoneVisee = this.add.zone(0, 0, 10, 10).setOrigin(0, 0).setInteractive();
-        this.zoneVisee.on("pointerdown", (p) => this._debuterGlisser(p));
-        this.zoneVisee.on("pointermove", (p) => { if (this.glisse) this._glisser(p); });
-        this.zoneVisee.on("pointerup", () => { this.glisse = false; });
-        this.zoneVisee.on("pointerupoutside", () => { this.glisse = false; });
+        // Zone de saisie globale (clic/tap). Elle reçoit les interactions
+        // qui ne tombent pas sur un bouton (les boutons sont au-dessus,
+        // hit-test Phaser topOnly). Pendant le placement : glisser le disque
+        // dans la zone de recul (sous la pierre). Pendant la jauge : reclic
+        // pour arrêter l'aiguille.
+        this.zoneGlobale = this.add.zone(0, 0, 10, 10)
+            .setOrigin(0, 0).setInteractive();
+        this.zoneGlobale.on("pointerdown", (p) => this._pointerDown(p));
+        this.zoneGlobale.on("pointermove", (p) => {
+            if (this.glisse && this.etat === "placement") this._poserDisque(p);
+        });
+        this.zoneGlobale.on("pointerup", () => { this.glisse = false; });
+        this.zoneGlobale.on("pointerupoutside", () => { this.glisse = false; });
 
         // Mise en page immédiate + à chaque rotation / redimensionnement.
         Arcade.UI.layout(this, (w, h) => {
@@ -115,6 +136,11 @@ class TestScene extends Phaser.Scene {
         const dt = delta / 1000;
         if (this.etat === "vol") {
             this._suivreVol(dt);
+        } else if (this.etat === "jauge") {
+            this._avancerJauge(dt);
+        } else if (this.etat === "feedback") {
+            this.feedbackRestant -= delta;
+            if (this.feedbackRestant <= 0) this._lancer();
         }
         this._fonduTrainee(dt);
         this._animerBraises(dt);
@@ -152,6 +178,10 @@ class TestScene extends Phaser.Scene {
         this.viseeG = this.add.graphics().setDepth(9);
     }
 
+    _creerJauge() {
+        this.jaugeG = this.add.graphics().setDepth(22);
+    }
+
     _creerBraises() {
         const C = window.SchieweschlaweConfig;
         const UI = Arcade.UI;
@@ -174,35 +204,42 @@ class TestScene extends Phaser.Scene {
     _creerVent() {
         const C = window.SchieweschlaweConfig;
         this.ventG = this.add.graphics().setDepth(20);
-        // Bouton « Vent » (intensité) et « Dir. » (direction) : ils font
-        // défiler les paliers / les 4 directions. marqueurClic : un appui
-        // dessus ne compte pas comme une visée.
         this.boutonVent = Arcade.UI.bouton(this, {
             label: "",
             couleur: C.couleurs.boutonVent,
             textColor: C.couleurs.texte,
             marqueurClic: true,
-            onClick: () => this._cyclerVent()
+            onClick: () => { if (this.etat === "placement") this._cyclerVent(); }
         });
         this.boutonDirection = Arcade.UI.bouton(this, {
             label: "",
             couleur: C.couleurs.boutonVent,
             textColor: C.couleurs.texte,
             marqueurClic: true,
-            onClick: () => this._cyclerDirection()
+            onClick: () => { if (this.etat === "placement") this._cyclerDirection(); }
+        });
+        this.boutonTerrain = Arcade.UI.bouton(this, {
+            label: "",
+            couleur: C.couleurs.boutonVent,
+            textColor: C.couleurs.texte,
+            marqueurClic: true,
+            onClick: () => { if (this.etat === "placement") this._cyclerTerrain(); }
         });
     }
 
-    _creerJauge() {
+    _creerBoutons() {
         const C = window.SchieweschlaweConfig;
-        // Jauge « Tirer » à droite de l'écran : le déclencheur du tir.
-        // (Hypothèse §5 du PRD : déclencheur seul — voir rapport 713.)
+        // Bouton vert « Tirer » : lance la jauge (placement) ou arrête
+        // l'aiguille (reclic pendant la jauge).
         this.boutonTirer = Arcade.UI.bouton(this, {
             label: C.textes.tirer,
             couleur: C.couleurs.bouton,
             textColor: C.couleurs.texte,
             marqueurClic: true,
-            onClick: () => this._tirer()
+            onClick: () => {
+                if (this.etat === "placement") this._demarrerJauge();
+                else if (this.etat === "jauge") this._arreterJauge();
+            }
         });
     }
 
@@ -210,10 +247,21 @@ class TestScene extends Phaser.Scene {
         const C = window.SchieweschlaweConfig;
         this.texteTitre = Arcade.UI.text(this, 0, 0, C.titre, 7, C.couleurs.texte).setDepth(21);
         this.texteSousTitre = Arcade.UI.text(this, 0, 0, C.textes.sousTitre, 3, C.couleurs.texte).setDepth(21);
-        this.consigne1 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne1, 3.5, C.couleurs.texte).setDepth(21);
-        this.consigne2 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne2, 3.5, C.couleurs.texte).setDepth(21);
+        this.consigne1 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne1, 3.2, C.couleurs.texte).setDepth(21);
+        this.consigne2 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne2, 3.2, C.couleurs.texte).setDepth(21);
+        this.texteVisee = Arcade.UI.text(this, 0, 0, "", 3.4, C.couleurs.vent).setDepth(21);
+        this.texteJauge = Arcade.UI.text(this, 0, 0, C.textes.arreter, 4, C.couleurs.texte)
+            .setDepth(21).setVisible(false);
         this.texteResultat = Arcade.UI.text(this, 0, 0, "", 4.5, C.couleurs.ecart)
             .setDepth(21).setVisible(false);
+        this.texteResultat2 = Arcade.UI.text(this, 0, 0, "", 3.2, C.couleurs.texte)
+            .setDepth(21).setVisible(false);
+        // Étiquettes des axes 0-100 (petites, pour rendre l'échelle lisible).
+        this.axeDist0 = Arcade.UI.text(this, 0, 0, "0", 2.4, C.couleurs.texte).setDepth(21).setAlpha(0.7);
+        this.axeDist100 = Arcade.UI.text(this, 0, 0, "100", 2.4, C.couleurs.texte).setDepth(21).setAlpha(0.7);
+        this.axeLat0 = Arcade.UI.text(this, 0, 0, "0", 2.4, C.couleurs.texte).setDepth(21).setAlpha(0.7);
+        this.axeLat50 = Arcade.UI.text(this, 0, 0, "50", 2.4, C.couleurs.texte).setDepth(21).setAlpha(0.7);
+        this.axeLat100 = Arcade.UI.text(this, 0, 0, "100", 2.4, C.couleurs.texte).setDepth(21).setAlpha(0.7);
     }
 
     // --- Mise en page (appelée au resize) --------------------------------------
@@ -223,44 +271,29 @@ class TestScene extends Phaser.Scene {
         const UI = Arcade.UI;
         const w = this.w, h = this.h;
 
+        // Pierre + cible + terrain.
         this.pierreX = (C.lancer.pierreXPct / 100) * w;
         this.pierreY = (C.lancer.pierreYPct / 100) * h;
-        this.cibleX = (C.lancer.cibleXPct / 100) * w;
-        this.cibleY = (C.lancer.cibleYPct / 100) * h;
+        this.terrainLongueurPx = (C.terrain.longueurPct / 100) * h;
+        this.cibleX = (C.cible.lateralPct / 100) * w;
+        this.cibleY = this.pierreY - (C.cible.distancePct / 100) * this.terrainLongueurPx;
 
-        this.rayonPull = UI.u(this, C.lancer.rayonPullPct);
-        this.rayonCible = UI.u(this, C.lancer.rayonCiblePct);
+        this.rayonCible = UI.u(this, C.cible.rayonPct);
         this.tailleDisque = UI.u(this, C.lancer.tailleDisquePct);
-        this.vitesseMax = C.lancer.vitesseMaxPar_s * h;
-        this.vMin = this.vitesseMax * C.lancer.vitesseMinRatio;
         this.graviteHauteur = C.lancer.graviteHauteurPar_s * h;
 
         // Accélération du vent (2 axes), dépend des dimensions de l'écran.
-        const palier = C.vent.paliers[this.palierIndex];
-        const dir = C.vent.directions[this.directionIndex];
-        this.accelVentX = palier.valeur * dir.dx * w;
-        this.accelVentY = palier.valeur * dir.dy * h;
+        this._majAccelVent();
 
-        // Pointeur de visée : on conserve le vecteur de traction (relatif à la
-        // pierre) et on recalcule sa position absolue. Au premier layout, le
-        // pointeur part juste sous la pierre.
-        if (!this._pullInitialise) {
-            this.pull = { x: 0, y: this.rayonPull * 0.2 };
-            this._pullInitialise = true;
-        } else {
-            const mag = Math.hypot(this.pull.x, this.pull.y);
-            if (mag > this.rayonPull && mag > 0) {
-                this.pull.x = (this.pull.x / mag) * this.rayonPull;
-                this.pull.y = (this.pull.y / mag) * this.rayonPull;
-            }
-        }
-        this.pointer = { x: this.pierreX + this.pull.x, y: this.pierreY + this.pull.y };
+        // Recalcule la position du disque et l'aperçu de visée à partir des
+        // coordonnées 0-100 conservées (résiste à la rotation).
+        this._majVisee();
 
-        // Zone de visée : la bande sous la pierre.
-        this.zoneVisee.setPosition(0, this.pierreY);
-        this.zoneVisee.setSize(w, h - this.pierreY);
-        if (this.zoneVisee.input && this.zoneVisee.input.hitArea) {
-            this.zoneVisee.input.hitArea.setSize(w, h - this.pierreY);
+        // Zone de saisie globale : tout l'écran.
+        this.zoneGlobale.setPosition(0, 0);
+        this.zoneGlobale.setSize(w, h);
+        if (this.zoneGlobale.input && this.zoneGlobale.input.hitArea) {
+            this.zoneGlobale.input.hitArea.setSize(w, h);
         }
 
         this._dessinerDecor();
@@ -270,12 +303,11 @@ class TestScene extends Phaser.Scene {
         this._dessinerVisee();
         this._positionnerBraises();
         this._dessinerVent();
-        this._dessinerJauge();
+        this._dessinerJaugeBarre();
+        this._positionnerBoutons();
         this._positionnerTextes();
 
-        if (this.etat === "repos") {
-            this._poserDisqueAuPierre();
-        }
+        if (this.etat === "placement") this._poserDisqueVisuel();
     }
 
     _dessinerDecor() {
@@ -289,7 +321,7 @@ class TestScene extends Phaser.Scene {
         this.ciel.fillStyle(cCiel, 1);
         this.ciel.fillRect(0, 0, w, h);
 
-        // Champ (zone de vol, au-dessus de la pierre) + zone de tir en bas.
+        // Champ (terrain, au-dessus de la pierre) + zone de recul en bas.
         this.sol.clear();
         this.sol.fillStyle(cChamp, 1);
         this.sol.fillRect(0, 0, w, this.pierreY);
@@ -307,13 +339,15 @@ class TestScene extends Phaser.Scene {
         this.grilleG.lineStyle(Math.max(1, UI.u(this, 0.15)), coul, 0.7);
 
         // Lignes horizontales (distance au sol) : du haut jusqu'à la pierre.
-        for (let i = 0; i <= C.lancer.grilleLignes; i++) {
-            const y = (this.pierreY / C.lancer.grilleLignes) * i;
+        const nbLignes = 6;
+        for (let i = 0; i <= nbLignes; i++) {
+            const y = (this.pierreY / nbLignes) * i;
             this.grilleG.lineBetween(0, y, w, y);
         }
         // Lignes verticales (décalage latéral).
-        for (let j = 0; j <= C.lancer.grilleColonnes; j++) {
-            const x = (w / C.lancer.grilleColonnes) * j;
+        const nbColonnes = 6;
+        for (let j = 0; j <= nbColonnes; j++) {
+            const x = (w / nbColonnes) * j;
             this.grilleG.lineBetween(x, 0, x, this.pierreY);
         }
     }
@@ -351,50 +385,224 @@ class TestScene extends Phaser.Scene {
         this.cibleG.strokeCircle(x, y, r * 0.4);
     }
 
+    // --- Visée proportionnelle (cœur du spike v4) -----------------------------
+
+    /**
+     * Recalcule, à partir des coordonnées 0-100 (posDistance, posLateral),
+     * la position du disque et le point visé (aperçu de tir).
+     */
+    _majVisee() {
+        const w = this.w, h = this.h;
+
+        // Position du disque dans la zone de recul.
+        this.disqueX = (this.posLateral / 100) * w;
+        this.disqueY = this.pierreY + (this.posDistance / 100) * (h - this.pierreY);
+
+        // Miroir déduit de la position : latéral visé = 100 - latéral disque
+        // (disque à gauche → tir à droite). Aucune coordonnée signée.
+        const lateralVise = 100 - this.posLateral;
+
+        // distance_du_tir = (position_disque / 100) × longueur_du_terrain.
+        this.aimX = (lateralVise / 100) * w;
+        this.aimY = this.pierreY - (this.posDistance / 100) * this.terrainLongueurPx;
+
+        this.texteVisee.setText(
+            window.SchieweschlaweConfig.textes.viseReadout
+                .replace("{d}", Math.round(this.posDistance))
+                .replace("{l}", Math.round(this.posLateral))
+                .replace("{v}", Math.round(this.posDistance)));
+    }
+
+    _poserDisque(p) {
+        const w = this.w, h = this.h;
+        this.posLateral = Phaser.Math.Clamp((p.x / w) * 100, 0, 100);
+        this.posDistance = Phaser.Math.Clamp(
+            ((p.y - this.pierreY) / (h - this.pierreY)) * 100, 0, 100);
+        this._majVisee();
+        this._poserDisqueVisuel();
+        this._dessinerVisee();
+    }
+
+    _poserDisqueVisuel() {
+        const UI = Arcade.UI;
+        this.disque.setDisplaySize(this.tailleDisque, this.tailleDisque);
+        this.disque.setPosition(this.disqueX, this.disqueY);
+        this.disque.setAngle(0);
+        this.disque.body.setVelocity(0, 0);
+        this.disque.body.setAccelerationX(0);
+        this.disque.body.setAccelerationY(0);
+        this.disque.body.setAllowGravity(false);
+        this.disque.body.updateFromGameObject();
+        this.ombreDisque.setPosition(this.disqueX, this.disqueY);
+        this.ombreDisque.setRadius(this.tailleDisque * 0.42);
+        this.ombreDisque.setVisible(true);
+    }
+
     _dessinerVisee() {
         const C = window.SchieweschlaweConfig;
         const UI = Arcade.UI;
-        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.ligneVisee).color;
+        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.visee).color;
 
         this.viseeG.clear();
-        if (this.etat !== "repos") return;   // la visée ne s'affiche qu'au repos
+        if (this.etat !== "placement") return;   // la visée ne s'affiche qu'au placement
 
-        const p = this.pointer;
-        // Ligne de traction pointeur -> pierre.
-        this.viseeG.lineStyle(UI.u(this, 0.35), coul, 0.6);
-        this.viseeG.lineBetween(p.x, p.y, this.pierreX, this.pierreY);
+        // Ligne de traction disque -> pierre (fine).
+        this.viseeG.lineStyle(UI.u(this, 0.3), coul, 0.45);
+        this.viseeG.lineBetween(this.disqueX, this.disqueY, this.pierreX, this.pierreY);
 
-        // Aperçu du tir (miroir par rapport à la pierre) : ligne + flèche.
-        const pullMag = Math.hypot(this.pull.x, this.pull.y);
-        if (pullMag > 1) {
-            const dirX = -this.pull.x / pullMag;
-            const dirY = -this.pull.y / pullMag;
-            const ratio = Phaser.Math.Clamp(pullMag / this.rayonPull, 0, 1);
-            const vitesse = this.vMin + (this.vitesseMax - this.vMin) * ratio;
-            const preview = vitesse * 0.4;    // ~0,4 s de vol en aperçu
-            const ex = this.pierreX + dirX * preview;
-            const ey = this.pierreY + dirY * preview;
-
+        // Aperçu du tir : flèche pierre -> point visé.
+        const dx = this.aimX - this.pierreX;
+        const dy = this.aimY - this.pierreY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1) {
+            const ux = dx / dist, uy = dy / dist;
             this.viseeG.lineStyle(UI.u(this, 0.6), coul, 0.9);
-            this.viseeG.lineBetween(this.pierreX, this.pierreY, ex, ey);
+            this.viseeG.lineBetween(this.pierreX, this.pierreY, this.aimX, this.aimY);
             const t = UI.u(this, 2.2);
-            const perpX = -dirY, perpY = dirX;
+            const px = -uy, py = ux;
             this.viseeG.fillStyle(coul, 0.9);
             this.viseeG.fillTriangle(
-                ex + dirX * t, ey + dirY * t,
-                ex + perpX * t * 0.55, ey + perpY * t * 0.55,
-                ex - perpX * t * 0.55, ey - perpY * t * 0.55
+                this.aimX + ux * t, this.aimY + uy * t,
+                this.aimX + px * t * 0.55, this.aimY + py * t * 0.55,
+                this.aimX - px * t * 0.55, this.aimY - py * t * 0.55
             );
         }
 
-        // Marqueur du pointeur (croix + anneau).
+        // Marqueur du point visé (anneau).
+        this.viseeG.lineStyle(UI.u(this, 0.45), coul, 0.8);
+        this.viseeG.strokeCircle(this.aimX, this.aimY, UI.u(this, 2.2));
+
+        // Marqueur du disque (croix + anneau).
         const r = UI.u(this, 2.6);
         this.viseeG.lineStyle(UI.u(this, 0.5), coul, 1);
-        this.viseeG.strokeCircle(p.x, p.y, r);
-        this.viseeG.lineBetween(p.x - r - UI.u(this, 1.2), p.y, p.x + r + UI.u(this, 1.2), p.y);
-        this.viseeG.lineBetween(p.x, p.y - r - UI.u(this, 1.2), p.x, p.y + r + UI.u(this, 1.2));
-        this.viseeG.fillStyle(coul, 1);
-        this.viseeG.fillCircle(p.x, p.y, UI.u(this, 0.9));
+        this.viseeG.strokeCircle(this.disqueX, this.disqueY, r);
+        this.viseeG.lineBetween(this.disqueX - r - UI.u(this, 1.2), this.disqueY,
+            this.disqueX + r + UI.u(this, 1.2), this.disqueY);
+        this.viseeG.lineBetween(this.disqueX, this.disqueY - r - UI.u(this, 1.2),
+            this.disqueX, this.disqueY + r + UI.u(this, 1.2));
+    }
+
+    // --- Jauge de précision (étape 2) -----------------------------------------
+
+    _demarrerJauge() {
+        if (this.etat !== "placement") return;
+        this.etat = "jauge";
+        this.jaugeTemps = 0;
+        this.jaugeNeedle = 0.5;
+        this.jaugeZoneCentre = 0.5;
+        this.jaugeDeviation = 0;
+        this.texteJauge.setVisible(true);
+        this._cacherConsignes();
+        this._dessinerVisee();          // efface la visée pendant la jauge
+        this._positionnerTextes();
+    }
+
+    _avancerJauge(dt) {
+        const C = window.SchieweschlaweConfig;
+        this.jaugeTemps += dt;
+        // Aiguille : balayage aller-retour (0..1).
+        this.jaugeNeedle = 0.5 + 0.5 *
+            Math.sin(2 * Math.PI * C.jauge.vitesseBalayagePar_s * this.jaugeTemps);
+        // Zone orange : défile (centre qui oscille autour de 0.5).
+        this.jaugeZoneCentre = 0.5 + 0.35 *
+            Math.sin(2 * Math.PI * C.jauge.vitesseZoneOrangePar_s * this.jaugeTemps + 0.7);
+        this._dessinerJaugeBarre();
+    }
+
+    _arreterJauge() {
+        if (this.etat !== "jauge") return;
+        const C = window.SchieweschlaweConfig;
+
+        const demiOrange = C.jauge.zoneOrangeLargeurPct / 200;
+        const d = Math.abs(this.jaugeNeedle - this.jaugeZoneCentre);
+        if (d <= demiOrange) {
+            this.jaugeDeviation = 0;                       // pile dans l'orange → conforme
+        } else {
+            // Manqué : déviation proportionnelle à l'écart, bornée [0,1].
+            this.jaugeDeviation = Phaser.Math.Clamp(
+                (d - demiOrange) / (1 - demiOrange), 0, 1);
+        }
+
+        this.etat = "feedback";
+        this.feedbackRestant = C.jauge.delaiFeedbackMs;
+        this.texteJauge.setText(
+            this.jaugeDeviation === 0 ? C.textes.conforme : C.textes.manque);
+        this._dessinerJaugeBarre();
+    }
+
+    _dessinerJaugeBarre() {
+        const C = window.SchieweschlaweConfig;
+        const UI = Arcade.UI;
+        const w = this.w, h = this.h;
+
+        this.jaugeG.clear();
+        if (this.etat !== "jauge" && this.etat !== "feedback") return;
+
+        const largeur = (C.jauge.largeurPct / 100) * w;
+        const hauteur = UI.u(this, C.jauge.hauteurU);
+        const x = (w - largeur) / 2;
+        const y = h * 0.45 - hauteur / 2;
+
+        const cFond = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeFond).color;
+        const cBarre = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeBarre).color;
+        const cOrange = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeZoneOrange).color;
+        const cAiguille = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeAiguille).color;
+
+        // Fond sombre.
+        this.jaugeG.fillStyle(cFond, 1);
+        this.jaugeG.fillRoundedRect(x, y, largeur, hauteur, hauteur * 0.3);
+        // Corps vert.
+        this.jaugeG.fillStyle(cBarre, 0.35);
+        this.jaugeG.fillRoundedRect(x, y, largeur, hauteur, hauteur * 0.3);
+
+        // Zone orange (le bon endroit) qui défile.
+        const oW = (C.jauge.zoneOrangeLargeurPct / 100) * largeur;
+        const oC = x + this.jaugeZoneCentre * largeur;
+        this.jaugeG.fillStyle(cOrange, 0.9);
+        this.jaugeG.fillRoundedRect(oC - oW / 2, y, oW, hauteur, hauteur * 0.3);
+
+        // Aiguille (indicateur mobile).
+        const nX = x + this.jaugeNeedle * largeur;
+        this.jaugeG.lineStyle(Math.max(1, UI.u(this, 0.4)), cAiguille, 1);
+        this.jaugeG.lineBetween(nX, y - hauteur * 0.2, nX, y + hauteur * 1.2);
+    }
+
+    // --- Vent / terrain (boutons d'exploration) -------------------------------
+
+    _cyclerVent() {
+        const C = window.SchieweschlaweConfig;
+        this.palierIndex = (this.palierIndex + 1) % C.vent.paliers.length;
+        this._majAccelVent();
+        this._dessinerVent();
+    }
+
+    _cyclerDirection() {
+        const C = window.SchieweschlaweConfig;
+        this.directionIndex = (this.directionIndex + 1) % C.vent.directions.length;
+        this._majAccelVent();
+        this._dessinerVent();
+    }
+
+    _cyclerTerrain() {
+        const C = window.SchieweschlaweConfig;
+        this.terrainIndex = (this.terrainIndex + 1) % C.terrain.longueursTest.length;
+        C.terrain.longueurPct = C.terrain.longueursTest[this.terrainIndex];
+        // Recalcule longueur + cible + visée sur la nouvelle longueur.
+        this.terrainLongueurPx = (C.terrain.longueurPct / 100) * this.h;
+        this.cibleY = this.pierreY - (C.cible.distancePct / 100) * this.terrainLongueurPx;
+        this._majVisee();
+        this._dessinerCible();
+        this._dessinerVisee();
+        this._dessinerVent();
+        this._positionnerTextes();
+    }
+
+    _majAccelVent() {
+        const C = window.SchieweschlaweConfig;
+        const palier = C.vent.paliers[this.palierIndex];
+        const dir = C.vent.directions[this.directionIndex];
+        this.accelVentX = palier.valeur * dir.dx * this.w;
+        this.accelVentY = palier.valeur * dir.dy * this.h;
     }
 
     _positionnerBraises() {
@@ -405,8 +613,6 @@ class TestScene extends Phaser.Scene {
 
         this.braises.forEach((b) => {
             if (!this._braisesPlacees) {
-                // 1er passage : fractions → positions réelles (champ, au-dessus
-                // de la pierre, où le vent se lit avant le tir).
                 b.x = b.x * w;
                 b.y = b.y * this.pierreY;
             } else {
@@ -431,7 +637,7 @@ class TestScene extends Phaser.Scene {
         const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.vent).color;
 
         const cx = w * 0.5;
-        const cy = h * 0.15;
+        const cy = h * 0.13;
         const demiAxe = UI.u(this, 8);
 
         this.ventG.clear();
@@ -461,27 +667,31 @@ class TestScene extends Phaser.Scene {
             this.ventG.fillCircle(cx, cy, UI.u(this, 1));
         }
 
-        // Libellés des boutons.
+        // Libellés des boutons (Vent / Dir. / Terrain).
         this.boutonVent.label.setText(
             C.textes.ventPrefixe + palier.nom + " (palier " + palier.palier + ")");
-        this.boutonVent.redimensionner(UI.u(this, 32), UI.u(this, 6.5))
-            .setPosition(cx, cy + demiAxe + UI.u(this, 5));
-
         this.boutonDirection.label.setText(C.textes.directionPrefixe + dir.nom);
-        this.boutonDirection.redimensionner(UI.u(this, 22), UI.u(this, 6.5))
-            .setPosition(cx, cy + demiAxe + UI.u(this, 12.5));
+        this.boutonTerrain.label.setText(
+            C.textes.terrainPrefixe.replace("{p}", C.terrain.longueurPct));
     }
 
-    _dessinerJauge() {
+    _positionnerBoutons() {
         const C = window.SchieweschlaweConfig;
         const UI = Arcade.UI;
         const w = this.w, h = this.h;
-        // Jauge-trigger à droite : largeur en % de la largeur réelle (règle
-        // jauge), hauteur en u().
-        const jaugeW = w * 0.13;
-        const jaugeH = UI.u(this, 24);
-        this.boutonTirer.redimensionner(jaugeW, jaugeH)
-            .setPosition(w - jaugeW / 2 - UI.u(this, 2), h * 0.52);
+        const cx = w * 0.5;
+
+        this.boutonVent.redimensionner(UI.u(this, 32), UI.u(this, 6))
+            .setPosition(cx, h * 0.13 + UI.u(this, 8) + UI.u(this, 4));
+        this.boutonDirection.redimensionner(UI.u(this, 22), UI.u(this, 6))
+            .setPosition(cx, h * 0.13 + UI.u(this, 8) + UI.u(this, 11));
+        this.boutonTerrain.redimensionner(UI.u(this, 24), UI.u(this, 6))
+            .setPosition(cx, h * 0.13 + UI.u(this, 8) + UI.u(this, 18));
+
+        // Bouton vert « Tirer » : à droite, au-dessus de la pierre (hors de la
+        // zone de recul pour ne pas gêner le glisser).
+        this.boutonTirer.redimensionner(w * 0.16, UI.u(this, 9))
+            .setPosition(w - w * 0.16 / 2 - UI.u(this, 2), h * 0.50);
     }
 
     _positionnerTextes() {
@@ -494,87 +704,86 @@ class TestScene extends Phaser.Scene {
             .setFontSize(Math.round(UI.u(this, 3)) + "px");
 
         if (this.consigne1.visible) {
-            // À gauche du champ, à l'écart de la trajectoire (pierre→cible).
-            this.consigne1.setPosition(w * 0.20, h * 0.44)
-                .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
-            this.consigne2.setPosition(w * 0.20, h * 0.44 + UI.u(this, 4.5))
-                .setFontSize(Math.round(UI.u(this, 3.5)) + "px");
+            this.consigne1.setPosition(w * 0.5, h * 0.62)
+                .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
+            this.consigne2.setPosition(w * 0.5, h * 0.62 + UI.u(this, 4.2))
+                .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
+        }
+
+        // Ligne de lecture de la visée (sous le titre, au-dessus du champ).
+        if (this.texteVisee.visible) {
+            this.texteVisee.setPosition(w / 2, h * 0.10)
+                .setFontSize(Math.round(UI.u(this, 3.4)) + "px");
+        }
+
+        if (this.texteJauge.visible) {
+            this.texteJauge.setPosition(w / 2, h * 0.45 - UI.u(this, 5))
+                .setFontSize(Math.round(UI.u(this, 4)) + "px");
         }
 
         if (this.texteResultat.visible) {
             this.texteResultat.setPosition(w / 2, h * 0.40)
                 .setFontSize(Math.round(UI.u(this, 4.5)) + "px");
+            this.texteResultat2.setPosition(w / 2, h * 0.40 + UI.u(this, 5.2))
+                .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
         }
 
         if (this.boutonRejouer) {
             this.boutonRejouer.redimensionner(UI.u(this, 30), UI.u(this, 10))
                 .setPosition(w / 2, h * 0.54);
         }
+
+        // Étiquettes des axes 0-100.
+        const fs = Math.round(UI.u(this, 2.4)) + "px";
+        this.axeDist0.setPosition(this.pierreX - UI.u(this, 7), this.pierreY + UI.u(this, 1.5)).setFontSize(fs);
+        this.axeDist100.setPosition(this.pierreX - UI.u(this, 7), h - UI.u(this, 1.5)).setFontSize(fs);
+        this.axeLat0.setPosition(UI.u(this, 1.5), this.pierreY - UI.u(this, 1.5)).setFontSize(fs);
+        this.axeLat50.setPosition(w / 2, this.pierreY - UI.u(this, 1.5)).setFontSize(fs);
+        this.axeLat100.setPosition(w - UI.u(this, 3), this.pierreY - UI.u(this, 1.5)).setFontSize(fs);
     }
 
     // --- Interactions ----------------------------------------------------------
 
-    _debuterGlisser(p) {
-        if (this.etat !== "repos") return;
-        this.glisse = true;
-        this._glisser(p);
-    }
-
-    _glisser(p) {
-        if (this.etat !== "repos") return;
-        // Pointeur borné : sous la pierre (jamais au-dessus) et dans le rayon
-        // de traction max. La direction du tir est le miroir du vecteur
-        // pierre → pointeur.
-        let px = Phaser.Math.Clamp(p.x, 0, this.w);
-        let py = Math.max(this.pierreY, p.y);
-        let dx = px - this.pierreX;
-        let dy = py - this.pierreY;
-        const mag = Math.hypot(dx, dy);
-        if (mag > this.rayonPull && mag > 0) {
-            dx = (dx / mag) * this.rayonPull;
-            dy = (dy / mag) * this.rayonPull;
+    _pointerDown(p) {
+        if (this.etat === "placement") {
+            // Glisser le disque uniquement dans la zone de recul (sous la pierre).
+            if (p.y > this.pierreY) {
+                this.glisse = true;
+                this._poserDisque(p);
+            }
+        } else if (this.etat === "jauge") {
+            this._arreterJauge();
         }
-        this.pointer = { x: this.pierreX + dx, y: this.pierreY + dy };
-        this.pull = { x: dx, y: dy };
-        this._dessinerVisee();
     }
 
-    _cyclerVent() {
-        const C = window.SchieweschlaweConfig;
-        this.palierIndex = (this.palierIndex + 1) % C.vent.paliers.length;
-        this._majAccelVent();
-        this._dessinerVent();
-    }
+    // --- Lancement / vol -------------------------------------------------------
 
-    _cyclerDirection() {
+    _lancer() {
+        if (this.etat !== "feedback") return;
         const C = window.SchieweschlaweConfig;
-        this.directionIndex = (this.directionIndex + 1) % C.vent.directions.length;
-        this._majAccelVent();
-        this._dessinerVent();
-    }
+        const w = this.w;
 
-    _majAccelVent() {
-        const C = window.SchieweschlaweConfig;
-        const palier = C.vent.paliers[this.palierIndex];
-        const dir = C.vent.directions[this.directionIndex];
-        this.accelVentX = palier.valeur * dir.dx * this.w;
-        this.accelVentY = palier.valeur * dir.dy * this.h;
-    }
+        // Déviation (arrêt raté) : ampleur calibrée dans config.js.
+        const signD = Math.random() < 0.5 ? 1 : -1;
+        const signL = Math.random() < 0.5 ? 1 : -1;
+        const devDist = this.jaugeDeviation *
+            (C.jauge.deviationDistanceMaxPct / 100) * this.terrainLongueurPx * signD;
+        const devLat = this.jaugeDeviation *
+            (C.jauge.deviationLateralMaxPct / 100) * w * signL;
 
-    _tirer() {
-        if (this.etat !== "repos") return;
-        const C = window.SchieweschlaweConfig;
-
-        const pullMag = Math.hypot(this.pull.x, this.pull.y);
-        let dirX = 0, dirY = -1;
-        if (pullMag > 1) {
-            dirX = -this.pull.x / pullMag;
-            dirY = -this.pull.y / pullMag;
-        }
-        const ratio = Phaser.Math.Clamp(pullMag / this.rayonPull, 0, 1);
-        const vitesse = this.vMin + (this.vitesseMax - this.vMin) * ratio;
-        const vx = dirX * vitesse;
-        const vy = dirY * vitesse;
+        // Point d'atterrissage visé (avec déviation), puis vitesse de lancer
+        // dérivée pour l'atteindre SANS vent (portée = 2·facteur·v0²/g).
+        const ax = this.aimX + devLat;
+        const ay = this.aimY - devDist;
+        const dx = ax - this.pierreX;
+        const dy = ay - this.pierreY;
+        const dist = Math.hypot(dx, dy);
+        const dirX = dist > 1 ? dx / dist : 0;
+        const dirY = dist > 1 ? dy / dist : -1;
+        const v0 = Math.sqrt(Math.max(dist, 1) * this.graviteHauteur /
+            (2 * C.lancer.facteurHauteur));
+        const vx = dirX * v0;
+        const vy = dirY * v0;
 
         this.disque.body.setAllowGravity(false);
         this.disque.body.setAccelerationX(this.accelVentX);
@@ -583,12 +792,12 @@ class TestScene extends Phaser.Scene {
 
         // Hauteur simulée (séparée de la position sol).
         this.z = 0;
-        this.zVel = vitesse * C.lancer.facteurHauteur;
+        this.zVel = v0 * C.lancer.facteurHauteur;
         this.zMax = Math.max(1, (this.zVel * this.zVel) / (2 * this.graviteHauteur));
 
         this.etat = "vol";
         this.traineeTimer = 0;
-        this._cacherConsignes();
+        this.texteJauge.setVisible(false);
         this._dessinerVisee();   // efface la visée pendant le vol
     }
 
@@ -692,18 +901,26 @@ class TestScene extends Phaser.Scene {
         } else {
             const ecartPx = Math.hypot(lx - this.cibleX, ly - this.cibleY);
             const ecartPct = Math.round((ecartPx / Math.min(this.w, this.h)) * 100);
-            const distPct = Math.round((Math.hypot(lx - this.pierreX, ly - this.pierreY) / this.h) * 100);
             if (ecartPx <= this.rayonCible * 0.4) {
                 texte = C.textes.pleinCentre;
             } else if (ecartPx <= this.rayonCible) {
                 texte = C.textes.touche;
             } else {
                 texte = C.textes.rate + " — " +
-                    C.textes.distance.replace("{p}", distPct) + " · " +
                     C.textes.ecart.replace("{p}", ecartPct);
             }
         }
         this.texteResultat.setText(texte).setVisible(true);
+
+        // Seconde ligne : position du tir en % du terrain (valide le mapping).
+        const tirPct = this.terrainLongueurPx > 0
+            ? Math.round(((this.pierreY - ly) / this.terrainLongueurPx) * 100)
+            : 0;
+        this.texteResultat2.setText(
+            C.textes.tirResultat
+                .replace("{t}", Math.max(0, tirPct))
+                .replace("{v}", Math.round(this.posDistance)))
+            .setVisible(true);
 
         if (!this.boutonRejouer) {
             this.boutonRejouer = Arcade.UI.bouton(this, {
@@ -718,7 +935,7 @@ class TestScene extends Phaser.Scene {
 
     _reinitialiser() {
         const C = window.SchieweschlaweConfig;
-        this.etat = "repos";
+        this.etat = "placement";
 
         this.trainee.forEach((t) => t.obj.destroy());
         this.trainee = [];
@@ -731,30 +948,18 @@ class TestScene extends Phaser.Scene {
             this.boutonRejouer = null;
         }
         this.texteResultat.setVisible(false).setText("");
+        this.texteResultat2.setVisible(false).setText("");
+        this.texteJauge.setVisible(false);
 
-        // Le pointeur repart juste sous la pierre (visée neutre).
-        this.pointer = { x: this.pierreX, y: this.pierreY + this.rayonPull * 0.2 };
-        this.pull = { x: 0, y: this.rayonPull * 0.2 };
+        // Le disque repart au centre de la zone de recul (50 / 50).
+        this.posDistance = 50;
+        this.posLateral = 50;
+        this._majVisee();
 
-        this._poserDisqueAuPierre();
+        this._poserDisqueVisuel();
         this._dessinerVisee();
         this._montrerConsignes();
         this._positionnerTextes();
-    }
-
-    _poserDisqueAuPierre() {
-        const UI = Arcade.UI;
-        this.disque.setDisplaySize(this.tailleDisque, this.tailleDisque);
-        this.disque.setPosition(this.pierreX, this.pierreY - this.tailleDisque * 0.2);
-        this.disque.setAngle(0);
-        this.disque.body.setVelocity(0, 0);
-        this.disque.body.setAccelerationX(0);
-        this.disque.body.setAccelerationY(0);
-        this.disque.body.setAllowGravity(false);
-        this.disque.body.updateFromGameObject();
-        this.ombreDisque.setPosition(this.pierreX, this.pierreY);
-        this.ombreDisque.setRadius(this.tailleDisque * 0.42);
-        this.ombreDisque.setVisible(true);
     }
 
     _cacherConsignes() {

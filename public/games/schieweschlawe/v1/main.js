@@ -1,6 +1,7 @@
 /*
- * main.js — point de départ du spike v2 Schieweschlawe (vue du dessus +
- * visée 3 points + vent 4 directions).
+ * main.js — point de départ du spike v4 Schieweschlawe (visée
+ * proportionnelle au terrain + coordonnées 0-100 + jauge 2 étapes +
+ * échelle-hauteur + vent 4 directions).
  *
  * Comme les autres jeux : on décrit ce qu'il faut charger, puis le socle
  * (core/boot.js) démarre le jeu. Aucune sauvegarde ici : le spike n'a ni
