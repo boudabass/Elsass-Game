@@ -405,7 +405,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
-            q.setData("roi", i === 4);
+            q.setData("roi", i === 8);
             q.setData("debout", true);
             q.setData("absente", false);
             q.setData("rayon", 0);
