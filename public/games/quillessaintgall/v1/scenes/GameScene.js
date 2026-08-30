@@ -166,7 +166,11 @@ class GameScene extends Phaser.Scene {
         this.quillesTombeesCount = 0;
         this.roiTombe = false;
 
-        const figureIndices = this.jetConfig.type === "figure"
+        // Sous-ensemble de quilles présentes pour ce jet : phase C
+        // (figure) ET phases D/E (ordre imposé) ont désormais toutes les
+        // deux un `figure.indices` propre (schéma fédéral, article 780) —
+        // seules les phases A/B ("plein") gardent les 9 quilles.
+        const figureIndices = (this.jetConfig.type === "figure" || this.jetConfig.type === "ordre")
             ? this.jetConfig.figure.indices : null;
         this.quilles.forEach((q) => {
             const idx = q.getData("index");
@@ -253,8 +257,7 @@ class GameScene extends Phaser.Scene {
             this.consigne2.setText(
                 C.textes.prependerante.replace("{n}", jc.figure.prependerante + 1));
         } else if (jc.type === "ordre") {
-            const sequence = jc.ordreImpose.map((i) => i + 1).join(" → ");
-            this.consigne2.setText(C.textes.ordreARespecter.replace("{sequence}", sequence));
+            this.consigne2.setText(C.textes.cibleARenverser.replace("{n}", jc.cible + 1));
         } else {
             this.consigne2.setText(C.textes.consigneLigne2);
         }
@@ -315,39 +318,25 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Ordre imposé (phases D/E, PRD §9) — interprétation prototype
-     * (documentée dans l'en-tête de config.js, non fixée par le PRD) :
-     *   - 2+ quilles REQUISES tombées au MÊME frame → jet annulé
-     *     (« quilles multiples tombées en même temps », PRD §9) ;
-     *   - une quille requise tombe avant une autre qui devait la
-     *     précéder → jet annulé (« ordre non respecté ») ;
-     *   - séquence complète et dans l'ordre → points = maxPoints du jet ;
-     *   - séquence partielle mais SANS violation (le lancer s'arrête
-     *     avant d'abattre toute la séquence) → score proportionnel,
-     *     arrondi au chiffre inférieur.
+     * Ordre imposé (phases D/E, article 780) : ce jet remet debout LES
+     * QUILLES DE LA FIGURE (jc.figure.indices, fixes pour toute la phase)
+     * et ne vise qu'UNE quille cible (jc.cible), avec sa propre valeur en
+     * points (jc.points) — pas un barème uniforme par jet. Simplification
+     * ASSUMÉE documentée dans l'en-tête de config.js (le schéma fédéral
+     * suggère plutôt une figure posée une seule fois et grignotée jet
+     * après jet ; non modélisé ici).
+     *   - la cible tombe SEULE (aucune autre quille de la figure en même
+     *     temps) → points = jc.points ;
+     *   - la cible ne tombe pas, OU une autre quille de la figure tombe
+     *     (avec ou sans la cible) → jet annulé (nouvel essai, PRD §9).
      */
     _calculerOrdreJet(jc) {
-        const requis = jc.ordreImpose;
+        const requis = jc.figure.indices;
         const chutes = this.ordreChute.filter((c) => requis.includes(c.index));
-
-        const parFrame = {};
-        chutes.forEach((c) => {
-            (parFrame[c.frame] = parFrame[c.frame] || []).push(c.index);
-        });
-        for (const f in parFrame) {
-            if (parFrame[f].length > 1) return { annule: true };
-        }
-
-        const ordreReel = chutes.map((c) => c.index);
-        for (let i = 0; i < ordreReel.length; i++) {
-            if (ordreReel[i] !== requis[i]) return { annule: true };
-        }
-
-        const complet = ordreReel.length === requis.length;
-        const points = complet
-            ? jc.maxPoints
-            : Math.floor((ordreReel.length / requis.length) * jc.maxPoints);
-        return { annule: false, points: points };
+        const cibleTombee = chutes.some((c) => c.index === jc.cible);
+        const autreTombee = chutes.some((c) => c.index !== jc.cible);
+        if (!cibleTombee || autreTombee) return { annule: true };
+        return { annule: false, points: jc.points };
     }
 
     // --- Création des éléments ------------------------------------------------
@@ -367,7 +356,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
-            q.setData("roi", i === 4);
+            q.setData("roi", i === 8);
             q.setData("debout", true);
             q.setData("absente", false);
             q.setData("rayon", 0);
@@ -659,21 +648,40 @@ class GameScene extends Phaser.Scene {
 
     // --- Quilles ---------------------------------------------------------------
 
+    /**
+     * Losange (quinconce 1-2-3-2-1), PAS un carré 3×3 — corrigé le
+     * 30/08/2026 (soir) d'après le vrai schéma fédéral (article 780,
+     * cf. en-tête de config.js). `POSITIONS[i]` donne, pour chaque indice
+     * de quille (0-8, fond → avant), sa rangée (0=fond … 4=pointe avant =
+     * le Roi) et son décalage horizontal en fraction de la demi-largeur
+     * de la rangée du milieu (la plus large, 3 quilles) — modèle "grille
+     * 3×3 tournée à 45°" (rangées de 2 à mi-écart de la rangée de 3).
+     */
     _positionnerQuilles() {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
         const w = this.w, h = this.h;
-        // Largeur des 3 colonnes de quilles = largeur de la piste
-        // (this.colLargeur, 1/3 de l'écran), moins une marge de chaque côté
-        // (quillesMargeLateralePct, demande John 30/08) pour laisser de
-        // l'espace visible entre les quilles et le bord de la piste.
+        // Largeur de la rangée du milieu (la plus large) = largeur de la
+        // piste (this.colLargeur, 1/3 de l'écran), moins une marge de
+        // chaque côté (quillesMargeLateralePct, demande John 30/08) pour
+        // laisser de l'espace visible entre les quilles et le bord de la
+        // piste.
         const margeFacteur = C.piste.quillesMargeLateralePct / 100;
         const zoneLargeurPx = this.colLargeur * (1 - 2 * margeFacteur);
         const centreX = w / 2;
-        const rangeesYPct = [
-            C.piste.quillesZoneHautYPct,
-            (C.piste.quillesZoneHautYPct + C.piste.quillesZoneBasYPct) / 2,
-            C.piste.quillesZoneBasYPct
+        // 5 rangées réparties à intervalles réguliers entre les 2 bornes
+        // de config (0=fond=quillesZoneHautYPct … 4=pointe avant/Roi=
+        // quillesZoneBasYPct).
+        const yHaut = C.piste.quillesZoneHautYPct;
+        const yBas = C.piste.quillesZoneBasYPct;
+        const rangeesYPct = [0, 1, 2, 3, 4].map((r) => yHaut + (r / 4) * (yBas - yHaut));
+
+        const POSITIONS = [
+            { row: 0, dx: 0 },
+            { row: 1, dx: -0.5 }, { row: 1, dx: 0.5 },
+            { row: 2, dx: -1 }, { row: 2, dx: 0 }, { row: 2, dx: 1 },
+            { row: 3, dx: -0.5 }, { row: 3, dx: 0.5 },
+            { row: 4, dx: 0 }
         ];
 
         this.rayonQuille = UI.u(this, C.quille.rayonPct);
@@ -682,10 +690,9 @@ class GameScene extends Phaser.Scene {
         const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
 
         this.quilles.forEach((q, i) => {
-            const row = Math.floor(i / 3);
-            const col = i % 3;
-            const x = centreX + (col - 1) * (zoneLargeurPx / 2);
-            const y = (rangeesYPct[row] / 100) * h;
+            const pos = POSITIONS[i];
+            const x = centreX + pos.dx * (zoneLargeurPx / 2);
+            const y = (rangeesYPct[pos.row] / 100) * h;
             const rayonVisuel = q.getData("roi") ? this.rayonRoi : this.rayonQuille;
 
             q.setPosition(x, y);
