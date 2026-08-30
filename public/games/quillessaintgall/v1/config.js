@@ -187,7 +187,7 @@ window.QuillesSaintGallConfig = {
         // (choc trop faible, § vitesseMinRenversePct) : la quille agit comme
         // un mur, la boule rebondit presque intégralement (1 = rebond
         // parfait, 0 = arrêt net).
-        amortissementRebond: 0.7,
+        amortissementRebond: 0.72,
         // Transfert de quantité de mouvement quand la quille TOMBE (demande
         // John, 30/08, précisée une 2e fois) : la boule NE REBONDIT JAMAIS
         // vers l'arrière dans ce cas — elle continue TOUJOURS dans sa
@@ -200,7 +200,7 @@ window.QuillesSaintGallConfig = {
         // renversement, jusqu'à `transfertFacteurMax` à la vitesse de
         // lancer maximale (force à 100%). Cf. TestScene._reagirCollision.
         transfertFacteurMin: 0.2,
-        transfertFacteurMax: 0.45,
+        transfertFacteurMax: 0.55,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
         // sans ça, une boule qui continue tout droit après un choc ne
@@ -211,7 +211,7 @@ window.QuillesSaintGallConfig = {
         // (% de hauteur écran / s) — filet de sécurité après plusieurs
         // rebonds qui l'ont ralentie, pour ne jamais la laisser trembler
         // indéfiniment coincée entre des quilles.
-        vitesseArretPct: 3,
+        vitesseArretPct: 5,
         // Vitesse minimale (% de hauteur écran / s) pour RENVERSER une
         // quille au contact (demande John, 30/08). En dessous, la boule
         // rebondit quand même (choc réel, cf. TestScene._reagirCollision)
@@ -220,7 +220,7 @@ window.QuillesSaintGallConfig = {
         // lancer (55), pour laisser 2-3 quilles tomber sur un tir fort
         // avant que la boule, ralentie par les rebonds, devienne trop
         // faible.
-        vitesseMinRenversePct: 15,
+        vitesseMinRenversePct: 7,
         // Vitesse du lancer = vitessePctH_par_s × un facteur qui dépend de
         // la FORCE choisie (§ force ci-dessous), interpolé entre ces 2
         // bornes (demande John, 30/08 : 2 boutons pour régler la force).
