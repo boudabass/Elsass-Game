@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Quilles Saint-Gall — spike (collision boule/quilles) — Arcade The Elsassisch</title>
+    <style>
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: #12161f;
+            /* Pas de zoom ni de "tirer pour rafraîchir" pendant le jeu */
+            touch-action: none; overscroll-behavior: none;
+            -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #jeu { width: 100%; height: 100%; }
+        #jeu canvas { display: block; }
+
+        /* Écran affiché avant que Phaser prenne la main */
+        #boot-loader {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #12161f; color: #ffd23f;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        #boot-loader .points {
+            margin-top: 14px; font-size: 13px; opacity: .7;
+        }
+    </style>
+</head>
+<body>
+    <div id="jeu"></div>
+
+    <div id="boot-loader">
+        <div>Quilles Saint-Gall</div>
+        <div class="points">Démarrage…</div>
+    </div>
+
+    <!-- 1. Moteur : Phaser 4 servi depuis le repo (version figée, pas de CDN) -->
+    <script src="../../core/vendor/phaser-4.2.1-arcade.min.js"></script>
+
+    <!-- 2. Socle commun à tous les jeux de l'arcade -->
+    <script src="../../core/platform.js"></script>
+    <script src="../../core/save.js"></script>
+    <script src="../../core/score.js"></script>
+    <script src="../../core/ui.js"></script>
+    <script src="../../core/ui/button.js"></script>
+    <script src="../../core/scenes/PreloadScene.js"></script>
+    <script src="../../core/boot.js"></script>
+
+    <!-- 3. Le spike -->
+    <script src="config.js"></script>
+    <script src="scenes/TestScene.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
