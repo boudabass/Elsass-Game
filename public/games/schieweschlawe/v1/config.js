@@ -1,22 +1,24 @@
 /*
- * config.js — réglages du spike v4 « visée proportionnelle au terrain » de
+ * config.js — réglages du spike « visée proportionnelle au terrain » de
  * Schieweschlawe (PRD article 873 §4, consigne 704 du 30/08).
  *
  * Prototype isolé (une scène de test) : AUCUN niveau, AUCUNE progression.
- * Il remplace le spike v2 (visée 3 points, ratio fixe 1:5 abandonné) et
- * valide, avant de construire les 100 niveaux :
+ * Valide, avant de construire les 100 niveaux :
  *   1. la VISÉE PROPORTIONNELLE au terrain (§4) : distance_du_tir =
- *      (position_disque / 100) × longueur_totale_du_terrain_jouable, testée
- *      sur PLUSIEURS longueurs de terrain (bouton « Terrain ») ;
+ *      (position_disque / 100) × longueur_du_terrain. Le terrain fait
+ *      TOUJOURS tout l'espace disponible au-dessus de la pierre (pas une
+ *      longueur configurable plus courte) — sa taille suit l'écran ;
  *   2. les COORDONNÉES 0-100 SANS NÉGATIF sur les deux axes (distance
  *      haut-bas + latéral gauche-droite, centre à 50, miroir = 100 - pos) ;
- *   3. le TIR EN 2 ÉTAPES (§5) : placement du disque, puis jauge à
- *      indicateur mobile + zone orange défilante, reclic pour arrêter
- *      (arrêt dans l'orange = conforme, sinon déviation calibrée ici) ;
+ *   3. le TIR EN 2 ÉTAPES (§5) : placement du disque, puis jauge à aiguille
+ *      mobile + zone orange FIXE (tirée au hasard au démarrage, un seul
+ *      élément bouge), reclic pour arrêter (arrêt dans l'orange = conforme,
+ *      sinon déviation calibrée ici) ;
  *   4. l'ÉCHELLE-HAUTEUR (le disque grossit en montant, rétrécit en
  *      retombant) ;
  *   5. le VENT 4 DIRECTIONS (vecteur 2D, setAccelerationX + setAccelerationY,
- *      5 paliers, flèche directionnelle).
+ *      5 paliers, indicateur direction + intensité dans la colonne de
+ *      gauche du bas d'écran).
  *
  * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
  * ICI (rien en dur dans une scène), tous les textes joueur dans `textes`,
@@ -39,10 +41,6 @@ window.SchieweschlaweConfig = {
         rejouer: "Rejouer",
         ventPrefixe: "Vent : ",
         directionPrefixe: "Dir. : ",
-        terrainPrefixe: "Terrain : {p}%",
-        // Ligne de lecture de la visée (affichée pendant le placement).
-        viseReadout: "Disque : distance {d}% · latéral {l}% → vise {v}% du terrain",
-        distance: "Distance : {p}%",
         ecart: "Écart cible : {p}%",
         pleinCentre: "PLEIN CENTRE !",
         touche: "Touché !",
@@ -51,19 +49,6 @@ window.SchieweschlaweConfig = {
         enVol: "En vol…",
         // Résultat après atterrissage : pour valider le mapping proportionnel.
         tirResultat: "Tir à {t}% du terrain (visé {v}%)"
-    },
-
-    // --- Terrain (longueur PAR NIVEAU — le cœur du spike v4) --------------
-    // La longueur du terrain jouable est une valeur PAR NIVEAU (elle pourra
-    // varier d'un niveau/palier à l'autre). Exprimée en % de la HAUTEUR
-    // d'écran (axe distance haut-bas, jamais de pixels fixes) : le mapping
-    // en pourcentage absorbe toute variation sans casser la visée.
-    terrain: {
-        longueurPct: 60,               // longueur du terrain jouable, % de la hauteur
-        // Longueurs à tester (le bouton « Terrain » les fait défiler) pour
-        // vérifier le mapping proportionnel sur ≥ 2 longueurs différentes.
-        longueursTest: [40, 60, 80],
-        longueurIndexInitial: 1
     },
 
     // --- Lancer / visée ----------------------------------------------------
@@ -88,12 +73,13 @@ window.SchieweschlaweConfig = {
     },
 
     // --- Jauge de précision (étape 2 du tir, PRD §5) ----------------------
-    // Barre verte + indicateur mobile (aiguille qui balaye) + zone orange
-    // qui défile. Le joueur reclique pour arrêter l'aiguille. Arrêt dans
-    // l'orange = conforme (aucune déviation) ; sinon déviation calibrée.
+    // Barre verte + un SEUL élément mobile (l'aiguille qui balaye). La zone
+    // orange (l'endroit où cliquer) est FIXE pour tout le tir — tirée au
+    // hasard une seule fois au démarrage de la jauge, elle ne bouge plus.
+    // Le joueur reclique pour arrêter l'aiguille. Arrêt dans l'orange =
+    // conforme (aucune déviation) ; sinon déviation calibrée.
     jauge: {
         vitesseBalayagePar_s: 1.1,  // cycles/s de l'aiguille (aller-retour)
-        vitesseZoneOrangePar_s: 0.4, // cycles/s de défilement de la zone orange
         zoneOrangeLargeurPct: 16,   // largeur de la zone orange, % de la barre
         delaiFeedbackMs: 600,       // pause après l'arrêt (affiche conforme/manqué)
         // Ampleur de la déviation en cas d'arrêt raté (proposition à
