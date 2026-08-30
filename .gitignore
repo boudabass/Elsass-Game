@@ -33,3 +33,4 @@ _atelier-assets/
 
 # ---- Lockfile npm interdit (la chaîne officielle est pnpm) ----
 package-lock.json
+.dyad/
