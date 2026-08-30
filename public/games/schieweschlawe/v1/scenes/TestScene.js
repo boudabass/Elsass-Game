@@ -282,6 +282,10 @@ class TestScene extends Phaser.Scene {
         this.tailleDisque = UI.u(this, C.lancer.tailleDisquePct);
         this.graviteHauteur = C.lancer.graviteHauteurPar_s * h;
 
+        // Bas d'écran divisé en 3 colonnes égales : réservée (gauche) /
+        // zone de recul du disque (milieu) / bouton Tirer (droite).
+        this.colLargeur = w / 3;
+
         // Accélération du vent (2 axes), dépend des dimensions de l'écran.
         this._majAccelVent();
 
@@ -312,6 +316,7 @@ class TestScene extends Phaser.Scene {
 
     _dessinerDecor() {
         const C = window.SchieweschlaweConfig;
+        const UI = Arcade.UI;
         const w = this.w, h = this.h;
         const cCiel = Phaser.Display.Color.HexStringToColor(C.couleurs.ciel).color;
         const cChamp = Phaser.Display.Color.HexStringToColor(C.couleurs.champ).color;
@@ -321,12 +326,23 @@ class TestScene extends Phaser.Scene {
         this.ciel.fillStyle(cCiel, 1);
         this.ciel.fillRect(0, 0, w, h);
 
-        // Champ (terrain, au-dessus de la pierre) + zone de recul en bas.
+        // Champ (terrain, au-dessus de la pierre, inchangé — pleine largeur)
+        // + bas d'écran divisé en 3 colonnes égales (réservée / disque / tirer).
+        const w3 = this.colLargeur;
+        const coulDiviseur = Phaser.Display.Color.HexStringToColor(C.couleurs.grilleLigne).color;
+
         this.sol.clear();
         this.sol.fillStyle(cChamp, 1);
         this.sol.fillRect(0, 0, w, this.pierreY);
         this.sol.fillStyle(cPad, 1);
         this.sol.fillRect(0, this.pierreY, w, h - this.pierreY);
+        // Colonne du milieu (zone de recul du disque) mise en évidence.
+        this.sol.fillStyle(cChamp, 0.35);
+        this.sol.fillRect(w3, this.pierreY, w3, h - this.pierreY);
+        // Lignes de séparation des 3 colonnes.
+        this.sol.lineStyle(Math.max(1, UI.u(this, 0.15)), coulDiviseur, 0.8);
+        this.sol.lineBetween(w3, this.pierreY, w3, h);
+        this.sol.lineBetween(2 * w3, this.pierreY, 2 * w3, h);
     }
 
     _dessinerGrille() {
@@ -394,8 +410,9 @@ class TestScene extends Phaser.Scene {
     _majVisee() {
         const w = this.w, h = this.h;
 
-        // Position du disque dans la zone de recul.
-        this.disqueX = (this.posLateral / 100) * w;
+        // Position du disque dans la colonne du milieu des 3 colonnes du bas
+        // d'écran (pas la pleine largeur).
+        this.disqueX = this.colLargeur + (this.posLateral / 100) * this.colLargeur;
         this.disqueY = this.pierreY + (this.posDistance / 100) * (h - this.pierreY);
 
         // Miroir déduit de la position : latéral visé = 100 - latéral disque
@@ -414,8 +431,12 @@ class TestScene extends Phaser.Scene {
     }
 
     _poserDisque(p) {
-        const w = this.w, h = this.h;
-        this.posLateral = Phaser.Math.Clamp((p.x / w) * 100, 0, 100);
+        const h = this.h;
+        const w3 = this.colLargeur;
+        // Le glisser est confiné à la colonne du milieu (0 = bord gauche de
+        // la colonne, 100 = bord droit) — cliquer/glisser au-delà se clampe
+        // au bord le plus proche, comme un curseur.
+        this.posLateral = Phaser.Math.Clamp(((p.x - w3) / w3) * 100, 0, 100);
         this.posDistance = Phaser.Math.Clamp(
             ((p.y - this.pierreY) / (h - this.pierreY)) * 100, 0, 100);
         this._majVisee();
@@ -688,10 +709,11 @@ class TestScene extends Phaser.Scene {
         this.boutonTerrain.redimensionner(UI.u(this, 24), UI.u(this, 6))
             .setPosition(cx, h * 0.13 + UI.u(this, 8) + UI.u(this, 18));
 
-        // Bouton vert « Tirer » : à droite, au-dessus de la pierre (hors de la
-        // zone de recul pour ne pas gêner le glisser).
-        this.boutonTirer.redimensionner(w * 0.16, UI.u(this, 9))
-            .setPosition(w - w * 0.16 / 2 - UI.u(this, 2), h * 0.50);
+        // Bouton vert « Tirer » : colonne de droite des 3 colonnes du bas
+        // d'écran (gauche = réservée, milieu = zone de recul du disque).
+        const w3 = this.colLargeur;
+        this.boutonTirer.redimensionner(w3 * 0.7, UI.u(this, 9))
+            .setPosition(w - w3 / 2, this.pierreY + (h - this.pierreY) / 2);
     }
 
     _positionnerTextes() {
@@ -746,8 +768,11 @@ class TestScene extends Phaser.Scene {
 
     _pointerDown(p) {
         if (this.etat === "placement") {
-            // Glisser le disque uniquement dans la zone de recul (sous la pierre).
-            if (p.y > this.pierreY) {
+            // Glisser le disque uniquement dans la colonne du milieu de la
+            // zone de recul (sous la pierre) — colonnes gauche (réservée) et
+            // droite (bouton Tirer) ne déclenchent pas le glisser.
+            const w3 = this.colLargeur;
+            if (p.y > this.pierreY && p.x >= w3 && p.x <= 2 * w3) {
                 this.glisse = true;
                 this._poserDisque(p);
             }
