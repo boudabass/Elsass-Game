@@ -150,6 +150,50 @@ class GameScene extends Phaser.Scene {
         // Une quille qui glisse peut à son tour en renverser une autre
         // (règle fédérale des ricochets, cf. GameScene._verifierCollisionsEntreQuilles).
         this._verifierCollisionsEntreQuilles();
+        // Les quilles TOMBÉES (rectangle 21% de long) sont plus grandes
+        // que l'écart de la grille (12%) — sans ça elles chevaucheraient
+        // leurs voisines dès la chute (demande John, 31/08).
+        this._resoudreChevauchements();
+    }
+
+    /**
+     * Empêche une quille TOMBÉE (rectangle) de chevaucher visuellement
+     * une voisine (debout ou tombée) — demande John, 31/08 : "les
+     * quilles ne peuvent pas se chevaucher". Une quille DEBOUT ne bouge
+     * jamais (position de grille fixe) ; seule une quille TOMBÉE est
+     * repoussée hors d'un chevauchement. Rayon « effectif » d'une quille
+     * tombée = la moitié de sa plus grande dimension (la longueur du
+     * rectangle) — approximation circulaire volontairement généreuse, pas
+     * de suivi de la rotation réelle du rectangle. Tourne chaque frame
+     * (cf. update()) : une paire tombée/tombée converge en quelques
+     * frames vers un partage 50/50 du chevauchement (chaque quille est
+     * traitée indépendamment lors de son propre passage dans la boucle).
+     */
+    _resoudreChevauchements() {
+        const rayonEffectif = (q) => q.getData("debout")
+            ? this.rayonQuille
+            : this.quilleHauteurTombeePx / 2;
+
+        this.quilles.forEach((a) => {
+            if (a.getData("absente") || a.getData("debout")) return;
+
+            this.quilles.forEach((b) => {
+                if (a === b || b.getData("absente")) return;
+
+                const dx = a.x - b.x, dy = a.y - b.y;
+                const dist = Math.hypot(dx, dy);
+                const rSomme = rayonEffectif(a) + rayonEffectif(b);
+                if (dist >= rSomme || dist < 0.0001) return;
+
+                const chevauchement = rSomme - dist;
+                const nx = dx / dist, ny = dy / dist;
+                // b debout (fixe) : a absorbe tout le chevauchement.
+                // b tombée aussi (mobile) : partage à 50/50.
+                const part = b.getData("debout") ? 1 : 0.5;
+                a.x += nx * chevauchement * part;
+                a.y += ny * chevauchement * part;
+            });
+        });
     }
 
     // --- Partie / jets (PRD §7-9) ----------------------------------------------
@@ -969,7 +1013,6 @@ class GameScene extends Phaser.Scene {
     _toucherQuille(quille) {
         if (!quille.getData("debout")) return;
         quille.setData("debout", false);
-        this._appliquerEtatQuille(quille);
         this.quillesTombeesCount++;
         if (quille.getData("index") === this._indexPrependeranteDuJet()) this.prependeranteTombee = true;
 
@@ -979,13 +1022,29 @@ class GameScene extends Phaser.Scene {
         this.ordreChute.push({ index: quille.getData("index"), frame: this.frameId });
         this.numerosQuille[quille.getData("index")].setVisible(false);
 
-        // Pas d'animation de tassement ici (ancien tween angle/scaleY
-        // retiré, 31/08) — il tassait le sprite APRÈS que
-        // _appliquerEtatQuille ait déjà fixé la taille rectangle finale
-        // (21%×6%, cf. config.quille.hauteurCm), donnant l'impression
-        // d'un flash "grand" suivi d'un rétrécissement. Demande John :
-        // la quille doit passer directement de rond (debout) à oblong
-        // (tombée) ET RESTER à sa taille cible, sans tassement.
+        // Animation « le rond s'allonge » (demande John, 31/08) : reste
+        // sur la texture CERCLE ("quille") et étire uniquement la HAUTEUR
+        // d'affichage jusqu'à la taille cible du rectangle (largeur
+        // JAMAIS touchée, jamais de rétrécissement) — visuellement, le
+        // cercle s'étire en ovale. Bascule vers la texture rectangle aux
+        // contours nets ("quilleTombee") seulement une fois la taille
+        // cible atteinte, cf. _appliquerEtatQuille pour l'état final
+        // (utilisé aussi par _positionnerQuilles au redimensionnement,
+        // sans animation dans ce cas-là).
+        quille.setTexture("quille");
+        quille.setTint(0xffffff);
+        quille.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
+        this.tweens.add({
+            targets: quille,
+            displayHeight: this.quilleHauteurTombeePx,
+            duration: 220,
+            ease: "Quad.easeOut",
+            onComplete: () => {
+                if (quille.getData("debout")) return; // resize entre-temps
+                quille.setTexture("quilleTombee");
+                quille.setTint(0xffffff);
+            }
+        });
     }
 
     // --- Visée (placement dans le cercle + rotation par boutons) -------------
