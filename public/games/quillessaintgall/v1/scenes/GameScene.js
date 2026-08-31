@@ -1010,7 +1010,15 @@ class GameScene extends Phaser.Scene {
         ).color);
     }
 
-    _toucherQuille(quille) {
+    /**
+     * `dirX`/`dirY` : direction du choc qui fait tomber cette quille (la
+     * vitesse de la boule à l'impact, ou celle de la quille source pour
+     * un ricochet en chaîne) — demande John, 31/08 : "il faut que la
+     * quille tombe dans sa direction, pas tous vers le haut". Optionnel,
+     * défaut (0,1) = ancien comportement (toujours à la verticale) si
+     * appelé sans direction connue.
+     */
+    _toucherQuille(quille, dirX = 0, dirY = 1) {
         if (!quille.getData("debout")) return;
         quille.setData("debout", false);
         this.quillesTombeesCount++;
@@ -1022,15 +1030,27 @@ class GameScene extends Phaser.Scene {
         this.ordreChute.push({ index: quille.getData("index"), frame: this.frameId });
         this.numerosQuille[quille.getData("index")].setVisible(false);
 
+        // Oriente la quille pour que son axe long (la hauteur qui va
+        // s'étirer ci-dessous) s'aligne avec la direction du choc, plutôt
+        // que de toujours pointer vers le haut de l'écran. Le repère local
+        // non tourné a son axe long vertical (0, r) ; après rotation par
+        // θ, ce point va en (-r·sinθ, r·cosθ) — poser θ = atan2(-dirX, dirY)
+        // aligne donc cet axe sur (dirX, dirY).
+        const norme = Math.hypot(dirX, dirY);
+        if (norme > 0.0001) {
+            quille.setRotation(Math.atan2(-dirX / norme, dirY / norme));
+        }
+
         // Animation « le rond s'allonge » (demande John, 31/08) : reste
         // sur la texture CERCLE ("quille") et étire uniquement la HAUTEUR
         // d'affichage jusqu'à la taille cible du rectangle (largeur
         // JAMAIS touchée, jamais de rétrécissement) — visuellement, le
-        // cercle s'étire en ovale. Bascule vers la texture rectangle aux
-        // contours nets ("quilleTombee") seulement une fois la taille
-        // cible atteinte, cf. _appliquerEtatQuille pour l'état final
-        // (utilisé aussi par _positionnerQuilles au redimensionnement,
-        // sans animation dans ce cas-là).
+        // cercle s'étire en ovale dans la direction du choc. Bascule vers
+        // la texture rectangle aux contours nets ("quilleTombee")
+        // seulement une fois la taille cible atteinte, cf.
+        // _appliquerEtatQuille pour l'état final (utilisé aussi par
+        // _positionnerQuilles au redimensionnement, sans animation dans
+        // ce cas-là — la rotation y est laissée telle quelle).
         quille.setTexture("quille");
         quille.setTint(0xffffff);
         quille.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
@@ -1298,7 +1318,7 @@ class GameScene extends Phaser.Scene {
                 const vitesseImpact = Math.hypot(v0.x, v0.y);
                 const debout = q.getData("debout");
                 const renverse = debout && vitesseImpact >= seuilRenverse;
-                if (renverse) this._toucherQuille(q);
+                if (renverse) this._toucherQuille(q, v0.x, v0.y);
                 this._reagirCollision(q, dx, dy, Math.sqrt(distSq), rSomme,
                     renverse, vitesseImpact, vitesseMax, seuilRenverse);
             }
@@ -1494,7 +1514,7 @@ class GameScene extends Phaser.Scene {
                     return;
                 }
 
-                this._toucherQuille(cible);
+                this._toucherQuille(cible, vx, vy);
                 const fraction = C.quille.transfertFacteurEntreQuilles;
                 const dirX = vx / vitesse, dirY = vy / vitesse;
                 cible.setData("vx", dirX * vitesse * fraction);
