@@ -464,9 +464,18 @@ window.QuillesSaintGallConfig = {
         recul: "#0e1420",
         texte: "#e8eef7",
         texteSombre: "#141210",
-        quille: "#e8e2d0",
-        quilleTombee: "#4a4f5c",
-        prependeranteAnneau: "#ffd23f",
+        // Panneau lumineux du vrai jeu (demande John 31/08) : les 9 quilles
+        // sont TOUTES identiques physiquement, seul l'affichage varie.
+        // quilleBase = base neutre de la texture "quille" (tintée en jaune
+        // ou rouge au runtime, cf. GameScene._appliquerEtatQuille) ;
+        // quilleEnPlace = JAUNE (debout, pas prépondérante) ;
+        // quillePreponderante = ROUGE (debout ET prépondérante du jet en
+        // cours) ; quilleTombee = BLANC (couchée au sol, texture
+        // "quilleTombee", rectangle — jamais tintée).
+        quilleBase: "#ffffff",
+        quilleEnPlace: "#f4c430",
+        quillePreponderante: "#e5484d",
+        quilleTombee: "#ffffff",
         quilleContour: "#2b3547",
         boule: 0xff7a1a,
         bouleClair: 0xffd23f,

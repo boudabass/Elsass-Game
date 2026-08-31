@@ -44,14 +44,30 @@ class GameScene extends Phaser.Scene {
         const C = window.QuillesSaintGallConfig;
         const g = scene.make.graphics({ add: false });
 
-        // Quille (32x32, vue du dessus) : disque clair + contour + reflet.
+        // Quille DEBOUT (32x32, vue du dessus) : disque + contour + reflet,
+        // base neutre (blanche) — la couleur réelle (jaune = en place,
+        // rouge = prépondérante) est appliquée au runtime via setTint,
+        // cf. GameScene._appliquerEtatQuille (demande John 31/08 :
+        // reproduit le panneau lumineux du vrai jeu, pas une quille
+        // physiquement différente).
         g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
         g.fillCircle(16, 16, 15);
-        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quille).color, 1);
+        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleBase).color, 1);
         g.fillCircle(16, 16, 12);
         g.fillStyle(0xffffff, 0.35);
         g.fillCircle(12, 12, 4);
         g.generateTexture("quille", 32, 32);
+        g.clear();
+
+        // Quille TOMBÉE (32x32, vue du dessus) : rectangle blanc (couchée
+        // au sol), PAS de tint appliqué au runtime — reste toujours dans
+        // cette couleur (demande John 31/08 : "la quille qui tombe doit
+        // rester blanche mais devenir un rectangle").
+        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
+        g.fillRect(6, 2, 20, 28);
+        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleTombee).color, 1);
+        g.fillRect(8, 4, 16, 24);
+        g.generateTexture("quilleTombee", 32, 32);
         g.clear();
 
         // Boule (48x48) : halo -> corps orange -> cœur clair.
@@ -404,8 +420,6 @@ class GameScene extends Phaser.Scene {
         const C = window.QuillesSaintGallConfig;
         this.quilles = [];
         this.numerosQuille = [];
-        // Marqueur (anneau) de la quille prépondérante — phase C uniquement.
-        this.prependeranteG = this.add.graphics().setDepth(4.5);
 
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
@@ -886,8 +900,6 @@ class GameScene extends Phaser.Scene {
             num.setPosition(x, y).setFontSize(Math.round(UI.u(this, 2.4)) + "px");
             num.setVisible(showNumeros && q.getData("debout"));
         });
-
-        this._dessinerMarqueurPrependerante();
     }
 
     /**
@@ -907,29 +919,20 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Anneau doré autour de la quille prépondérante du jet en cours
-     * (phases B/C uniquement) — nécessaire pour que le joueur sache
-     * laquelle compte le plus, sans quoi le barème « 5 bois si la
-     * prépondérante tombe » n'est pas jouable.
-     */
-    _dessinerMarqueurPrependerante() {
-        const C = window.QuillesSaintGallConfig;
-        const UI = Arcade.UI;
-        this.prependeranteG.clear();
-        const idx = this._indexPrependeranteDuJet();
-        if (idx === undefined) return;
-        const q = this.quilles[idx];
-        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.prependeranteAnneau).color;
-        this.prependeranteG.lineStyle(UI.u(this, 0.5), coul, 0.9);
-        this.prependeranteG.strokeCircle(q.x, q.y, this.rayonQuille * 1.5);
-    }
-
-    /**
-     * `absente` (nouveau, PRD §7 phase C) : la quille n'est PAS présente
-     * sur la piste pour ce jet (hors figure) — entièrement invisible,
-     * jamais collisionnable (elle reste `debout=false`, déjà exclue par
-     * _suivreBoule). Distinct d'une quille simplement TOMBÉE (visible,
-     * grisée).
+     * `absente` (PRD §7 phase C) : la quille n'est PAS présente sur la
+     * piste pour ce jet (hors figure) — entièrement invisible, jamais
+     * collisionnable (elle reste `debout=false`, déjà exclue par
+     * _suivreBoule).
+     *
+     * Reproduit le panneau lumineux du vrai jeu (demande John, 31/08) —
+     * les 9 quilles réelles sont TOUTES identiques, seul l'affichage les
+     * distingue, à 3 états : RIEN (absente, rien à l'écran) / JAUNE
+     * (debout, en place) / ROUGE (debout ET prépondérante du jet en
+     * cours — remplace l'ancien anneau doré séparé, la couleur de la
+     * quille porte directement l'info). Une quille TOMBÉE reste BLANCHE
+     * mais change de FORME (rectangle = couchée au sol, texture
+     * "quilleTombee" générée dans genererTextures) plutôt que de
+     * couleur — distincte d'une quille absente (invisible).
      */
     _appliquerEtatQuille(q) {
         const C = window.QuillesSaintGallConfig;
@@ -938,11 +941,18 @@ class GameScene extends Phaser.Scene {
             return;
         }
         q.setVisible(true);
+        q.setAlpha(1);
         const debout = q.getData("debout");
-        q.setAlpha(debout ? 1 : 0.45);
-        q.setTint(debout
-            ? 0xffffff
-            : Phaser.Display.Color.HexStringToColor(C.couleurs.quilleTombee).color);
+        if (!debout) {
+            q.setTexture("quilleTombee");
+            q.setTint(0xffffff);
+            return;
+        }
+        q.setTexture("quille");
+        const estPrependerante = q.getData("index") === this._indexPrependeranteDuJet();
+        q.setTint(Phaser.Display.Color.HexStringToColor(
+            estPrependerante ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace
+        ).color);
     }
 
     _toucherQuille(quille) {
