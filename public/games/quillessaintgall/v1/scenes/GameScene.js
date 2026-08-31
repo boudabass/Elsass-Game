@@ -409,7 +409,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
-            q.setData("roi", i === 8);
+            q.setData("roi", i === 4);
             q.setData("debout", true);
             q.setData("absente", false);
             q.setData("rayon", 0);
@@ -841,7 +841,9 @@ class GameScene extends Phaser.Scene {
         const nbCases = C.piste.grilleCases;   // 5
         const tailleCase = grilleTaillePx / nbCases;   // 12% de pisteLargeur si grilleLargeurPct=60
         // Les quilles sont posées au CENTRE de leur case (demande John) —
-        // col/row 0-4, la colonne/rangée centrale (2) porte le Roi (idx8).
+        // col/row 0-4, la colonne/rangée centrale (2) porte le Roi (idx4,
+        // POSITIONS[4] = {row:2, col:2} ci-dessous — corrigé le 31/08,
+        // 4e passe, cf. en-tête de config.js).
         const colToX = (col) => centreX + (col - (nbCases - 1) / 2) * tailleCase;
         const rowToY = (row) => grilleHautY + (row + 0.5) * tailleCase;
 
