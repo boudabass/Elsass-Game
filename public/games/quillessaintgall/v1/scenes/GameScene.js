@@ -531,7 +531,7 @@ class GameScene extends Phaser.Scene {
     _creerColliders() {
         this.physics.add.collider(
             this.boule, this.quillesGroup,
-            (boule) => this._empecherRebondArriere(boule),
+            null,
             (boule, quille) => this._processCollisionBouleQuille(boule, quille),
             this
         );
@@ -554,10 +554,6 @@ class GameScene extends Phaser.Scene {
      */
     _processCollisionBouleQuille(boule, quille) {
         const C = window.QuillesSaintGallConfig;
-        // Snapshot AVANT résolution (cf. _empecherRebondArriere, appelé
-        // APRÈS par le collideCallback) — direction de référence pour
-        // interdire tout rebond vers l'arrière.
-        this._bouleVitesseAvantChoc = { x: boule.body.velocity.x, y: boule.body.velocity.y };
         if (quille.getData("debout")) {
             const seuil = (C.boule.vitesseMinRenversePct / 100) * this.h;
             if (boule.body.speed >= seuil) {
@@ -601,31 +597,6 @@ class GameScene extends Phaser.Scene {
         q.body.setImmovable(false);
         q.body.mass = C.quille.masseKg;
         q.body.setBounce(C.quille.bounce);
-    }
-
-    /**
-     * La boule « ne revient jamais en arrière » (demande John, 30/08,
-     * précisée 2 fois) : même avec de vrais corps massiques, un choc
-     * frontal sur une quille-MUR (immobile) peut la faire rebondir vers le
-     * lanceur via la restitution Arcade — retire après coup la composante
-     * de vitesse qui repart en arrière PAR RAPPORT À SA DIRECTION AVANT LE
-     * CHOC (capturée dans `_processCollisionBouleQuille`), en gardant la
-     * composante tangentielle (la boule dévie, elle ne recule pas). Sur un
-     * choc qui renverse une quille (masse boule ≈ 2× masse quille), cette
-     * composante est déjà positive en pratique — la correction ne change
-     * alors rien.
-     */
-    _empecherRebondArriere(boule) {
-        const avant = this._bouleVitesseAvantChoc;
-        if (!avant) return;
-        const vitesseAvant = Math.hypot(avant.x, avant.y);
-        if (vitesseAvant < 0.001) return;
-        const dirX = avant.x / vitesseAvant, dirY = avant.y / vitesseAvant;
-        const v = boule.body.velocity;
-        const composanteAvant = v.x * dirX + v.y * dirY;
-        if (composanteAvant < 0) {
-            boule.body.setVelocity(v.x - composanteAvant * dirX, v.y - composanteAvant * dirY);
-        }
     }
 
     _creerVisee() {

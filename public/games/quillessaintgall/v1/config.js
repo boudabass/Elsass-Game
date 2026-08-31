@@ -325,10 +325,12 @@ window.QuillesSaintGallConfig = {
         // percute une quille qui reste debout (mur immobile, choc trop
         // faible pour la renverser). Volontairement basse : au bowling/aux
         // quilles la boule ne rebondit pas comme une balle, elle est juste
-        // déviée (cf. GameScene._empecherRebondArriere, qui retire en plus
-        // toute composante de vitesse qui la ferait repartir en arrière —
-        // demande John, précisée 2 fois : "elle ne revient jamais en
-        // arrière").
+        // déviée. Pas de correctif manuel sur la direction du rebond
+        // (retiré le 01/09, demande explicite de John : la physique
+        // réaliste — masse boule ≈ 2× masse quille — empêche déjà tout
+        // recul significatif sur un choc qui renverse une quille ; sur un
+        // choc qui n'en renverse aucune (mur), un léger recul visuel est
+        // désormais laissé possible, "le jeu le permet").
         bounce: 0.15,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
