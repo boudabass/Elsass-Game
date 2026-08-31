@@ -176,7 +176,19 @@ window.QuillesSaintGallConfig = {
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
         // seconde. Plus haut = elle s'arrête plus vite.
-        frictionGlissementPar_s: 4
+        frictionGlissementPar_s: 4,
+        // --- Collision QUILLE ↔ QUILLE (ajouté le 31/08, demande John :
+        // « qu'une quille puisse en faire tomber une autre ») — jusqu'ici
+        // une quille qui glisse traversait les autres sans effet. Règle
+        // fédérale explicitement prévue (quille qui revient de la fosse
+        // en renverse une autre, cf. exceptions de ricochet jets 12/16) :
+        // désormais simulée pour de vrai, cf. GameScene
+        // ._verifierCollisionsEntreQuilles. Modèle volontairement plus
+        // simple que boule/quille (une fraction FIXE, pas de formule qui
+        // varie avec la vitesse d'impact).
+        vitesseMinRenverseAutreQuillePct: 8,   // seuil pour renverser une quille voisine
+        transfertFacteurEntreQuilles: 0.5,      // fraction de vitesse héritée par la cible
+        amortissementRebondEntreQuilles: 0.4    // rebond de la source si la cible ne tombe pas
     },
 
     // --- Boule ---------------------------------------------------------------
@@ -199,14 +211,19 @@ window.QuillesSaintGallConfig = {
         // d'impact : `transfertFacteurMin` juste au-dessus du seuil de
         // renversement, jusqu'à `transfertFacteurMax` à la vitesse de
         // lancer maximale (force à 100%). Cf. TestScene._reagirCollision.
-        transfertFacteurMin: 0.2,
-        transfertFacteurMax: 0.55,
+        // Relevé le 31/08 (0.2→0.3 / 0.55→0.75, demande John : faire tomber
+        // PLUS de quilles par tir) — la boule garde nettement plus de sa
+        // vitesse d'impact après avoir renversé une quille.
+        transfertFacteurMin: 0.3,
+        transfertFacteurMax: 0.75,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
         // sans ça, une boule qui continue tout droit après un choc ne
         // ralentit plus jamais toute seule). Fraction de vitesse perdue par
         // seconde, en plus de l'éventuel rebond/transfert au contact lui-même.
-        frictionApresChocPar_s: 1.2,
+        // Abaissé le 31/08 (1.2→0.6, demande John) : la boule perdait déjà
+        // trop de vitesse ENTRE deux chocs pour espérer en renverser un 3e.
+        frictionApresChocPar_s: 0.6,
         // Vitesse en dessous de laquelle la boule est considérée arrêtée
         // (% de hauteur écran / s) — filet de sécurité après plusieurs
         // rebonds qui l'ont ralentie, pour ne jamais la laisser trembler
