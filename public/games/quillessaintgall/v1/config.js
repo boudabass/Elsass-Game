@@ -285,10 +285,18 @@ window.QuillesSaintGallConfig = {
         // Restitution (rebond) Arcade Physics pour les corps quille — un
         // choc entre 2 quilles (même masse) ou une quille encore debout
         // qui sert de "mur" à une autre quille qui glisse (choc trop
-        // faible pour la faire tomber, cf. vitesseMinRenverseAutreQuillePct)
-        // — valeur modérée, quilles en bois/plastique, pas de rebond
-        // caoutchouteux.
-        bounce: 0.15,
+        // faible pour la faire tomber, cf. vitesseMinRenverseAutreQuillePct).
+        // Relevé le 01/09 (0.15→0.85, demande John) : dans Arcade Physics,
+        // `bounce` multiplie TOUTE la vitesse résultante du corps après un
+        // choc (pas seulement la composante réfléchie, contrairement à une
+        // restitution classique, cf. `separateCircle` du moteur) — à 0.15
+        // une quille renversée ne recevait presque aucune vitesse (elle
+        // basculait quasiment sur place), ce qui contredisait la demande
+        // du 30/08 ("la quille doit vraiment se déplacer"). Vérifié
+        // chiffré le 01/09 : à 0.15, un choc à vitesse d'impact 198 ne
+        // transmettait que ~3 de vitesse à la quille ; l'objectif est
+        // qu'elle glisse pour de vrai.
+        bounce: 0.85,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
@@ -323,15 +331,21 @@ window.QuillesSaintGallConfig = {
         masseKg: 5.5,
         // Restitution (rebond) Arcade Physics — utilisée quand la boule
         // percute une quille qui reste debout (mur immobile, choc trop
-        // faible pour la renverser). Volontairement basse : au bowling/aux
-        // quilles la boule ne rebondit pas comme une balle, elle est juste
-        // déviée. Pas de correctif manuel sur la direction du rebond
-        // (retiré le 01/09, demande explicite de John : la physique
-        // réaliste — masse boule ≈ 2× masse quille — empêche déjà tout
-        // recul significatif sur un choc qui renverse une quille ; sur un
-        // choc qui n'en renverse aucune (mur), un léger recul visuel est
-        // désormais laissé possible, "le jeu le permet").
-        bounce: 0.15,
+        // faible pour la renverser), et intervient aussi dans la vitesse
+        // qu'elle garde après avoir renversé une quille (`bounce` s'applique
+        // à TOUTE la vitesse résultante du corps, pas juste au rebond, cf.
+        // `separateCircle` du moteur — donc aussi au cas "elle continue tout
+        // droit"). Relevé le 01/09 (0.15→0.85, demande John, même
+        // raisonnement que `quille.bounce` ci-dessous) : à 0.15 la boule
+        // perdait ~85% de sa vitesse au moindre contact (198→28 mesuré),
+        // impossible d'enchaîner plusieurs quilles sur un même tir fort.
+        // Pas de correctif manuel sur la direction du rebond (retiré le
+        // 01/09, demande explicite de John : la physique réaliste — masse
+        // boule ≈ 2× masse quille — empêche déjà tout recul significatif
+        // sur un choc qui renverse une quille ; sur un choc qui n'en
+        // renverse aucune (mur), un léger recul visuel est désormais
+        // laissé possible, "le jeu le permet").
+        bounce: 0.85,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
         // sans ça, une boule qui continue tout droit après un choc ne
