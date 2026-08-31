@@ -554,6 +554,13 @@ class GameScene extends Phaser.Scene {
         this.cercleX = this.pisteOffsetX + this.pisteLargeur / 2;
         this.cercleY = this.ligneLancerY;
 
+        // Échelle réelle (demande John, 31/08) : this.pisteLargeur
+        // (pixels) représente C.piste.largeurReelleCm (200cm réels) — sert
+        // à convertir en pixels tout ce qui doit être proportionnel à la
+        // piste (marge quilles, diagonale du losange, diamètre quille/
+        // boule), cf. _positionnerQuilles et _poserBouleVisuel.
+        this.pxParCm = this.pisteLargeur / C.piste.largeurReelleCm;
+
         this._positionnerQuilles();
         this._majVisee();
 
@@ -722,12 +729,36 @@ class GameScene extends Phaser.Scene {
         this.texteForce.setPosition(xCentre, this.forceBarY - UI.u(this, 3))
             .setFontSize(Math.round(UI.u(this, 2.8)) + "px");
 
-        // --- Jet / Score (en haut de la colonne, taille normale — demande
+        // --- Titre + sous-titre (tout en HAUT de la colonne — demande
+        // John, 31/08, dernière passe : « pour libérer de l'espace en haut
+        // de la piste, retire les textes pour les mettre dans la barre de
+        // droite » — la piste ne porte plus AUCUN texte au-dessus de la
+        // grille de quilles). Taille réduite + word-wrap : la colonne
+        // (1/3 d'écran) est plus étroite que l'ancienne largeur de piste
+        // (2/3) où ces textes étaient centrés avant. Empilage par HAUTEUR
+        // RÉELLE mesurée (`displayHeight`, après word-wrap) plutôt que des
+        // écarts fixes devinés — le titre peut retomber sur 1 ou 2 lignes
+        // selon le format d'écran, un écart fixe aurait fait chevaucher le
+        // sous-titre/le compteur sur les colonnes étroites (bug vu lors du
+        // premier essai : « Quilles Saint-Gall » sur 2 lignes chevauchait
+        // le sous-titre puis « Jet 1/17 »).
+        let curY = h * 0.02;
+        this.texteTitre.setFontSize(Math.round(UI.u(this, 3.6)) + "px")
+            .setWordWrapWidth(w3 * 0.9, true)
+            .setPosition(xCentre, curY + this.texteTitre.displayHeight / 2);
+        curY += this.texteTitre.displayHeight + UI.u(this, 0.8);
+
+        this.texteSousTitre.setFontSize(Math.round(UI.u(this, 1.9)) + "px")
+            .setWordWrapWidth(w3 * 0.9, true)
+            .setPosition(xCentre, curY + this.texteSousTitre.displayHeight / 2);
+        curY += this.texteSousTitre.displayHeight + UI.u(this, 2.5);
+
+        // --- Jet / Score (sous le sous-titre, taille normale — demande
         // John : ne pas étirer pour remplir l'espace, laisser le vide
         // entre ce texte et le libellé « Force »). ---
-        this.texteCompteur.setPosition(xCentre, h * 0.08)
-            .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
-            .setWordWrapWidth(w3 * 0.85, true);
+        this.texteCompteur.setFontSize(Math.round(UI.u(this, 3.2)) + "px")
+            .setWordWrapWidth(w3 * 0.85, true)
+            .setPosition(xCentre, curY + this.texteCompteur.displayHeight / 2);
     }
 
     // --- Quilles ---------------------------------------------------------------
@@ -744,45 +775,53 @@ class GameScene extends Phaser.Scene {
     _positionnerQuilles() {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
-        // Largeur de la rangée du milieu (la plus large) = largeur de la
-        // piste (this.pisteLargeur — demande John, cf. commentaire de
-        // this.pisteLargeur : un écart trop étroit entre 2 quilles
-        // voisines de cette rangée pouvait devenir plus étroit que le
-        // diamètre de la boule en portrait/carré), moins une marge de
-        // chaque côté (quillesMargeLateralePct, demande John 30/08) pour
-        // laisser de l'espace visible entre les quilles et le bord de la
-        // piste.
-        const margeFacteur = C.piste.quillesMargeLateralePct / 100;
-        const zoneLargeurPx = this.pisteLargeur * (1 - 2 * margeFacteur);
+        // Grille FIXE 5×5, CARRÉE — refonte du 31/08 (dernière passe,
+        // demande John : "peu importe l'espace que cela prend sur la
+        // piste, la grille doit être carrée 1/1"). Largeur ET hauteur de
+        // la grille = grilleLargeurPct % de pisteLargeur UNIQUEMENT (60%
+        // par défaut) : les 2 dimensions suivent la MÊME base (la largeur
+        // de piste), donc un vrai carré peu importe le format d'écran —
+        // remplace l'ancien calcul qui dérivait la hauteur en % de LA
+        // HAUTEUR de piste (this.ligneLancerY, une échelle différente),
+        // ce qui écrasait le losange près du bord haut sur certains
+        // formats.
+        const grilleTaillePx = this.pisteLargeur * (C.piste.grilleLargeurPct / 100);
         const centreX = this.pisteOffsetX + this.pisteLargeur / 2;
-        // 5 rangées réparties à intervalles réguliers entre les 2 bornes de
-        // config (0=fond=quillesZoneHautYPct … 4=pointe avant/Roi=
-        // quillesZoneBasYPct), exprimées en % de LA PISTE (this.ligneLancerY,
-        // PAS % de l'écran h — demande John 31/08, 3e passe : depuis que la
-        // hauteur de piste suit le ratio 1×2 au lieu d'un % fixe de l'écran,
-        // des bornes en % d'écran auraient poussé les quilles hors de la
-        // piste, ou tassées en haut, selon le format).
-        const yHaut = C.piste.quillesZoneHautYPct;
-        const yBas = C.piste.quillesZoneBasYPct;
-        const rangeesYPct = [0, 1, 2, 3, 4].map((r) => yHaut + (r / 4) * (yBas - yHaut));
+        // Ancrage : marge FIXE en haut de la piste (% de LA HAUTEUR de
+        // piste — volontairement la seule valeur ici liée à cette
+        // échelle-là, cf. commentaire de piste.grilleHautYPct en config).
+        const grilleHautY = (C.piste.grilleHautYPct / 100) * this.ligneLancerY;
 
+        const nbCases = C.piste.grilleCases;   // 5
+        const tailleCase = grilleTaillePx / nbCases;   // 12% de pisteLargeur si grilleLargeurPct=60
+        // Les quilles sont posées au CENTRE de leur case (demande John) —
+        // col/row 0-4, la colonne/rangée centrale (2) porte le Roi (idx8).
+        const colToX = (col) => centreX + (col - (nbCases - 1) / 2) * tailleCase;
+        const rowToY = (row) => grilleHautY + (row + 0.5) * tailleCase;
+
+        // Quinconce 1-2-3-2-1 (losange), désormais exprimé en cases
+        // entières (col, row) de la grille 5×5 — mêmes emplacements
+        // relatifs qu'avant (dx -1/-0.5/0/0.5/1 sur 5 rangées).
         const POSITIONS = [
-            { row: 0, dx: 0 },
-            { row: 1, dx: -0.5 }, { row: 1, dx: 0.5 },
-            { row: 2, dx: -1 }, { row: 2, dx: 0 }, { row: 2, dx: 1 },
-            { row: 3, dx: -0.5 }, { row: 3, dx: 0.5 },
-            { row: 4, dx: 0 }
+            { row: 0, col: 2 },
+            { row: 1, col: 1 }, { row: 1, col: 3 },
+            { row: 2, col: 0 }, { row: 2, col: 2 }, { row: 2, col: 4 },
+            { row: 3, col: 1 }, { row: 3, col: 3 },
+            { row: 4, col: 2 }
         ];
 
-        this.rayonQuille = UI.u(this, C.quille.rayonPct);
-        this.rayonRoi = UI.u(this, C.quille.rayonRoiPct);
+        // Rayon RÉEL (diamètre en cm × this.pxParCm), demande John 31/08 —
+        // remplace l'ancien % du plus petit côté de l'écran (UI.u), sans
+        // lien avec l'échelle de la piste.
+        this.rayonQuille = this.pxParCm * (C.quille.diametreCm / 2);
+        this.rayonRoi = this.pxParCm * (C.quille.diametreRoiCm / 2);
 
         const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
 
         this.quilles.forEach((q, i) => {
             const pos = POSITIONS[i];
-            const x = centreX + pos.dx * (zoneLargeurPx / 2);
-            const y = (rangeesYPct[pos.row] / 100) * this.ligneLancerY;
+            const x = colToX(pos.col);
+            const y = rowToY(pos.row);
             const rayonVisuel = q.getData("roi") ? this.rayonRoi : this.rayonQuille;
 
             q.setPosition(x, y);
@@ -897,9 +936,11 @@ class GameScene extends Phaser.Scene {
     }
 
     _poserBouleVisuel() {
-        const UI = Arcade.UI;
         const C = window.QuillesSaintGallConfig;
-        const rayon = UI.u(this, C.boule.rayonPct);
+        // Rayon RÉEL (diamètre en cm × this.pxParCm), demande John 31/08 —
+        // même échelle que la piste/les quilles, remplace l'ancien % du
+        // plus petit côté de l'écran (UI.u).
+        const rayon = this.pxParCm * (C.boule.diametreCm / 2);
         this.boule.setDisplaySize(rayon * 2, rayon * 2);
         this.boule.setPosition(this.bouleX, this.bouleY);
         this.boule.body.setVelocity(0, 0);
@@ -1403,13 +1444,10 @@ class GameScene extends Phaser.Scene {
         // gauche (écran large/court, demande John 31/08, 3e passe).
         const pisteCentreX = this.pisteOffsetX + wp / 2;
 
-        // Titre + consignes + jauge + résultat : centrés sur la PISTE, pas
-        // sur tout l'écran — demande John 31/08 : le 1/3 de droite est un
-        // panneau d'info dédié, ces éléments n'y ont plus leur place.
-        this.texteTitre.setPosition(pisteCentreX, h * 0.035)
-            .setFontSize(Math.round(UI.u(this, 7)) + "px");
-        this.texteSousTitre.setPosition(pisteCentreX, h * 0.035 + UI.u(this, 4))
-            .setFontSize(Math.round(UI.u(this, 3)) + "px");
+        // Titre/sous-titre : déplacés dans le panneau d'info (demande
+        // John, 31/08, dernière passe — libère le haut de la piste pour la
+        // grille de quilles), positionnés dans _positionnerColonneInfo,
+        // pas ici. Consignes/jauge/résultat restent centrés sur LA PISTE.
 
         // texteCompteur (jet n/17 + score) : positionné dans
         // _positionnerColonneInfo (colonne d'info, en haut) — pas ici.

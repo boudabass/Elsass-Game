@@ -124,22 +124,39 @@ window.QuillesSaintGallConfig = {
         // à partir de la largeur de piste réelle (elle-même dérivée du
         // ratio 1×2, cf. plus bas), pas d'un pourcentage fixe de la
         // hauteur — cf. GameScene._recalculerGeometrie.
-        // Bornes du losange de 9 quilles (quinconce 1-2-3-2-1, cf. en-tête
-        // de fichier) : les 3 rangées intermédiaires sont réparties à
-        // intervalles réguliers entre ces 2 bornes par GameScene
-        // ._positionnerQuilles — pas de valeur séparée par rangée ici.
-        // Exprimées en % de LA PISTE (GameScene.ligneLancerY), PAS % de
-        // l'écran — rebasées le 31/08/2026, 3e passe (avant : 12/34, en %
-        // de l'écran, cohérent uniquement tant que la piste faisait un %
-        // fixe de l'écran ; ×1,25 pour garder le même rendu visuel qu'avant
-        // sous l'ancienne hypothèse ligneLancerYPct=80 : 12/0.8=15,
-        // 34/0.8=42.5).
-        quillesZoneHautYPct: 15,    // % HAUTEUR DE PISTE : quille du fond (idx 0)
-        quillesZoneBasYPct: 42.5,   // % HAUTEUR DE PISTE : pointe avant = le Roi (idx 8)
-        // Marge latérale entre les quilles et le bord de la piste, % de la
-        // largeur de la piste (demande John, 30/08 : laisser de l'espace
-        // visible de chaque côté plutôt que des quilles collées au bord).
-        quillesMargeLateralePct: 20
+        // --- Échelle réelle (demande John, 31/08 : "il faut que ce soit
+        // proportionnel car la piste fait 200cm de large") -----------------
+        // Largeur RÉELLE de la piste (article 780 : "entre 180cm et 200cm
+        // de large" — on prend la borne haute). Sert de référence commune :
+        // GameScene calcule `pxParCm = pisteLargeur / largeurReelleCm` et
+        // s'en sert pour dimensionner en cm réels tout ce qui doit être
+        // proportionnel à la piste (marge quilles↔bord, diagonale du
+        // losange, diamètre quille/boule) — plus aucune valeur indépendante
+        // en % arbitraire pour ces éléments-là.
+        largeurReelleCm: 200,
+        // --- Grille fixe des quilles (refonte du 31/08, dernière passe) ---
+        // John a remplacé l'approche précédente (diagonale en cm dérivée
+        // de la marge quilles↔bord) par une GRILLE FIXE, CARRÉE, calculée
+        // UNIQUEMENT sur la largeur de piste : "peu importe l'espace que
+        // cela prend sur la piste, la grille doit être carrée 1/1". Cause
+        // du bug précédent : la hauteur du losange était dérivée en % de
+        // LA HAUTEUR de piste (this.ligneLancerY, échelle différente de la
+        // largeur) — sur certains formats, ça écrasait le losange près du
+        // bord haut (row 0 quasi collée à y=0, sous le titre).
+        // Grille 5×5, largeur ET hauteur = grilleLargeurPct % de
+        // pisteLargeur (60% → une case = 60/5 = 12% de pisteLargeur,
+        // demande John), donc un vrai carré peu importe le format d'écran
+        // (les 2 dimensions suivent la MÊME base : pisteLargeur).
+        grilleLargeurPct: 60,
+        grilleCases: 5,
+        // Marge FIXE entre le haut de la piste et le haut de la grille, en
+        // % de LA HAUTEUR de piste (this.ligneLancerY) — seule valeur ici
+        // encore liée à cette échelle-là, volontairement : une simple
+        // marge d'ancrage, pas une dimension de la grille elle-même. Peut
+        // rester petite car le titre/sous-titre ne sont plus dessinés sur
+        // la piste (demande John : les déplacer dans le panneau d'info
+        // pour libérer cet espace, cf. GameScene._positionnerColonneInfo).
+        grilleHautYPct: 6
         // Pas de largeur totale ici : la largeur de la piste est TOUJOURS
         // celle de GameScene.pisteLargeur, cf. GameScene._recalculerGeometrie
         // / _positionnerQuilles / _dessinerDecor. Passée de 1/3 à 2/3 le
@@ -186,8 +203,21 @@ window.QuillesSaintGallConfig = {
     // --- Quilles (9, en losange/quinconce, quille 9 = le Roi en pointe
     // avant — cf. l'en-tête de ce fichier pour la disposition exacte) -------
     quille: {
-        rayonPct: 2.4,               // % du plus petit côté (quilles normales)
-        rayonRoiPct: 3.1,            // le Roi, plus grand (rappel : +4 cm en réel)
+        // Diamètre RÉEL en cm (article 780 : "diamètre maximum de 12cm"),
+        // converti en pixels via GameScene.pxParCm (demande John, 31/08 :
+        // proportionnel à la largeur réelle de piste, cf. piste.largeurReelleCm
+        // ci-dessus) — remplace l'ancien rayonPct (% du plus petit côté de
+        // l'écran, sans lien avec l'échelle de la piste). Confirmé par
+        // John (31/08, dernière passe) : 12cm/200cm = 6% de la largeur de
+        // piste, soit la moitié d'une case de la grille (12%, cf.
+        // piste.grilleLargeurPct) — la quille tient centrée dans sa case.
+        diametreCm: 12,
+        // Le Roi (idx8) : l'article ne donne PAS de diamètre plus grand
+        // (seulement "plus grande de 4cm" en HAUTEUR, invisible en vue du
+        // dessus) — ce +4cm est repris ici sur le diamètre à défaut d'une
+        // mesure séparée, uniquement pour rester visuellement distinct
+        // (hypothèse déjà faite avant cette passe, juste reconvertie en cm).
+        diametreRoiCm: 16,
         // Rayon de collision = rayon visuel × ce facteur. À 1, la hitbox est
         // PILE la taille visuelle de la quille (demande John, 30/08 — plus
         // d'inflation artificielle). Une boule qui ne peut pas passer sans
@@ -216,7 +246,12 @@ window.QuillesSaintGallConfig = {
 
     // --- Boule ---------------------------------------------------------------
     boule: {
-        rayonPct: 2.6,
+        // Diamètre RÉEL : 20cm = 10% de la largeur de piste (tranché par
+        // John le 31/08, dernière passe — dernière pièce de la mise à
+        // l'échelle réelle : piste/grille de quilles/quille/boule suivent
+        // désormais TOUS la même base, this.pxParCm). Converti en pixels
+        // via GameScene.pxParCm, même échelle que la piste/les quilles.
+        diametreCm: 20,
         vitessePctH_par_s: 55,       // vitesse de déplacement, % de hauteur écran / s
         // Vitesse conservée après un rebond sur une quille QUI NE TOMBE PAS
         // (choc trop faible, § vitesseMinRenversePct) : la quille agit comme
