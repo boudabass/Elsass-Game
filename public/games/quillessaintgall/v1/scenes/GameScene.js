@@ -531,13 +531,13 @@ class GameScene extends Phaser.Scene {
     _creerColliders() {
         this.physics.add.collider(
             this.boule, this.quillesGroup,
-            null,
+            (boule, quille) => this._corrigerRebondMur(boule, quille),
             (boule, quille) => this._processCollisionBouleQuille(boule, quille),
             this
         );
         this.physics.add.collider(
             this.quillesGroup, this.quillesGroup,
-            null,
+            (a, b) => { this._corrigerRebondMur(a, b); this._corrigerRebondMur(b, a); },
             (a, b) => this._processCollisionQuilleQuille(a, b),
             this
         );
@@ -549,8 +549,8 @@ class GameScene extends Phaser.Scene {
      * (`boule.vitesseMinRenversePct`). Si oui : bookkeeping du score
      * (_toucherQuille) + bascule en corps mobile massique
      * (_rendreQuilleMobile) AVANT que Phaser ne résolve le contact. Sinon,
-     * la quille reste un mur : Phaser fait rebondir la boule tout seul
-     * (restitution = boule.bounce × quille.bounce).
+     * la quille reste un mur : cf. _corrigerRebondMur (collideCallback,
+     * après résolution) pour ce qui se passe alors.
      */
     _processCollisionBouleQuille(boule, quille) {
         const C = window.QuillesSaintGallConfig;
@@ -578,6 +578,43 @@ class GameScene extends Phaser.Scene {
         this._essayerRenverserParContact(a, b);
         this._essayerRenverserParContact(b, a);
         return true;
+    }
+
+    /**
+     * Corrige un défaut du moteur (trouvé le 01/09, demande John : « la
+     * quille arrive quand même à arrêter net la boule ») : quand une
+     * quille reste un mur (`body.immovable`, elle n'a pas basculé sur CE
+     * choc), la formule d'impulsion d'Arcade Physics pour un corps
+     * immobile reste basée sur sa masse RÉELLE (finie, 2,8kg) au lieu de
+     * la traiter comme infiniment lourde — pour une quille bien plus
+     * légère que la boule, ça ne la repousse presque pas : elle continue
+     * de foncer vers le mur, le repercute dès la frame suivante, et
+     * s'arrête net en une quinzaine de frames à force de freinages
+     * répétés (vérifié chiffré : vitesse d'impact 55 → 42,8 après UNE
+     * résolution native, mais la boule continue toujours d'AVANCER vers
+     * la quille au lieu d'être repoussée). Corrigé ici en recalculant
+     * nous-mêmes une vraie réflexion sur la normale de contact
+     * (v' = v - 2(v·n)n, un vrai rebond de mur), à la place du résultat
+     * natif — mais SEULEMENT si le corps `mobile` s'apprêtait encore à
+     * foncer DANS le mur après résolution (`vN < 0`) : sur une quille qui
+     * tombe (mobile ↔ mobile) ou un contact déjà en train de s'écarter,
+     * on ne touche à rien, la conservation de quantité de mouvement de
+     * Phaser reste seule maîtresse (elle, elle fonctionne bien).
+     */
+    _corrigerRebondMur(mobile, mur) {
+        if (mobile.body.immovable || !mur.body.immovable) return;
+        const dx = mobile.x - mur.x, dy = mobile.y - mur.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 0.001) return;
+        const nx = dx / dist, ny = dy / dist;
+        const v = mobile.body.velocity;
+        const vN = v.x * nx + v.y * ny;
+        if (vN >= 0) return;   // s'éloigne déjà du mur, rien à corriger
+        const bounce = mobile.body.bounce.y;
+        mobile.body.setVelocity(
+            (v.x - 2 * vN * nx) * bounce,
+            (v.y - 2 * vN * ny) * bounce
+        );
     }
 
     /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */
