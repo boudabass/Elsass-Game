@@ -2,10 +2,16 @@
  * GameScene — Quilles Saint-Gall, une VRAIE partie (PRD 875 §7-9) : 17
  * jets en 6 phases, par-dessus la mécanique de tir et la physique de
  * collision du spike v1, VALIDÉES par John le 30/08/2026 (commit
- * 6fa096e) et NON MODIFIÉES ici : placement dans un demi-cercle, visée
- * par boutons ◄/►, force réglable, jauge de précision à zone fixe,
- * collision boule/quilles par test de distance manuel (cf. commentaires
- * de chaque méthode concernée, tous conservés tels quels).
+ * 6fa096e) : placement dans un demi-cercle, visée par boutons ◄/►, force
+ * réglable, jauge de précision à zone fixe — NON MODIFIÉES ici. La
+ * collision boule/quilles et quille/quille, elle, a été refaite le
+ * 31/08/2026 (demande John : « on connaît maintenant le poids des boules
+ * et des quilles, il faut rendre ça plus réaliste ») : remplace l'ancien
+ * test de distance manuel + fractions empiriques par de VRAIS corps
+ * Arcade Physics circulaires avec masse réelle (`config.quille.masseKg`/
+ * `config.boule.masseKg`) — Phaser calcule lui-même l'échange de vitesse
+ * par conservation de quantité de mouvement, cf. _creerColliders /
+ * _processCollisionBouleQuille / _processCollisionQuilleQuille.
  *
  * Ce que cette scène ajoute (30/08/2026, PRD §7-9, hors studio) :
  *   1. LES 17 JETS / 6 PHASES (config.jets) : chaque jet démarre avec un
@@ -104,6 +110,7 @@ class GameScene extends Phaser.Scene {
         this._creerDecor();
         this._creerQuilles();
         this._creerBouleEtOmbre();
+        this._creerColliders();
         this._creerVisee();
         this._creerJauge();
         this._creerBouton();
@@ -145,11 +152,10 @@ class GameScene extends Phaser.Scene {
             this._suivreBoule(dt);
         }
         // Les quilles envoyées en mouvement par un choc continuent de
-        // glisser (et de ralentir) même une fois le jet terminé.
-        this._glisserQuillesTombees(dt);
-        // Une quille qui glisse peut à son tour en renverser une autre
-        // (règle fédérale des ricochets, cf. GameScene._verifierCollisionsEntreQuilles).
-        this._verifierCollisionsEntreQuilles();
+        // ralentir (jusqu'à l'arrêt) même une fois le jet terminé — leur
+        // déplacement lui-même et les collisions quille↔quille sont
+        // désormais gérés par Arcade Physics (cf. _creerColliders).
+        this._amortirQuillesMobiles(dt);
         // Les quilles TOMBÉES (rectangle 21% de long) sont plus grandes
         // que l'écart de la grille (12%) — sans ça elles chevaucheraient
         // leurs voisines dès la chute (demande John, 31/08).
@@ -192,6 +198,7 @@ class GameScene extends Phaser.Scene {
                 const part = b.getData("debout") ? 1 : 0.5;
                 a.x += nx * chevauchement * part;
                 a.y += ny * chevauchement * part;
+                a.body.updateFromGameObject();
             });
         });
     }
@@ -254,8 +261,7 @@ class GameScene extends Phaser.Scene {
             const dejaAbattue = !!abattuesPhase && abattuesPhase.has(idx);
             q.setData("debout", dansLeJet && !dejaAbattue);
             q.setData("absente", !dansLeJet);
-            q.setData("vx", 0);
-            q.setData("vy", 0);
+            q.body.setVelocity(0, 0);
             q.setAngle(0);
         });
 
@@ -464,16 +470,25 @@ class GameScene extends Phaser.Scene {
         const C = window.QuillesSaintGallConfig;
         this.quilles = [];
         this.numerosQuille = [];
+        this.quillesGroup = this.physics.add.group();
 
         for (let i = 0; i < 9; i++) {
-            const q = this.add.sprite(0, 0, "quille").setDepth(4);
+            const q = this.physics.add.sprite(0, 0, "quille").setDepth(4);
+            q.body.setAllowGravity(false);
+            // Rayon LOCAL = moitié de la texture "quille" (32×32, cf.
+            // genererTextures) × le facteur de config — le corps Arcade
+            // suit ensuite tout seul l'échelle du sprite (`_sx`, dérivée de
+            // `setDisplaySize`) : tant que la LARGEUR affichée reste
+            // `this.rayonQuille * 2` (vrai debout ET tombée, cf.
+            // _appliquerEtatQuille/_toucherQuille — seule la HAUTEUR
+            // s'étire), le rayon de collision reste PILE `this.rayonQuille`
+            // dans les 2 états, sans recalcul à chaque frame/resize.
+            q.body.setCircle(16 * C.quille.rayonCollisionFacteur);
             q.setData("index", i);
             q.setData("debout", true);
             q.setData("absente", false);
-            q.setData("rayon", 0);
-            q.setData("vx", 0);
-            q.setData("vy", 0);
             this.quilles.push(q);
+            this.quillesGroup.add(q);
 
             // Numéro (1-9) affiché UNIQUEMENT pendant les jets à ordre
             // imposé (D/E) — indispensable pour que le joueur sache quelle
@@ -491,6 +506,126 @@ class GameScene extends Phaser.Scene {
         this.boule = this.physics.add.sprite(0, 0, "boule");
         this.boule.setDepth(6);
         this.boule.body.setAllowGravity(false);
+        // Rayon LOCAL = moitié de la texture "boule" (48×48, halo inclus,
+        // cf. genererTextures) — même convention que l'ancien calcul manuel
+        // (`displayWidth / 2`, cf. historique) : le corps Arcade suit
+        // ensuite l'échelle appliquée par setDisplaySize dans
+        // _poserBouleVisuel.
+        this.boule.body.setCircle(24);
+        this.boule.body.mass = C.boule.masseKg;
+        this.boule.body.setBounce(C.boule.bounce);
+    }
+
+    /**
+     * Colliders Arcade Physics boule↔quilles et quille↔quille (refonte
+     * masse réelle du 31/08, cf. commentaire d'en-tête de la classe). Les
+     * `processCallback` tournent AVANT que Phaser ne calcule la séparation/
+     * l'échange de vitesse : c'est là qu'on décide si une quille encore
+     * debout (`body.immovable = true`, cf. _positionnerQuilles) tombe ou
+     * reste un mur — si elle tombe, on la rend mobile AVANT de laisser
+     * Phaser résoudre le choc (_rendreQuilleMobile), pour que l'échange de
+     * quantité de mouvement de CE MÊME contact utilise déjà sa vraie masse.
+     * Retourne toujours `true` : la séparation/le rebond doivent de toute
+     * façon avoir lieu (mur immobile OU quille désormais mobile).
+     */
+    _creerColliders() {
+        this.physics.add.collider(
+            this.boule, this.quillesGroup,
+            (boule) => this._empecherRebondArriere(boule),
+            (boule, quille) => this._processCollisionBouleQuille(boule, quille),
+            this
+        );
+        this.physics.add.collider(
+            this.quillesGroup, this.quillesGroup,
+            null,
+            (a, b) => this._processCollisionQuilleQuille(a, b),
+            this
+        );
+    }
+
+    /**
+     * Décide si `quille` (encore debout, donc `body.immovable`) tombe sous
+     * le choc de la boule — même seuil que l'ancien modèle
+     * (`boule.vitesseMinRenversePct`). Si oui : bookkeeping du score
+     * (_toucherQuille) + bascule en corps mobile massique
+     * (_rendreQuilleMobile) AVANT que Phaser ne résolve le contact. Sinon,
+     * la quille reste un mur : Phaser fait rebondir la boule tout seul
+     * (restitution = boule.bounce × quille.bounce).
+     */
+    _processCollisionBouleQuille(boule, quille) {
+        const C = window.QuillesSaintGallConfig;
+        // Snapshot AVANT résolution (cf. _empecherRebondArriere, appelé
+        // APRÈS par le collideCallback) — direction de référence pour
+        // interdire tout rebond vers l'arrière.
+        this._bouleVitesseAvantChoc = { x: boule.body.velocity.x, y: boule.body.velocity.y };
+        if (quille.getData("debout")) {
+            const seuil = (C.boule.vitesseMinRenversePct / 100) * this.h;
+            if (boule.body.speed >= seuil) {
+                this._toucherQuille(quille, boule.body.velocity.x, boule.body.velocity.y);
+                this._rendreQuilleMobile(quille);
+            }
+        }
+        boule.setData("dejaTouche", true);
+        return true;
+    }
+
+    /**
+     * Même principe côté quille↔quille (ricochet — une quille qui glisse
+     * après avoir été renversée peut à son tour en renverser une autre
+     * encore debout, règle fédérale des jets 12/16, cf. l'historique de ce
+     * fichier). `a`/`b` peuvent arriver dans n'importe quel ordre — on
+     * teste les 2 sens. Si aucune des deux n'est un mur debout (2 quilles
+     * déjà tombées qui se percutent), Phaser résout directement l'échange
+     * de vitesse par les masses réelles, sans logique dédiée.
+     */
+    _processCollisionQuilleQuille(a, b) {
+        this._essayerRenverserParContact(a, b);
+        this._essayerRenverserParContact(b, a);
+        return true;
+    }
+
+    /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */
+    _essayerRenverserParContact(cible, source) {
+        if (cible === source || !cible.getData("debout") || !cible.body.immovable) return;
+        const C = window.QuillesSaintGallConfig;
+        const seuil = (C.quille.vitesseMinRenverseAutreQuillePct / 100) * this.h;
+        if (source.body.speed >= seuil) {
+            this._toucherQuille(cible, source.body.velocity.x, source.body.velocity.y);
+            this._rendreQuilleMobile(cible);
+        }
+    }
+
+    /** Bascule une quille de "mur immobile" à "corps mobile massique" au moment où elle tombe. */
+    _rendreQuilleMobile(q) {
+        const C = window.QuillesSaintGallConfig;
+        q.body.setImmovable(false);
+        q.body.mass = C.quille.masseKg;
+        q.body.setBounce(C.quille.bounce);
+    }
+
+    /**
+     * La boule « ne revient jamais en arrière » (demande John, 30/08,
+     * précisée 2 fois) : même avec de vrais corps massiques, un choc
+     * frontal sur une quille-MUR (immobile) peut la faire rebondir vers le
+     * lanceur via la restitution Arcade — retire après coup la composante
+     * de vitesse qui repart en arrière PAR RAPPORT À SA DIRECTION AVANT LE
+     * CHOC (capturée dans `_processCollisionBouleQuille`), en gardant la
+     * composante tangentielle (la boule dévie, elle ne recule pas). Sur un
+     * choc qui renverse une quille (masse boule ≈ 2× masse quille), cette
+     * composante est déjà positive en pratique — la correction ne change
+     * alors rien.
+     */
+    _empecherRebondArriere(boule) {
+        const avant = this._bouleVitesseAvantChoc;
+        if (!avant) return;
+        const vitesseAvant = Math.hypot(avant.x, avant.y);
+        if (vitesseAvant < 0.001) return;
+        const dirX = avant.x / vitesseAvant, dirY = avant.y / vitesseAvant;
+        const v = boule.body.velocity;
+        const composanteAvant = v.x * dirX + v.y * dirY;
+        if (composanteAvant < 0) {
+            boule.body.setVelocity(v.x - composanteAvant * dirX, v.y - composanteAvant * dirY);
+        }
     }
 
     _creerVisee() {
@@ -939,10 +1074,22 @@ class GameScene extends Phaser.Scene {
 
             q.setPosition(x, y);
             // Taille d'affichage définie dans _appliquerEtatQuille (cercle
-            // si debout, rectangle allongé si tombée).
-            // Rayon de collision (test manuel, cf. _suivreBoule) : dérivé du
-            // rayon visuel réel affiché à l'écran, pas d'un corps Arcade.
-            q.setData("rayon", this.rayonQuille * C.quille.rayonCollisionFacteur);
+            // si debout, rectangle allongé si tombée) ; le rayon de
+            // collision suit tout seul via body.setCircle (cf. _creerQuilles).
+            q.body.updateFromGameObject();
+            q.body.setVelocity(0, 0);
+
+            // Corps physique : absente = désactivé (jamais collisionnable) ;
+            // debout = mur immobile (masse "infinie", cf. _rendreQuilleMobile
+            // qui le bascule mobile SEULEMENT si elle tombe) ; déjà tombée
+            // (phases D/E persistantes, cf. _demarrerJet) = corps mobile,
+            // au repos, avec sa vraie masse — peut encore être bousculée.
+            const debout = q.getData("debout");
+            const absente = q.getData("absente");
+            q.body.enable = !absente;
+            q.body.setImmovable(debout);
+            q.body.mass = C.quille.masseKg;
+            q.body.setBounce(C.quille.bounce);
 
             this._appliquerEtatQuille(q);
 
@@ -1288,41 +1435,12 @@ class GameScene extends Phaser.Scene {
         // les chutes simultanées d'un ordre imposé, cf. _calculerOrdreJet).
         this.frameId++;
 
-        // Collision boule/quilles : test de distance manuel (cf. commentaire
-        // de classe) contre chaque quille encore PRÉSENTE (`!absente`), pas
-        // seulement celles encore debout — une quille déjà tombée reste un
-        // obstacle physique au sol, la boule ne doit jamais la traverser
-        // (demande John, 31/08 : avant, une quille tombée était totalement
-        // ignorée par la détection de collision, la boule passait au
-        // travers dès qu'elle avait marqué). Une quille déjà tombée est
-        // toujours traitée comme un "mur" (`renverse` forcé à faux) : elle
-        // ne peut plus marquer de point ni retomber une 2e fois, mais
-        // bloque/dévie la boule comme n'importe quel obstacle. Si le choc
-        // est trop faible (vitesseMinRenversePct) sur une quille ENCORE
-        // debout, elle agit aussi comme un mur (rebond quasi complet, elle
-        // reste debout). Sinon elle tombe ET reçoit une partie de la
-        // quantité de mouvement de la boule (demande John, 30/08) : cf.
-        // _reagirCollision.
-        const rBoule = this.boule.displayWidth / 2;
-        const seuilRenverse = (C.boule.vitesseMinRenversePct / 100) * this.h;
-        const vitesseMax = this._vitesseMaxLancer();
-        this.quilles.forEach((q) => {
-            if (q.getData("absente")) return;
-            const rQ = q.getData("rayon");
-            const dx = this.boule.x - q.x;
-            const dy = this.boule.y - q.y;
-            const rSomme = rBoule + rQ;
-            const distSq = dx * dx + dy * dy;
-            if (distSq <= rSomme * rSomme) {
-                const v0 = this.boule.body.velocity;
-                const vitesseImpact = Math.hypot(v0.x, v0.y);
-                const debout = q.getData("debout");
-                const renverse = debout && vitesseImpact >= seuilRenverse;
-                if (renverse) this._toucherQuille(q, v0.x, v0.y);
-                this._reagirCollision(q, dx, dy, Math.sqrt(distSq), rSomme,
-                    renverse, vitesseImpact, vitesseMax, seuilRenverse);
-            }
-        });
+        // Collision boule/quilles : déléguée à Arcade Physics (corps
+        // circulaires massiques, cf. _creerColliders/_processCollisionBouleQuille) —
+        // s'applique aussi bien aux quilles ENCORE DEBOUT (mur, ou tombent
+        // si le choc est assez fort) qu'à celles déjà TOMBÉES (`!absente`,
+        // corps mobile au repos, la boule ne les traverse jamais : demande
+        // John, 31/08).
 
         // Ralentissement continu une fois que la boule a touché au moins
         // une quille (demande John, 30/08 : sinon une boule qui continue
@@ -1351,177 +1469,24 @@ class GameScene extends Phaser.Scene {
         if (dehors || tropLente) this._jetTermine();
     }
 
-    _vitesseMaxLancer() {
-        const C = window.QuillesSaintGallConfig;
-        return (C.boule.vitessePctH_par_s / 100) * this.h * C.boule.forceVitesseMaxFacteur;
-    }
-
     /**
-     * Réaction de la boule (et de la quille, si elle tombe) au contact.
-     * Repousse d'abord la boule hors du chevauchement (évite qu'elle
-     * reste "collée" et déclenche le contact en boucle). Marque la boule
-     * comme "déjà touchée" (cf. `_suivreBoule`, ralentissement continu).
-     *
-     * Si la quille NE tombe PAS (choc trop faible, ou quille déjà tombée
-     * mais toujours présente au sol) : elle agit comme un obstacle, la
-     * boule DÉVIE sur le côté (composante vers l'obstacle retirée de sa
-     * vitesse) amortie par `boule.amortissementRebond` — PAS de rebond en
-     * arrière façon billard (v' = v - 2(v·n)n aurait pu renvoyer la boule
-     * vers le lanceur ; demande John, 31/08 : au bowling/aux quilles, la
-     * boule ne revient jamais en arrière, elle continue toujours vers
-     * l'avant, quitte à dévier).
-     *
-     * Si la quille TOMBE : la boule NE REBONDIT JAMAIS vers l'arrière
-     * (demande John, 30/08, précisée une 2e fois : « si je tape une quille
-     * de face, elle doit pouvoir continuer ») — elle continue TOUJOURS dans
-     * sa direction initiale, à une fraction de sa vitesse d'impact qui
-     * monte avec cette vitesse d'impact (`transfertFacteurMin` juste au
-     * seuil de renversement → `transfertFacteurMax` à la vitesse de lancer
-     * max). La quille encaisse la même fraction et glisse dans cette même
-     * direction (pas juste écartée sur la normale de contact).
-     *
-     * @param quille  la quille touchée (reçoit une vitesse si `renverse`)
-     * @param dx,dy   vecteur quille → boule (PAS encore normalisé)
-     * @param dist    longueur de ce vecteur
-     * @param rSomme  rayon boule + rayon quille (distance de contact)
-     * @param renverse  la quille tombe-t-elle sur ce choc ?
-     * @param vitesseImpact  vitesse de la boule au moment du contact
-     * @param vitesseMax     vitesse de lancer maximale (force à 100%)
-     * @param seuilRenverse  vitesse minimale pour renverser une quille
+     * Ralentit (jusqu'à l'arrêt) les quilles devenues des corps mobiles
+     * (renversées, cf. _rendreQuilleMobile) — les quilles encore debout
+     * (`body.immovable`) ou absentes (`body.enable = false`) sont ignorées.
+     * Le déplacement lui-même (intégration de la vitesse) et les
+     * collisions quille↔quille sont gérés par Arcade Physics, cf.
+     * _creerColliders ; cette méthode n'applique QUE le frottement.
      */
-    _reagirCollision(quille, dx, dy, dist, rSomme, renverse, vitesseImpact, vitesseMax, seuilRenverse) {
-        const C = window.QuillesSaintGallConfig;
-        const nx = dist > 0.001 ? dx / dist : 0;
-        const ny = dist > 0.001 ? dy / dist : -1;
-
-        const chevauchement = rSomme - dist;
-        if (chevauchement > 0) {
-            this.boule.x += nx * chevauchement;
-            this.boule.y += ny * chevauchement;
-            this.boule.body.updateFromGameObject();
-        }
-
-        this.boule.setData("dejaTouche", true);
-        const v = this.boule.body.velocity;
-
-        if (!renverse) {
-            // Modèle "obstacle" : la quille ne bouge pas, la boule NE
-            // REBONDIT JAMAIS EN ARRIÈRE — on retire seulement la
-            // composante de vitesse qui fonce DANS l'obstacle (le long de
-            // la normale de contact), la composante tangentielle (le long
-            // de la quille) est conservée : la boule glisse/dévie sur le
-            // côté et continue sa route, elle ne repart pas vers le
-            // lanceur comme un rebond de billard.
-            const vN = v.x * nx + v.y * ny;
-            let vx = v.x, vy = v.y;
-            if (vN < 0) {   // la boule allait bien VERS la quille
-                vx = v.x - vN * nx;
-                vy = v.y - vN * ny;
-            }
-            this.boule.body.setVelocity(vx * C.boule.amortissementRebond, vy * C.boule.amortissementRebond);
-            return;
-        }
-
-        // La quille tombe : la boule continue TOUJOURS vers l'avant (jamais
-        // en arrière). t=0 juste au seuil de renversement (fraction min),
-        // t=1 à la vitesse de lancer maximale (fraction max).
-        const plage = Math.max(1, vitesseMax - seuilRenverse);
-        const t = Phaser.Math.Clamp((vitesseImpact - seuilRenverse) / plage, 0, 1);
-        const fraction = C.boule.transfertFacteurMin +
-            t * (C.boule.transfertFacteurMax - C.boule.transfertFacteurMin);
-
-        const dirX = v.x / vitesseImpact, dirY = v.y / vitesseImpact;
-        const vitesseTransfert = vitesseImpact * fraction;
-
-        this.boule.body.setVelocity(dirX * vitesseTransfert, dirY * vitesseTransfert);
-
-        // La quille encaisse la même fraction et glisse dans cette même
-        // direction.
-        quille.setData("vx", dirX * vitesseTransfert);
-        quille.setData("vy", dirY * vitesseTransfert);
-    }
-
-    /**
-     * Fait glisser (et ralentir) les quilles renversées auxquelles une
-     * vitesse a été donnée par _reagirCollision — appelé à chaque frame
-     * depuis update(), indépendamment de l'état du jet.
-     */
-    _glisserQuillesTombees(dt) {
+    _amortirQuillesMobiles(dt) {
         const C = window.QuillesSaintGallConfig;
         const amorti = Math.max(0, 1 - C.quille.frictionGlissementPar_s * dt);
         this.quilles.forEach((q) => {
-            const vx = q.getData("vx") || 0;
-            const vy = q.getData("vy") || 0;
-            if (vx === 0 && vy === 0) return;
-            q.x += vx * dt;
-            q.y += vy * dt;
-            let nvx = vx * amorti, nvy = vy * amorti;
+            if (!q.body.enable || q.body.immovable) return;
+            const v = q.body.velocity;
+            if (v.x === 0 && v.y === 0) return;
+            let nvx = v.x * amorti, nvy = v.y * amorti;
             if (Math.hypot(nvx, nvy) < 2) { nvx = 0; nvy = 0; }
-            q.setData("vx", nvx);
-            q.setData("vy", nvy);
-        });
-    }
-
-    /**
-     * Une quille qui GLISSE après avoir été renversée peut à son tour en
-     * renverser une autre encore debout — règle fédérale explicitement
-     * prévue ("dans le cas où une quille régulièrement renversée revenait
-     * de la fosse pour en renverser une autre, le jet est considéré comme
-     * valable", cf. article 780 + exceptions de ricochet des jets 12/16)
-     * mais jamais simulée physiquement jusqu'ici (demande John, 31/08).
-     *
-     * Même principe que la collision boule/quille (_reagirCollision), en
-     * plus simple (pas de formule qui varie avec la vitesse d'impact —
-     * une seule fraction fixe) :
-     *   - vitesse de la quille qui glisse EN DESSOUS du seuil → la cible
-     *     agit comme un mur, la quille source rebondit (amorti) ;
-     *   - AU-DESSUS → la cible tombe (_toucherQuille, même bookkeeping
-     *     que pour un choc de boule : score, ordreChute, numéro, animation)
-     *     et hérite d'une fraction de la vitesse de la source, qui
-     *     continue elle-même sa glissade à vitesse réduite d'autant —
-     *     la chaîne peut donc se poursuivre sur plusieurs quilles.
-     */
-    _verifierCollisionsEntreQuilles() {
-        const C = window.QuillesSaintGallConfig;
-        const seuil = (C.quille.vitesseMinRenverseAutreQuillePct / 100) * this.h;
-        this.quilles.forEach((source) => {
-            const vx = source.getData("vx") || 0;
-            const vy = source.getData("vy") || 0;
-            const vitesse = Math.hypot(vx, vy);
-            if (vitesse <= 0) return;
-
-            this.quilles.forEach((cible) => {
-                if (cible === source || !cible.getData("debout")) return;
-                const dx = source.x - cible.x, dy = source.y - cible.y;
-                const dist = Math.hypot(dx, dy);
-                const rSomme = source.getData("rayon") + cible.getData("rayon");
-                if (dist > rSomme) return;
-
-                const nx = dist > 0.001 ? dx / dist : 0;
-                const ny = dist > 0.001 ? dy / dist : -1;
-                // Repousse la source hors du chevauchement (évite un
-                // contact permanent qui redéclencherait la collision en boucle).
-                source.x += nx * (rSomme - dist);
-                source.y += ny * (rSomme - dist);
-
-                if (vitesse < seuil) {
-                    const vN = vx * nx + vy * ny;
-                    if (vN < 0) {
-                        const amorti = C.quille.amortissementRebondEntreQuilles;
-                        source.setData("vx", (vx - 2 * vN * nx) * amorti);
-                        source.setData("vy", (vy - 2 * vN * ny) * amorti);
-                    }
-                    return;
-                }
-
-                this._toucherQuille(cible, vx, vy);
-                const fraction = C.quille.transfertFacteurEntreQuilles;
-                const dirX = vx / vitesse, dirY = vy / vitesse;
-                cible.setData("vx", dirX * vitesse * fraction);
-                cible.setData("vy", dirY * vitesse * fraction);
-                source.setData("vx", vx * (1 - fraction));
-                source.setData("vy", vy * (1 - fraction));
-            });
+            q.body.setVelocity(nvx, nvy);
         });
     }
 

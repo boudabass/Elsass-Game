@@ -270,23 +270,38 @@ window.QuillesSaintGallConfig = {
         // PILE la taille visuelle de la quille (demande John, 30/08 — plus
         // d'inflation artificielle).
         rayonCollisionFacteur: 1,
+        // --- Physique RÉALISTE (31/08, refonte demandée par John : "on
+        // connaît maintenant le poids des boules et des quilles, il faut
+        // rendre ça plus réaliste") — remplace l'ancien modèle par
+        // fractions empiriques (transfertFacteurEntreQuilles/
+        // amortissementRebondEntreQuilles côté quille, transfertFacteurMin/
+        // Max côté boule) par de VRAIS corps Arcade Physics circulaires
+        // avec masse réelle : Phaser calcule lui-même l'échange de vitesse
+        // par conservation de quantité de mouvement (collision élastique),
+        // cf. GameScene._creerQuilles / _processCollisionBouleQuille /
+        // _processCollisionQuilleQuille. Poids réel article 876 (table des
+        // quilles) : entre 2,700 et 2,850 kg — valeur moyenne retenue.
+        masseKg: 2.8,
+        // Restitution (rebond) Arcade Physics pour les corps quille — un
+        // choc entre 2 quilles (même masse) ou une quille encore debout
+        // qui sert de "mur" à une autre quille qui glisse (choc trop
+        // faible pour la faire tomber, cf. vitesseMinRenverseAutreQuillePct)
+        // — valeur modérée, quilles en bois/plastique, pas de rebond
+        // caoutchouteux.
+        bounce: 0.15,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
-        // seconde. Plus haut = elle s'arrête plus vite.
+        // seconde, appliquée directement à `body.velocity` chaque frame
+        // (GameScene.update). Plus haut = elle s'arrête plus vite.
         frictionGlissementPar_s: 4,
-        // --- Collision QUILLE ↔ QUILLE (ajouté le 31/08, demande John :
-        // « qu'une quille puisse en faire tomber une autre ») — jusqu'ici
-        // une quille qui glisse traversait les autres sans effet. Règle
-        // fédérale explicitement prévue (quille qui revient de la fosse
-        // en renverse une autre, cf. exceptions de ricochet jets 12/16) :
-        // désormais simulée pour de vrai, cf. GameScene
-        // ._verifierCollisionsEntreQuilles. Modèle volontairement plus
-        // simple que boule/quille (une fraction FIXE, pas de formule qui
-        // varie avec la vitesse d'impact).
-        vitesseMinRenverseAutreQuillePct: 8,   // seuil pour renverser une quille voisine
-        transfertFacteurEntreQuilles: 0.5,      // fraction de vitesse héritée par la cible
-        amortissementRebondEntreQuilles: 0.4    // rebond de la source si la cible ne tombe pas
+        // Seuil de vitesse (% de hauteur écran/s) en dessous duquel une
+        // quille qui glisse et touche une quille encore debout ne la
+        // renverse pas (elle agit comme un mur immobile, cf.
+        // Body.immovable dans _processCollisionQuilleQuille) — règle
+        // fédérale du ricochet (quille qui revient de la fosse en renverse
+        // une autre, jets 12/16), simulée pour de vrai depuis le 31/08.
+        vitesseMinRenverseAutreQuillePct: 8
     },
 
     // --- Boule ---------------------------------------------------------------
@@ -298,27 +313,23 @@ window.QuillesSaintGallConfig = {
         // via GameScene.pxParCm, même échelle que la piste/les quilles.
         diametreCm: 20,
         vitessePctH_par_s: 55,       // vitesse de déplacement, % de hauteur écran / s
-        // Vitesse conservée après un rebond sur une quille QUI NE TOMBE PAS
-        // (choc trop faible, § vitesseMinRenversePct) : la quille agit comme
-        // un mur, la boule rebondit presque intégralement (1 = rebond
-        // parfait, 0 = arrêt net).
-        amortissementRebond: 0.72,
-        // Transfert de quantité de mouvement quand la quille TOMBE (demande
-        // John, 30/08, précisée une 2e fois) : la boule NE REBONDIT JAMAIS
-        // vers l'arrière dans ce cas — elle continue TOUJOURS dans sa
-        // direction initiale (« si je tape une quille de face, elle doit
-        // pouvoir continuer »), le rebond façon "mur" ne s'applique QUE si
-        // la quille ne tombe pas (cf. `amortissementRebond` ci-dessus). La
-        // FRACTION de vitesse conservée (par la boule ET la quille, qui est
-        // poussée dans cette même direction) monte avec la vitesse
-        // d'impact : `transfertFacteurMin` juste au-dessus du seuil de
-        // renversement, jusqu'à `transfertFacteurMax` à la vitesse de
-        // lancer maximale (force à 100%). Cf. TestScene._reagirCollision.
-        // Relevé le 31/08 (0.2→0.3 / 0.55→0.75, demande John : faire tomber
-        // PLUS de quilles par tir) — la boule garde nettement plus de sa
-        // vitesse d'impact après avoir renversé une quille.
-        transfertFacteurMin: 0.3,
-        transfertFacteurMax: 0.75,
+        // Poids réel (article 876, table des boules — diamètre 20 → entre
+        // 5,4 et 5,7 kg) : environ 2× le poids d'une quille (2,8kg), cf.
+        // demande John 31/08. Utilisé par Arcade Physics (body.mass) pour
+        // calculer un échange de vitesse réaliste par conservation de
+        // quantité de mouvement à chaque collision — remplace l'ancien
+        // `transfertFacteurMin/Max` (fractions empiriques indépendantes
+        // du poids réel).
+        masseKg: 5.5,
+        // Restitution (rebond) Arcade Physics — utilisée quand la boule
+        // percute une quille qui reste debout (mur immobile, choc trop
+        // faible pour la renverser). Volontairement basse : au bowling/aux
+        // quilles la boule ne rebondit pas comme une balle, elle est juste
+        // déviée (cf. GameScene._empecherRebondArriere, qui retire en plus
+        // toute composante de vitesse qui la ferait repartir en arrière —
+        // demande John, précisée 2 fois : "elle ne revient jamais en
+        // arrière").
+        bounce: 0.15,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
         // sans ça, une boule qui continue tout droit après un choc ne
