@@ -880,6 +880,11 @@ class GameScene extends Phaser.Scene {
         // config.js, 5e passe du 31/08 : « le Roi » = la quille prépondérante
         // du jet en cours, pas une quille distincte).
         this.rayonQuille = this.pxParCm * (C.quille.diametreCm / 2);
+        // Longueur du rectangle d'une quille TOMBÉE (couchée au sol) —
+        // hauteur RÉELLE de la quille (42cm = 21% de la largeur de piste),
+        // PAS un rayon (demande John 31/08). Largeur du rectangle = même
+        // diamètre que la quille debout (rayonQuille × 2).
+        this.quilleHauteurTombeePx = this.pxParCm * C.quille.hauteurCm;
 
         const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
 
@@ -889,7 +894,8 @@ class GameScene extends Phaser.Scene {
             const y = rowToY(pos.row);
 
             q.setPosition(x, y);
-            q.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
+            // Taille d'affichage définie dans _appliquerEtatQuille (cercle
+            // si debout, rectangle allongé si tombée).
             // Rayon de collision (test manuel, cf. _suivreBoule) : dérivé du
             // rayon visuel réel affiché à l'écran, pas d'un corps Arcade.
             q.setData("rayon", this.rayonQuille * C.quille.rayonCollisionFacteur);
@@ -946,9 +952,14 @@ class GameScene extends Phaser.Scene {
         if (!debout) {
             q.setTexture("quilleTombee");
             q.setTint(0xffffff);
+            // Rectangle : diamètre (6% piste, largeur) × hauteur réelle de
+            // la quille (21% piste, longueur) — PAS un carré, cf.
+            // this.quilleHauteurTombeePx (demande John 31/08).
+            q.setDisplaySize(this.rayonQuille * 2, this.quilleHauteurTombeePx);
             return;
         }
         q.setTexture("quille");
+        q.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
         const estPrependerante = q.getData("index") === this._indexPrependeranteDuJet();
         q.setTint(Phaser.Display.Color.HexStringToColor(
             estPrependerante ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace

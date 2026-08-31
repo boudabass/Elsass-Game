@@ -258,6 +258,14 @@ window.QuillesSaintGallConfig = {
         // piste, soit la moitié d'une case de la grille (12%, cf.
         // piste.grilleLargeurPct) — la quille tient centrée dans sa case.
         diametreCm: 12,
+        // Hauteur RÉELLE en cm (article 780/876 : "hauteur de 42cm") —
+        // 42/200 = 21% de la largeur de piste. Utilisée UNIQUEMENT pour la
+        // longueur du rectangle d'une quille TOMBÉE (couchée au sol, vue du
+        // dessus) — demande John 31/08 : "elle doit faire 21% de long sur
+        // 6% de large" (6% = diametreCm ci-dessus, déjà utilisé pour le
+        // diamètre de la quille debout). Sans effet sur la quille debout
+        // (toujours un cercle de diametreCm).
+        hauteurCm: 42,
         // Rayon de collision = rayon visuel × ce facteur. À 1, la hitbox est
         // PILE la taille visuelle de la quille (demande John, 30/08 — plus
         // d'inflation artificielle).
