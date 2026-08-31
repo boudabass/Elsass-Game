@@ -533,7 +533,11 @@ class GameScene extends Phaser.Scene {
         // qu'une piste ne devient jamais anormalement basse/étirée sur les
         // formats extrêmes, dans un sens comme dans l'autre.
         this.pisteLargeur = Math.min(budgetPiste, h / 3);
-        const pisteHauteurTotale = this.pisteLargeur * 3;
+        // Piste+lancement SANS rallonge (comme avant le 31/08, dernière
+        // passe) : sert de référence FIXE pour tout ce qui ne doit pas
+        // bouger quand une rallonge apparaît (la grille de quilles, cf.
+        // this.ligneLancerPiste plus bas) — cf. _positionnerQuilles.
+        const pisteHauteurBase = this.pisteLargeur * 3;
 
         // Écran large/court (paysage) : la largeur devient < budgetPiste →
         // bande vide À GAUCHE de la piste (demande John) — la piste colle
@@ -546,11 +550,35 @@ class GameScene extends Phaser.Scene {
         // tous dans la colonne d'info, cf. _positionnerColonneInfo). Le
         // demi-cercle fait toute la largeur de la piste (diamètre =
         // pisteLargeur), donc sa hauteur (= son rayon) est pisteLargeur/2.
-        // Écran haut/étroit (portrait extrême) : hauteur totale <
-        // h → reste vide EN BAS (demande John) — la piste+lancement colle
-        // toujours en HAUT (y=0), jamais centrée ni collée en bas.
         this.cercleRayon = this.pisteLargeur / 2;
-        this.ligneLancerY = pisteHauteurTotale - this.cercleRayon;   // = 2.5 × pisteLargeur
+        // Limite piste/zone de tir SANS rallonge (fixe, dépend uniquement
+        // de pisteLargeur) — sert de référence pour la grille de quilles
+        // ET pour la mise en page des textes (_positionnerQuilles /
+        // _positionnerTextes), qui ne doivent PAS s'étirer avec la
+        // rallonge.
+        this.ligneLancerPiste = pisteHauteurBase - this.cercleRayon;   // = 2.5 × pisteLargeur
+
+        // --- Rallonge (ajoutée le 31/08, passe suivante, demande John :
+        // "au lieu d'ajouter un espace vide [sous la piste], il faut
+        // allonger la piste") --------------------------------------------
+        // Écran haut/étroit (portrait extrême) : la piste+lancement au
+        // ratio 1×3 (pisteHauteurBase) peut être plus basse que l'écran.
+        // Avant : cet espace restait vide EN BAS. Désormais : comblé par
+        // une rallonge de piste (même rectangle brun que la piste, cf.
+        // _dessinerDecor qui dessine déjà tout jusqu'à this.ligneLancerY)
+        // insérée ENTRE la piste (quilles, taille fixe) et la zone de tir,
+        // pour que la zone de tir reste TOUJOURS collée en BAS de l'écran
+        // dès qu'il y a de la place — sans toucher à pisteLargeur, au
+        // ratio 1×3, ni à la taille/position des quilles ou du cercle.
+        // Nulle dès que le ratio 1×3 atteint déjà `h` de lui-même (cas
+        // hauteur-limitante : pisteLargeur = h/3 ⇒ pisteHauteurBase = h).
+        this.rallongeHauteur = Math.max(0, h - pisteHauteurBase);
+
+        // Limite piste/zone de tir RÉELLE (avec rallonge) : c'est elle qui
+        // pilote la position du cercle de visée, de la jauge et le bas
+        // réel de la piste dessinée (_dessinerDecor) — décalée vers le bas
+        // de `rallongeHauteur` par rapport à this.ligneLancerPiste.
+        this.ligneLancerY = this.ligneLancerPiste + this.rallongeHauteur;
         this.cercleX = this.pisteOffsetX + this.pisteLargeur / 2;
         this.cercleY = this.ligneLancerY;
 
@@ -598,10 +626,21 @@ class GameScene extends Phaser.Scene {
         // collée au bord de la colonne d'info (this.pisteOffsetX = 0 sauf
         // écran large/court, où une bande vide apparaît à SA GAUCHE). Pas
         // toute la largeur de l'écran, pour se distinguer du panneau
-        // d'info (demande John, 30/08).
+        // d'info (demande John, 30/08). Ce rectangle va jusqu'à
+        // this.ligneLancerY (PAS this.ligneLancerPiste) : il inclut donc
+        // AUSSI la rallonge (même brun, aucun tracé séparé — cf.
+        // this.rallongeHauteur dans _recalculerGeometrie) quand l'écran
+        // est plus haut que le ratio 1×3 ne l'exige ; les quilles, elles,
+        // restent ancrées en haut via this.ligneLancerPiste dans
+        // _positionnerQuilles, donc n'en bougent pas.
         const wp = this.pisteLargeur;
         const ox = this.pisteOffsetX;
-        const pisteBas = this.ligneLancerY + this.cercleRayon;   // bas réel de piste+lancement (peut être < h)
+        // Bas réel de piste+lancement : = h dès qu'une rallonge existe
+        // (31/08, passe suivante — la zone de tir colle désormais TOUJOURS
+        // au bas de l'écran s'il y a de la place, plus de bande vide sous
+        // le cercle), sinon inchangé (peut être < h sur écran large/court,
+        // où la bande vide reste à GAUCHE, cf. this.pisteOffsetX).
+        const pisteBas = this.ligneLancerY + this.cercleRayon;
         this.sol.clear();
         this.sol.fillStyle(cPiste, 1);
         this.sol.fillRect(ox, 0, wp, this.ligneLancerY);
@@ -624,9 +663,13 @@ class GameScene extends Phaser.Scene {
         // Zone de tir (sous la piste, UNIQUEMENT le demi-cercle + la
         // boule — demande John 31/08 : plus aucun bouton ici, cf.
         // this.cercleRayon/_recalculerGeometrie) : même teinte que la
-        // piste, continuité visuelle. S'arrête à `pisteBas`, PAS à `h` —
-        // l'espace éventuel en dessous (écran haut/étroit) reste en ciel
-        // (demande John : reste vide en bas, pas de remplissage).
+        // piste, continuité visuelle. S'arrête à `pisteBas`, qui vaut
+        // désormais `h` dès qu'une rallonge comble l'écart (31/08, passe
+        // suivante — la zone de tir colle TOUJOURS en bas de l'écran s'il
+        // y a de la place, cf. this.rallongeHauteur) ; sur écran large/
+        // court (bande vide À GAUCHE de la piste, this.pisteOffsetX),
+        // `pisteBas` peut rester < h comme avant, sans rapport avec la
+        // rallonge.
         this.sol.fillStyle(cRecul, 1);
         this.sol.fillRect(ox, this.ligneLancerY, wp, pisteBas - this.ligneLancerY);
         this.sol.fillStyle(cPiste, 0.35);
@@ -790,7 +833,10 @@ class GameScene extends Phaser.Scene {
         // Ancrage : marge FIXE en haut de la piste (% de LA HAUTEUR de
         // piste — volontairement la seule valeur ici liée à cette
         // échelle-là, cf. commentaire de piste.grilleHautYPct en config).
-        const grilleHautY = (C.piste.grilleHautYPct / 100) * this.ligneLancerY;
+        // this.ligneLancerPiste (PAS this.ligneLancerY) : référence SANS
+        // la rallonge (31/08, passe suivante) — les quilles ne doivent
+        // jamais bouger quand la rallonge apparaît/change de taille.
+        const grilleHautY = (C.piste.grilleHautYPct / 100) * this.ligneLancerPiste;
 
         const nbCases = C.piste.grilleCases;   // 5
         const tailleCase = grilleTaillePx / nbCases;   // 12% de pisteLargeur si grilleLargeurPct=60
