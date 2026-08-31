@@ -979,14 +979,13 @@ class GameScene extends Phaser.Scene {
         this.ordreChute.push({ index: quille.getData("index"), frame: this.frameId });
         this.numerosQuille[quille.getData("index")].setVisible(false);
 
-        // Petite chute visuelle (rotation + tassement).
-        this.tweens.add({
-            targets: quille,
-            angle: 90,
-            scaleY: 0.5,
-            duration: 220,
-            ease: "Quad.easeOut"
-        });
+        // Pas d'animation de tassement ici (ancien tween angle/scaleY
+        // retiré, 31/08) — il tassait le sprite APRÈS que
+        // _appliquerEtatQuille ait déjà fixé la taille rectangle finale
+        // (21%×6%, cf. config.quille.hauteurCm), donnant l'impression
+        // d'un flash "grand" suivi d'un rétrécissement. Demande John :
+        // la quille doit passer directement de rond (debout) à oblong
+        // (tombée) ET RESTER à sa taille cible, sans tassement.
     }
 
     // --- Visée (placement dans le cercle + rotation par boutons) -------------
