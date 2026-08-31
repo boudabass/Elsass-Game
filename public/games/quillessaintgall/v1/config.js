@@ -66,40 +66,51 @@
  *   tout le reste (sous-ensembles/prépondérantes des figures 5-8, phases
  *   D/E) reste valide.
  *
- * CORRECTION DU 31/08/2026, 4e passe — John a entièrement réécrit
- * l'article 780 (et ajouté 2 sous-articles, 876/877) d'après le
- * règlement de la Commission Technique & Sportive de l'Amicale des
- * Quilles Saint-Gall. L'article 876 dit explicitement : « La quille
- * centrale du parallélogramme, nommée "le Roi"... ». Question posée à
- * John (le code plaçait le Roi en pointe depuis la 3e passe) : le Roi
- * est-il TOUJOURS au centre, ou sa position dépend-elle de la figure
- * jouée ? Réponse : le Roi (grande quille, reconnaissable à sa couronne)
- * est UNE QUILLE PHYSIQUE FIXE, toujours au centre du losange complet à
- * 9 quilles (jets 1-4, phases A/B) — ce n'est PAS lui qui bouge selon la
- * figure. Ce qui varie par figure (jets 5-8, phase C), d'après ce que
- * John a vu en vidéo de club, c'est UNIQUEMENT quelle quille est
- * « prépondérante » pour cette figure — une notion de scoring
- * indépendante de l'identité du Roi. Conséquence :
- *   - Position PHYSIQUE du Roi : idx8 (pointe) → idx4 (centre), partout
- *     où le code le traite comme UNE QUILLE PARTICULIÈRE du losange
- *     complet (rendu visuel plus gros, jet 4/phase B qui double SI le
- *     Roi tombe).
- *   - Sous-ensembles ET indices « prépondérante » des jets 5-8 (phase C) :
- *     INCHANGÉS (8, 8, 7, 6) — ce sont des propriétés PAR FIGURE, validées
- *     indépendamment contre la grille officielle du club en 3e passe, pas
- *     dérivées de la position du Roi. Conséquence du changement idx8→idx4 :
- *     AUCUNE des 4 figures n'a plus sa prépondérante sur le Roi (avant :
- *     jets 5-6 l'avaient) — la prépondérante d'une figure n'est donc
- *     JAMAIS le Roi dans ce jeu, ce qui est cohérent avec la clarification
- *     de John (le Roi n'est pas spécial pour le scoring des figures,
- *     seule la figure décide).
+ * CORRECTION DU 31/08/2026, 4e passe (ANNULÉE, cf. 5e passe ci-dessous) —
+ * John a entièrement réécrit l'article 780 (et ajouté 2 sous-articles,
+ * 876/877) d'après le règlement de la Commission Technique & Sportive de
+ * l'Amicale des Quilles Saint-Gall. L'article 876 dit : « La quille
+ * centrale du parallélogramme, nommée "le Roi"... ». Cette 4e passe a lu
+ * cette phrase comme « le Roi est une quille physique fixe, distincte,
+ * toujours au centre du losange complet », et a déplacé la
+ * prépondérante du jet 4 idx8→idx4 en conséquence. ERREUR — cf. 5e passe.
  *
- * Disposition (LOSANGE, inchangée depuis la 1re passe — seule l'identité
- * du Roi change en 4e passe) : indices 0-8 numérotés rangée par rangée,
- * fond → avant : 0 = fond (1 quille) ; 1,2 = rangée suivante (2,
- * gauche→droite) ; 3,4,5 = rangée du milieu, la plus large (3,
- * gauche/CENTRE=LE ROI/droite) ; 6,7 = rangée suivante (2) ; 8 = pointe
- * avant (1 quille, une quille normale comme les autres).
+ * CORRECTION DU 31/08/2026, 5e passe (même soir, juste après) — John,
+ * en désaccord immédiat avec la 4e passe : « le Roi c'est la quille
+ * prépondérante ... il n'y a pas de Roi fixe au centre ... seule la
+ * figure compte pour la position » (d'après des vidéos de club qu'il a
+ * vues). En relisant le diagramme de la Figure 1/Figure 2 de l'article
+ * 780 (le même qui avait servi à la 3e passe) à la lumière de sa légende
+ * officielle (« ( ) = Quille prépondérante ») : le marqueur `( )` y est
+ * à la POINTE (dernière rangée, position isolée), PAS au centre — donc
+ * même le diagramme du jeu plein (jets 1-4) confirme idx8, pas idx4. La
+ * 4e passe s'était fiée à une lecture générique de la phrase de 876 au
+ * lieu de relire le diagramme concret déjà présent dans 780. Conclusion
+ * retenue, confirmée par John :
+ *   - « Le Roi » n'est PAS une quille physique distincte, plus grosse,
+ *     à une position fixe. C'est simplement le NOM COURANT de la quille
+ *     prépondérante DU JET EN COURS — un concept UNIQUE, pas deux. Sa
+ *     position varie donc jet par jet, exactement comme les indices déjà
+ *     codés dans `jets` ci-dessous (aucune quille n'a de statut spécial
+ *     en dehors du jet où elle est prépondérante).
+ *   - Reverti : prépondérante du jet 4 idx4→idx8 (retour à l'état de la
+ *     3e passe). Retiré : le rendu visuel « quille plus grosse » (config
+ *     `quille.diametreRoiCm`, flag `roi` sur une quille fixe en JS) — il
+ *     n'y a plus qu'UN mécanisme d'affichage, l'anneau doré dynamique
+ *     autour de la prépondérante DU JET EN COURS
+ *     (`GameScene._dessinerMarqueurPrependerante`, déjà correct, suit
+ *     `jets[n].prependerante` / `jets[n].figure.prependerante`).
+ *   - Sous-ensembles/prépondérantes des jets 5-8 (indices 8, 8, 7, 6) :
+ *     INCHANGÉS — jamais remis en cause par cette passe, toujours
+ *     validés contre la grille officielle du club (3e passe).
+ *
+ * Disposition (LOSANGE, inchangée depuis la 1re passe) : indices 0-8
+ * numérotés rangée par rangée, fond → avant : 0 = fond (1 quille) ; 1,2 =
+ * rangée suivante (2, gauche→droite) ; 3,4,5 = rangée du milieu, la plus
+ * large (3, gauche/centre/droite) ; 6,7 = rangée suivante (2) ; 8 =
+ * pointe avant (1 quille) — aucune de ces 9 positions n'est une quille
+ * physique spéciale ; « prépondérante » est une propriété PAR JET, lue
+ * dans `jets` ci-dessous, jamais liée à un indice fixe.
  *
  * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
  * ICI, tous les textes joueur dans `textes`, tailles en % d'écran (u() pour
@@ -121,7 +132,7 @@ window.QuillesSaintGallConfig = {
         manque: "Manqué",
         rejouer: "Rejouer",
         quillesTombees: "Quilles tombées : {n}/9",
-        roiTombe: " · Roi touché !",
+        prependeranteTombee: " · Prépondérante touchée !",
         aucune: "Aucune quille touchée",
 
         // --- Progression (colonne de gauche, remplace le compteur en
@@ -232,9 +243,11 @@ window.QuillesSaintGallConfig = {
         rotationStepDeg: 1          // incrément par clic sur un bouton ◄/► (10 clics = le max)
     },
 
-    // --- Quilles (9, en losange/quinconce, quille 5 = idx4 = le Roi, au
-    // CENTRE du losange (corrigé le 31/08, 4e passe) — cf. l'en-tête de ce
-    // fichier pour la disposition exacte) -----------------------------------
+    // --- Quilles (9, en losange/quinconce, TOUTES la même taille — pas de
+    // quille physiquement plus grosse : « le Roi » = la quille prépondérante
+    // DU JET EN COURS, un indice par jet dans `jets` ci-dessous, pas une
+    // quille distincte (corrigé le 31/08, 5e passe — cf. en-tête de fichier)
+    // -------------------------------------------------------------------
     quille: {
         // Diamètre RÉEL en cm (article 780 : "diamètre maximum de 12cm"),
         // converti en pixels via GameScene.pxParCm (demande John, 31/08 :
@@ -245,18 +258,9 @@ window.QuillesSaintGallConfig = {
         // piste, soit la moitié d'une case de la grille (12%, cf.
         // piste.grilleLargeurPct) — la quille tient centrée dans sa case.
         diametreCm: 12,
-        // Le Roi (idx4) : l'article ne donne PAS de diamètre plus grand
-        // (seulement "plus grande de 4cm" en HAUTEUR, invisible en vue du
-        // dessus) — ce +4cm est repris ici sur le diamètre à défaut d'une
-        // mesure séparée, uniquement pour rester visuellement distinct
-        // (hypothèse déjà faite avant cette passe, juste reconvertie en cm).
-        diametreRoiCm: 16,
         // Rayon de collision = rayon visuel × ce facteur. À 1, la hitbox est
         // PILE la taille visuelle de la quille (demande John, 30/08 — plus
-        // d'inflation artificielle). Une boule qui ne peut pas passer sans
-        // toucher entre le Roi et sa voisine est un résultat PHYSIQUE
-        // correct (le Roi est réellement plus gros, donc l'écart réel entre
-        // lui et sa voisine est plus petit) — pas un bug de hitbox.
+        // d'inflation artificielle).
         rayonCollisionFacteur: 1,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
@@ -373,11 +377,15 @@ window.QuillesSaintGallConfig = {
     // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
     // Indices de quilles 0-8, losange fond → avant (cf. en-tête de fichier) :
     // 0 = fond ; 1,2 = rangée suivante (G/D) ; 3,4,5 = rangée du milieu, la
-    // plus large (G/CENTRE=LE ROI/D) ; 6,7 = rangée suivante (G/D) ; 8 =
-    // pointe avant. Même numérotation dans GameScene._creerQuilles.
+    // plus large (G/CENTRE/D) ; 6,7 = rangée suivante (G/D) ; 8 = pointe
+    // avant. Même numérotation dans GameScene._creerQuilles. `prependerante`
+    // (jet 4 et figures 5-8) est un indice PROPRE À CHAQUE JET — « le Roi »
+    // n'est qu'un synonyme de « la quille prépondérante du jet en cours »,
+    // PAS une quille distincte à position fixe (5e passe, 31/08, cf.
+    // en-tête de fichier).
     // type: 'plein' (phases A/B, 9 quilles, points = quilles tombées ×
     //   pointsParQuille — ou, si `prependerante` est défini (jet 4),
-    //   × pointsSiPrependerante/pointsSinon selon que le Roi est tombé) |
+    //   × pointsSiPrependerante/pointsSinon selon qu'elle est tombée) |
     //   'figure' (phase C, sous-ensemble de 4 quilles, points = quilles
     //   tombées × (pointsSiPrependerante si la prépondérante est tombée,
     //   sinon pointsSinon)) | 'ordre' (phases D/E, sous-ensemble FIGÉ POUR
@@ -393,25 +401,17 @@ window.QuillesSaintGallConfig = {
         { numero: 2, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
         { numero: 3, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
         // --- Phase B — jeu plein renforcé (jet 4, max 18) ----------------
-        // 2 bois/quille SI le Roi (idx4, centre du losange — corrigé le
-        // 31/08, 4e passe, cf. en-tête de fichier) est renversé, sinon 1
-        // bois/quille (texte fédéral, article 780/876).
+        // 2 bois/quille SI la prépondérante (idx8, pointe — cf. légende
+        // « ( ) » du diagramme Figure 2 de l'article 780, reconfirmée en
+        // 5e passe) est renversée, sinon 1 bois/quille.
         { numero: 4, phase: "B", type: "plein", quillesDebout: "toutes",
-          prependerante: 4, pointsSiPrependerante: 2, pointsSinon: 1 },
+          prependerante: 8, pointsSiPrependerante: 2, pointsSinon: 1 },
         // --- Phase C — figures (jets 5-8, 1 jet/figure, max 20 chacun) ---
         // Sous-ensembles ET prépondérante VALIDÉS chiffre par chiffre par
         // la grille officielle du club (article 780, légende 0/1/2)
         // ajoutée par John en 3e passe — identiques à la 1re lecture de
-        // l'image Wikimedia, INCHANGÉS par la 4e passe (31/08) : la
-        // prépondérante d'une figure est une propriété PAR FIGURE,
-        // indépendante de l'identité du Roi (clarifié par John : le Roi
-        // est une quille physique fixe au centre, ce n'est pas lui qui
-        // "se déplace" selon la figure jouée — seule la figure décide
-        // quelle quille y est prépondérante). Conséquence du Roi
-        // maintenant en idx4 : aucune des 4 figures 5-8 n'a plus sa
-        // prépondérante sur le Roi (avant la 4e passe, jets 5-6
-        // l'avaient par coïncidence d'indice idx8=Roi) — la prépondérante
-        // n'est donc JAMAIS le Roi dans ce jeu, sur aucune des 4 figures.
+        // l'image Wikimedia, jamais remis en cause depuis (indépendants
+        // de toute notion de "Roi").
         { numero: 5, phase: "C", type: "figure",
           figure: { indices: [1, 4, 7, 8], prependerante: 8 },
           pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
@@ -466,7 +466,7 @@ window.QuillesSaintGallConfig = {
         texteSombre: "#141210",
         quille: "#e8e2d0",
         quilleTombee: "#4a4f5c",
-        quilleRoi: "#ffd23f",
+        prependeranteAnneau: "#ffd23f",
         quilleContour: "#2b3547",
         boule: 0xff7a1a,
         bouleClair: 0xffd23f,

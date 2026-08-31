@@ -168,7 +168,7 @@ class GameScene extends Phaser.Scene {
         this.ordreChute = [];
         this.frameId = 0;
         this.quillesTombeesCount = 0;
-        this.roiTombe = false;
+        this.prependeranteTombee = false;
 
         // Phases D/E (ordre imposé) : la figure reste posée UNE SEULE FOIS
         // pour toute la phase (règlement fédéral : "jets d'affilée" sur la
@@ -327,9 +327,10 @@ class GameScene extends Phaser.Scene {
     _calculerScoreJet() {
         const jc = this.jetConfig;
         if (jc.type === "plein") {
-            // Jet 4 (phase B) : 2 bois/quille SI le Roi (idx4) est tombé,
-            // sinon 1 bois/quille (texte fédéral) — jets 1-3 n'ont pas de
-            // `prependerante` et gardent le barème flat `pointsParQuille`.
+            // Jet 4 (phase B) : 2 bois/quille SI la prépondérante (idx8,
+            // cf. config.js) est tombée, sinon 1 bois/quille (texte
+            // fédéral) — jets 1-3 n'ont pas de `prependerante` et gardent
+            // le barème flat `pointsParQuille`.
             if (jc.prependerante !== undefined) {
                 const prependeranteEstTombee = this._quilleEstTombee(jc.prependerante);
                 const parQuille = prependeranteEstTombee ? jc.pointsSiPrependerante : jc.pointsSinon;
@@ -409,7 +410,6 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 9; i++) {
             const q = this.add.sprite(0, 0, "quille").setDepth(4);
             q.setData("index", i);
-            q.setData("roi", i === 4);
             q.setData("debout", true);
             q.setData("absente", false);
             q.setData("rayon", 0);
@@ -810,8 +810,8 @@ class GameScene extends Phaser.Scene {
      * Losange (quinconce 1-2-3-2-1), PAS un carré 3×3 — corrigé le
      * 30/08/2026 (soir) d'après le vrai schéma fédéral (article 780,
      * cf. en-tête de config.js). `POSITIONS[i]` donne, pour chaque indice
-     * de quille (0-8, fond → avant), sa rangée (0=fond … 4=pointe avant =
-     * le Roi) et son décalage horizontal en fraction de la demi-largeur
+     * de quille (0-8, fond → avant), sa rangée (0=fond … 4=pointe avant)
+     * et son décalage horizontal en fraction de la demi-largeur
      * de la rangée du milieu (la plus large, 3 quilles) — modèle "grille
      * 3×3 tournée à 45°" (rangées de 2 à mi-écart de la rangée de 3).
      */
@@ -841,9 +841,10 @@ class GameScene extends Phaser.Scene {
         const nbCases = C.piste.grilleCases;   // 5
         const tailleCase = grilleTaillePx / nbCases;   // 12% de pisteLargeur si grilleLargeurPct=60
         // Les quilles sont posées au CENTRE de leur case (demande John) —
-        // col/row 0-4, la colonne/rangée centrale (2) porte le Roi (idx4,
-        // POSITIONS[4] = {row:2, col:2} ci-dessous — corrigé le 31/08,
-        // 4e passe, cf. en-tête de config.js).
+        // col/row 0-4 (POSITIONS ci-dessous). Pas de quille physiquement
+        // plus grosse ni de position fixe spéciale : « le Roi » = la
+        // quille prépondérante DU JET EN COURS, indice propre à chaque
+        // jet (cf. config.jets et en-tête de config.js, 5e passe 31/08).
         const colToX = (col) => centreX + (col - (nbCases - 1) / 2) * tailleCase;
         const rowToY = (row) => grilleHautY + (row + 0.5) * tailleCase;
 
@@ -860,9 +861,11 @@ class GameScene extends Phaser.Scene {
 
         // Rayon RÉEL (diamètre en cm × this.pxParCm), demande John 31/08 —
         // remplace l'ancien % du plus petit côté de l'écran (UI.u), sans
-        // lien avec l'échelle de la piste.
+        // lien avec l'échelle de la piste. Les 9 quilles ont TOUTES le même
+        // rayon (pas de quille physiquement plus grosse — cf. en-tête de
+        // config.js, 5e passe du 31/08 : « le Roi » = la quille prépondérante
+        // du jet en cours, pas une quille distincte).
         this.rayonQuille = this.pxParCm * (C.quille.diametreCm / 2);
-        this.rayonRoi = this.pxParCm * (C.quille.diametreRoiCm / 2);
 
         const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
 
@@ -870,13 +873,12 @@ class GameScene extends Phaser.Scene {
             const pos = POSITIONS[i];
             const x = colToX(pos.col);
             const y = rowToY(pos.row);
-            const rayonVisuel = q.getData("roi") ? this.rayonRoi : this.rayonQuille;
 
             q.setPosition(x, y);
-            q.setDisplaySize(rayonVisuel * 2, rayonVisuel * 2);
+            q.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
             // Rayon de collision (test manuel, cf. _suivreBoule) : dérivé du
             // rayon visuel réel affiché à l'écran, pas d'un corps Arcade.
-            q.setData("rayon", rayonVisuel * C.quille.rayonCollisionFacteur);
+            q.setData("rayon", this.rayonQuille * C.quille.rayonCollisionFacteur);
 
             this._appliquerEtatQuille(q);
 
@@ -889,23 +891,35 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
+     * Indice (0-8) de la quille prépondérante du jet en cours, ou
+     * `undefined` si ce jet n'en a pas (phases D/E : `cible` joue un rôle
+     * équivalent mais n'est pas une « prépondérante », cf. config.jets).
+     * Lu directement depuis `config.jets` — CHAQUE jet a son propre indice,
+     * indépendant des autres (pas de quille physique fixe/spéciale, cf.
+     * en-tête de config.js).
+     */
+    _indexPrependeranteDuJet() {
+        const jc = this.jetConfig;
+        if (!jc) return undefined;
+        if (jc.type === "figure") return jc.figure.prependerante;
+        if (jc.type === "plein") return jc.prependerante;
+        return undefined;
+    }
+
+    /**
      * Anneau doré autour de la quille prépondérante du jet en cours
-     * (phase C uniquement) — nécessaire pour que le joueur sache laquelle
-     * compte le plus, sans quoi le barème « 5 bois si la prépondérante
-     * tombe » n'est pas jouable.
+     * (phases B/C uniquement) — nécessaire pour que le joueur sache
+     * laquelle compte le plus, sans quoi le barème « 5 bois si la
+     * prépondérante tombe » n'est pas jouable.
      */
     _dessinerMarqueurPrependerante() {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
         this.prependeranteG.clear();
-        const jc = this.jetConfig;
-        if (!jc) return;
-        let idx;
-        if (jc.type === "figure") idx = jc.figure.prependerante;
-        else if (jc.type === "plein" && jc.prependerante !== undefined) idx = jc.prependerante;
-        else return;
+        const idx = this._indexPrependeranteDuJet();
+        if (idx === undefined) return;
         const q = this.quilles[idx];
-        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.quilleRoi).color;
+        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.prependeranteAnneau).color;
         this.prependeranteG.lineStyle(UI.u(this, 0.5), coul, 0.9);
         this.prependeranteG.strokeCircle(q.x, q.y, this.rayonQuille * 1.5);
     }
@@ -925,10 +939,9 @@ class GameScene extends Phaser.Scene {
         }
         q.setVisible(true);
         const debout = q.getData("debout");
-        const roi = q.getData("roi");
         q.setAlpha(debout ? 1 : 0.45);
         q.setTint(debout
-            ? (roi ? Phaser.Display.Color.HexStringToColor(C.couleurs.quilleRoi).color : 0xffffff)
+            ? 0xffffff
             : Phaser.Display.Color.HexStringToColor(C.couleurs.quilleTombee).color);
     }
 
@@ -937,7 +950,7 @@ class GameScene extends Phaser.Scene {
         quille.setData("debout", false);
         this._appliquerEtatQuille(quille);
         this.quillesTombeesCount++;
-        if (quille.getData("roi")) this.roiTombe = true;
+        if (quille.getData("index") === this._indexPrependeranteDuJet()) this.prependeranteTombee = true;
 
         // Horodatage de la chute (frame courant) — utilisé par
         // _calculerOrdreJet pour vérifier l'ordre imposé et détecter les
@@ -1470,7 +1483,7 @@ class GameScene extends Phaser.Scene {
         const texteQuilles = this.quillesTombeesCount === 0
             ? C.textes.aucune
             : C.textes.quillesTombees.replace("{n}", this.quillesTombeesCount) +
-              (this.roiTombe ? C.textes.roiTombe : "");
+              (this.prependeranteTombee ? C.textes.prependeranteTombee : "");
         const pas = resultat.ricochet ? 2 : 1;
         const dernierJet = this.numeroJet + pas > 17;
         this._afficherRetourJet({
