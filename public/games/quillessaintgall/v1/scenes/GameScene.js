@@ -11,8 +11,9 @@
  *   1. LES 17 JETS / 6 PHASES (config.jets) : chaque jet démarre avec un
  *      sous-ensemble de quilles debout (toutes, sauf en phase C — figure,
  *      cf. §8), et un barème propre (points/quille, figure, ordre imposé).
- *   2. LE SCORE CUMULÉ (0-200), affiché en colonne de gauche à la place
- *      du compteur de quilles tombées EN DIRECT du spike (PRD §3).
+ *   2. LE SCORE CUMULÉ (0-200), affiché dans le panneau d'info (colonne de
+ *      droite, pleine hauteur depuis le 31/08) à la place du compteur de
+ *      quilles tombées EN DIRECT du spike (PRD §3).
  *   3. L'ORDRE IMPOSÉ (phases D/E) : la chute de chaque quille est
  *      horodatée (`ordreChute`) pendant le jet ; à l'arrêt de la boule,
  *      on vérifie que les quilles REQUISES sont tombées dans le bon
@@ -258,7 +259,7 @@ class GameScene extends Phaser.Scene {
         this._positionnerTextes();
     }
 
-    /** Texte de progression de la colonne de gauche : « Jet n/17 · Score ». */
+    /** Texte de progression du panneau d'info (colonne de droite) : « Jet n/17 · Score ». */
     _majTextesProgression() {
         const C = window.QuillesSaintGallConfig;
         const jet = C.textes.jetProgression.replace("{n}", this.numeroJet);
@@ -519,6 +520,17 @@ class GameScene extends Phaser.Scene {
 
         this.ligneLancerY = (C.piste.ligneLancerYPct / 100) * h;
         this.colLargeur = w / 3;
+        // Largeur totale de la piste (demande John, 31/08 : passée de 1/3 à
+        // 2/3 de l'écran, À GAUCHE — colonne de droite = 1/3, dédiée au
+        // panneau d'info sur toute la hauteur, cf. _dessinerDecor /
+        // _positionnerTextes). Cf. _positionnerQuilles pour le pourquoi :
+        // l'écart entre quilles voisines (ex. jet 9, quilles 4/5) est
+        // proportionnel à CETTE largeur, alors que le rayon boule/quille
+        // suit u() (plus petit côté) — en portrait/carré, où u() = w, une
+        // piste à 1/3 de large rendait cet écart tout juste égal au
+        // diamètre de la boule (infranchissable sans toucher les 2 quilles).
+        // Doubler la largeur double l'écart sans toucher aux rayons.
+        this.pisteLargeur = this.colLargeur * 2;
 
         this._calculerGeometrieCercle();
         this._positionnerQuilles();
@@ -554,36 +566,53 @@ class GameScene extends Phaser.Scene {
         this.ciel.fillStyle(cCiel, 1);
         this.ciel.fillRect(0, 0, w, h);
 
-        // Piste (brune, visible) : UNIQUEMENT la colonne du milieu (seule
-        // zone atteignable par la boule), du haut de l'écran (fosse) à la
-        // ligne de lancer — pas toute la largeur de l'écran, pour qu'elle
-        // se distingue clairement du reste (demande John, 30/08).
+        // Piste (brune, visible) : les 2/3 de GAUCHE de l'écran (seule zone
+        // atteignable par la boule), du haut de l'écran (fosse) à la ligne
+        // de lancer — pas toute la largeur, pour qu'elle se distingue
+        // clairement du panneau d'info (demande John, 30/08). Passée de 1/3
+        // à 2/3 le 31/08 (demande John, cf. this.pisteLargeur) : le 1/3
+        // restant (droite) devient un panneau d'info sur TOUTE la hauteur,
+        // pas seulement la zone de recul.
         const w3 = this.colLargeur;
+        const wp = this.pisteLargeur;
         this.sol.clear();
         this.sol.fillStyle(cPiste, 1);
-        this.sol.fillRect(w3, 0, w3, this.ligneLancerY);
+        this.sol.fillRect(0, 0, wp, this.ligneLancerY);
         this.sol.lineStyle(Math.max(1, UI.u(this, 0.25)), cBord, 0.9);
-        this.sol.strokeRect(w3, 0, w3, this.ligneLancerY);
+        this.sol.strokeRect(0, 0, wp, this.ligneLancerY);
 
-        // Zone de recul (bas d'écran, 3 colonnes) : colonne du milieu mise
-        // en évidence, même teinte que la piste (continuité visuelle).
+        // Panneau d'info (colonne de droite, 1/3, PLEINE HAUTEUR — demande
+        // John 31/08) : légèrement teinté sur toute la hauteur pour se
+        // distinguer visuellement, y compris au-dessus de la ligne de
+        // lancer (où il n'y avait rien avant, juste le ciel).
+        this.sol.fillStyle(cRecul, 0.6);
+        this.sol.fillRect(wp, 0, w - wp, h);
+        this.sol.lineStyle(Math.max(1, UI.u(this, 0.2)), cBord, 0.6);
+        this.sol.lineBetween(wp, 0, wp, h);
+
+        // Zone de recul (bas d'écran, piste sur ses 2 colonnes — visée à
+        // gauche, force/tirer à droite) : même teinte que la piste,
+        // continuité visuelle.
         this.sol.fillStyle(cRecul, 1);
-        this.sol.fillRect(0, this.ligneLancerY, w, h - this.ligneLancerY);
+        this.sol.fillRect(0, this.ligneLancerY, wp, h - this.ligneLancerY);
         this.sol.fillStyle(cPiste, 0.35);
-        this.sol.fillRect(w3, this.ligneLancerY, w3, h - this.ligneLancerY);
+        this.sol.fillRect(0, this.ligneLancerY, wp, h - this.ligneLancerY);
         this.sol.lineStyle(Math.max(1, UI.u(this, 0.15)), cBord, 0.8);
         this.sol.lineBetween(w3, this.ligneLancerY, w3, h);
-        this.sol.lineBetween(2 * w3, this.ligneLancerY, 2 * w3, h);
     }
 
     // --- Cercle de placement (zone de recul) ------------------------------------
 
     /**
      * Demi-cercle dans lequel la boule peut se placer (demande John,
-     * 30/08) : le côté plat est collé à la ligne de lancer et fait TOUTE la
-     * largeur de la piste (diamètre = this.colLargeur), la courbe descend
-     * dans la zone de recul. Rayon plafonné à une fraction de la hauteur de
-     * la zone de recul (`demiCercleRayonMaxFacteurHauteur`) pour TOUJOURS
+     * 30/08) : le côté plat est collé à la ligne de lancer, la courbe
+     * descend dans la zone de recul. Confiné à la colonne de GAUCHE de la
+     * piste (this.colLargeur, PAS this.pisteLargeur — demande John 31/08 :
+     * la piste s'est élargie à 2/3 pour l'écart entre quilles, mais la
+     * visée/le tir gardent la même colonne qu'avant, désormais à gauche,
+     * pour laisser la colonne de droite aux contrôles de force/tirer sans
+     * chevauchement). Rayon plafonné à une fraction de la hauteur de la
+     * zone de recul (`demiCercleRayonMaxFacteurHauteur`) pour TOUJOURS
      * laisser de la place aux boutons ◄/► en bas.
      */
     _calculerGeometrieCercle() {
@@ -592,7 +621,7 @@ class GameScene extends Phaser.Scene {
         const hauteurZone = h - this.ligneLancerY;
         const rayonMaxHauteur = hauteurZone * C.recul.demiCercleRayonMaxFacteurHauteur;
         this.cercleRayon = Math.min(this.colLargeur / 2, rayonMaxHauteur);
-        this.cercleX = w / 2;
+        this.cercleX = this.colLargeur / 2;
         this.cercleY = this.ligneLancerY;   // côté plat = ligne de lancer
     }
 
@@ -650,18 +679,24 @@ class GameScene extends Phaser.Scene {
         const hauteurDispo = h - basDemiCercle - marge;
         const largeurBtn = w3 / 2 - marge * 1.5;
 
+        // Colonne de GAUCHE (0..w3, même colonne que le demi-cercle —
+        // demande John 31/08, cf. _calculerGeometrieCercle).
         this.boutonRotGauche.redimensionner(largeurBtn, hauteurDispo)
-            .setPosition(w3 + marge + largeurBtn / 2, yCentre);
+            .setPosition(marge + largeurBtn / 2, yCentre);
         this.boutonRotDroite.redimensionner(largeurBtn, hauteurDispo)
-            .setPosition(2 * w3 - marge - largeurBtn / 2, yCentre);
+            .setPosition(w3 - marge - largeurBtn / 2, yCentre);
     }
 
     /**
-     * Libellé « Force » + barre + boutons -/+ : colonne de DROITE,
-     * AU-DESSUS du bouton « Tirer » (demande John, 30/08, précisée 2 fois :
-     * Tirer en bas de la colonne pour laisser la place ; un vrai espace
-     * entre la barre et les boutons, pas collés). Utilise `this.tirerTop`,
-     * calculé par `_positionnerBouton()` — DOIT être appelée avant.
+     * Libellé « Force » + barre + boutons -/+ : 2e colonne de la piste
+     * (w3..pisteLargeur — demande John 31/08 : la piste occupe maintenant
+     * les 2/3 gauches en 2 colonnes, visée à gauche / force+tirer au
+     * milieu ; auparavant colonne de DROITE quand la piste ne faisait que
+     * 1/3), AU-DESSUS du bouton « Tirer » (demande John, 30/08, précisée
+     * 2 fois : Tirer en bas de la colonne pour laisser la place ; un vrai
+     * espace entre la barre et les boutons, pas collés). Utilise
+     * `this.tirerTop`, calculé par `_positionnerBouton()` — DOIT être
+     * appelée avant.
      *
      * Empilement en fractions de l'espace disponible (haut → bas), avec un
      * espace explicite (16%) entre la barre et les boutons :
@@ -669,10 +704,9 @@ class GameScene extends Phaser.Scene {
      */
     _positionnerControlesForce() {
         const UI = Arcade.UI;
-        const w = this.w;
         const w3 = this.colLargeur;
         const marge = UI.u(this, 1.5);
-        const xCentre = w - w3 / 2;
+        const xCentre = w3 + w3 / 2;
 
         const espaceHaut = Math.max(0, this.tirerTop - this.ligneLancerY);
 
@@ -712,15 +746,18 @@ class GameScene extends Phaser.Scene {
     _positionnerQuilles() {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
-        const w = this.w, h = this.h;
+        const h = this.h;
         // Largeur de la rangée du milieu (la plus large) = largeur de la
-        // piste (this.colLargeur, 1/3 de l'écran), moins une marge de
-        // chaque côté (quillesMargeLateralePct, demande John 30/08) pour
-        // laisser de l'espace visible entre les quilles et le bord de la
-        // piste.
+        // piste (this.pisteLargeur, 2/3 de l'écran depuis le 31/08 — demande
+        // John, cf. commentaire de this.pisteLargeur : avant 1/3, l'écart
+        // entre 2 quilles voisines de cette rangée pouvait devenir plus
+        // étroit que le diamètre de la boule en portrait/carré), moins une
+        // marge de chaque côté (quillesMargeLateralePct, demande John
+        // 30/08) pour laisser de l'espace visible entre les quilles et le
+        // bord de la piste.
         const margeFacteur = C.piste.quillesMargeLateralePct / 100;
-        const zoneLargeurPx = this.colLargeur * (1 - 2 * margeFacteur);
-        const centreX = w / 2;
+        const zoneLargeurPx = this.pisteLargeur * (1 - 2 * margeFacteur);
+        const centreX = this.pisteLargeur / 2;
         // 5 rangées réparties à intervalles réguliers entre les 2 bornes
         // de config (0=fond=quillesZoneHautYPct … 4=pointe avant/Roi=
         // quillesZoneBasYPct).
@@ -957,14 +994,16 @@ class GameScene extends Phaser.Scene {
     _dessinerJaugeBarre() {
         const C = window.QuillesSaintGallConfig;
         const UI = Arcade.UI;
-        const w = this.w;
+        // Centrée sur la PISTE (pas tout l'écran) — même raison que
+        // _positionnerTextes (demande John 31/08).
+        const wp = this.pisteLargeur;
 
         this.jaugeG.clear();
         if (this.etat !== "jauge" && this.etat !== "feedback") return;
 
-        const largeur = (C.jauge.largeurPct / 100) * w;
+        const largeur = (C.jauge.largeurPct / 100) * wp;
         const hauteur = UI.u(this, C.jauge.hauteurU);
-        const x = (w - largeur) / 2;
+        const x = (wp - largeur) / 2;
         const y = this.ligneLancerY - hauteur - UI.u(this, 2);
 
         const cFond = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeFond).color;
@@ -1021,7 +1060,7 @@ class GameScene extends Phaser.Scene {
 
         // Vitesse = vitesse de base × un facteur qui dépend de la force
         // choisie (demande John, 30/08 : 2 boutons -/+ pour régler la force
-        // du tir, colonne de droite au-dessus de « Tirer »).
+        // du tir, au-dessus de « Tirer »).
         const t = (this.force - C.force.min) / (C.force.max - C.force.min);
         const facteurForce = C.boule.forceVitesseMinFacteur +
             t * (C.boule.forceVitesseMaxFacteur - C.boule.forceVitesseMinFacteur);
@@ -1091,13 +1130,12 @@ class GameScene extends Phaser.Scene {
         }
 
         // Sortie de piste : la fosse en haut, OU les bords RÉELS de la
-        // piste (this.colLargeur de large, pas toute la largeur de l'écran)
-        // — le vrai jeu interdit à la boule de toucher les côtés de la
-        // piste avant les quilles (article 780), on modélise ça comme fin
-        // du jet, cohérent avec les rebonds qui peuvent maintenant la
+        // piste (this.pisteLargeur de large, pas toute la largeur de
+        // l'écran) — le vrai jeu interdit à la boule de toucher les côtés
+        // de la piste avant les quilles (article 780), on modélise ça comme
+        // fin du jet, cohérent avec les rebonds qui peuvent maintenant la
         // dévier latéralement.
-        const w3 = this.colLargeur;
-        const dehors = this.boule.y < -20 || this.boule.x < w3 - 20 || this.boule.x > 2 * w3 + 20;
+        const dehors = this.boule.y < -20 || this.boule.x < -20 || this.boule.x > this.pisteLargeur + 20;
 
         // Filet de sécurité : après plusieurs rebonds amortis, la boule
         // peut devenir trop lente pour jamais sortir de la zone de quilles
@@ -1351,15 +1389,17 @@ class GameScene extends Phaser.Scene {
     // --- Mise en page des textes / boutons ---------------------------------------
 
     /**
-     * En bas de la colonne de droite (même principe que les boutons ◄/►
-     * de la colonne du milieu, cf. `_positionnerBoutonsRotation`) — demande
-     * John, 30/08 : Tirer restait centré et empiétait sur l'espace des
-     * contrôles de force. Calcule `this.tirerTop`, utilisé par
+     * En bas de la 2e colonne de la piste (w3..pisteLargeur, même principe
+     * que les boutons ◄/► de la colonne de visée, cf.
+     * `_positionnerBoutonsRotation` — demande John, 30/08 : Tirer restait
+     * centré et empiétait sur l'espace des contrôles de force ; colonne
+     * décalée le 31/08 quand la piste est passée à 2/3 de large, cf.
+     * `_positionnerControlesForce`). Calcule `this.tirerTop`, utilisé par
      * `_positionnerControlesForce()` (DOIT être appelée après celle-ci).
      */
     _positionnerBouton() {
         const UI = Arcade.UI;
-        const w = this.w, h = this.h;
+        const h = this.h;
         const w3 = this.colLargeur;
         const marge = UI.u(this, 1.5);
         const hauteurZone = h - this.ligneLancerY;
@@ -1369,7 +1409,7 @@ class GameScene extends Phaser.Scene {
         const yCentre = this.tirerTop + hauteurBtn / 2;
 
         this.boutonTirer.redimensionner(w3 * 0.7, hauteurBtn)
-            .setPosition(w - w3 / 2, yCentre);
+            .setPosition(w3 + w3 / 2, yCentre);
     }
 
     _positionnerTextes() {
@@ -1377,42 +1417,50 @@ class GameScene extends Phaser.Scene {
         const UI = Arcade.UI;
         const w = this.w, h = this.h;
         const w3 = this.colLargeur;
+        const wp = this.pisteLargeur;
 
-        this.texteTitre.setPosition(w / 2, h * 0.035)
+        // Titre + consignes + jauge + résultat : centrés sur la PISTE
+        // (0..pisteLargeur, 2/3 gauche), pas sur tout l'écran — demande
+        // John 31/08 : le 1/3 de droite est un panneau d'info dédié, ces
+        // éléments n'y ont plus leur place (avant, la piste ne faisant que
+        // 1/3, centrer sur `w` tombait par coïncidence au bon endroit).
+        this.texteTitre.setPosition(wp / 2, h * 0.035)
             .setFontSize(Math.round(UI.u(this, 7)) + "px");
-        this.texteSousTitre.setPosition(w / 2, h * 0.035 + UI.u(this, 4))
+        this.texteSousTitre.setPosition(wp / 2, h * 0.035 + UI.u(this, 4))
             .setFontSize(Math.round(UI.u(this, 3)) + "px");
 
-        // Colonne de gauche : progression de la partie (jet n/17 + score
-        // cumulé) — remplace le compteur de quilles tombées en direct du
+        // Panneau d'info (colonne de droite, 1/3, PLEINE HAUTEUR — demande
+        // John 31/08, remplace l'ancienne colonne de gauche cantonnée à la
+        // zone de recul) : progression de la partie (jet n/17 + score
+        // cumulé), remplace le compteur de quilles tombées en direct du
         // spike (PRD §3).
-        this.texteCompteur.setPosition(w3 / 2, this.ligneLancerY + (h - this.ligneLancerY) * 0.5)
-            .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
+        this.texteCompteur.setPosition(w - w3 / 2, h * 0.5)
+            .setFontSize(Math.round(UI.u(this, 4)) + "px")
             .setWordWrapWidth(w3 * 0.85, true);
 
         if (this.consigne1.visible) {
-            this.consigne1.setPosition(w * 0.5, h * 0.55)
+            this.consigne1.setPosition(wp * 0.5, h * 0.55)
                 .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
-            this.consigne2.setPosition(w * 0.5, h * 0.55 + UI.u(this, 4.2))
+            this.consigne2.setPosition(wp * 0.5, h * 0.55 + UI.u(this, 4.2))
                 .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
-                .setWordWrapWidth(w * 0.85, true);
+                .setWordWrapWidth(wp * 0.85, true);
         }
 
         if (this.texteJauge.visible) {
-            this.texteJauge.setPosition(w / 2,
+            this.texteJauge.setPosition(wp / 2,
                 this.ligneLancerY - UI.u(this, C.jauge.hauteurU) - UI.u(this, 7))
                 .setFontSize(Math.round(UI.u(this, 4)) + "px");
         }
 
         if (this.texteResultat.visible) {
-            this.texteResultat.setPosition(w / 2, h * 0.44)
+            this.texteResultat.setPosition(wp / 2, h * 0.44)
                 .setFontSize(Math.round(UI.u(this, 4.5)) + "px")
-                .setWordWrapWidth(w * 0.8, true);
+                .setWordWrapWidth(wp * 0.8, true);
         }
 
         if (this.boutonRejouer) {
             this.boutonRejouer.redimensionner(UI.u(this, 30), UI.u(this, 10))
-                .setPosition(w / 2, h * 0.6);
+                .setPosition(wp / 2, h * 0.6);
         }
     }
 

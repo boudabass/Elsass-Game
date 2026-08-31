@@ -130,15 +130,18 @@ window.QuillesSaintGallConfig = {
         // largeur de la piste (demande John, 30/08 : laisser de l'espace
         // visible de chaque côté plutôt que des quilles collées au bord).
         quillesMargeLateralePct: 20
-        // Pas de largeur totale ici : la largeur de la piste (et donc des 3
-        // colonnes de quilles, marge déduite) est TOUJOURS celle de la
-        // colonne du milieu du bas d'écran (1/3 de l'écran, cf.
-        // TestScene._positionnerQuilles / _dessinerDecor) — c'est la seule
-        // zone que la boule peut atteindre (elle part de la colonne du
-        // milieu et roule tout droit). Une largeur de quilles différente de
-        // la largeur de visée rend des quilles hors de portée (bug corrigé
-        // le 30/08 : les quilles débordaient sur 46% d'écran contre 33%
-        // visable).
+        // Pas de largeur totale ici : la largeur de la piste est TOUJOURS
+        // celle de GameScene.pisteLargeur (2/3 de l'écran, À GAUCHE, cf.
+        // GameScene._recalculerGeometrie / _positionnerQuilles /
+        // _dessinerDecor). Passée de 1/3 à 2/3 le 31/08/2026 (demande
+        // John) : à 1/3, l'écart entre 2 quilles voisines de la rangée du
+        // milieu (ex. jet 9, quilles 4/5) devenait égal — voire inférieur —
+        // au diamètre de la boule en portrait/carré (où u(), qui régit les
+        // rayons boule/quille, suit la MÊME base que la largeur d'écran),
+        // rendant le passage entre elles physiquement impossible. Doubler
+        // la largeur de piste double l'écart sans toucher aux rayons.
+        // La colonne restante (1/3, à droite) est désormais un panneau
+        // d'info dédié (jet + score) sur toute la hauteur de l'écran.
     },
 
     // --- Zone de recul : demi-cercle de placement + boutons de rotation -----
