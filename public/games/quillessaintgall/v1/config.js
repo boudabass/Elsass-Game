@@ -168,11 +168,11 @@ window.QuillesSaintGallConfig = {
         // elles physiquement impossible. Doubler la largeur de piste double
         // l'écart sans toucher aux rayons. Puis, 31/08/2026 3e passe
         // (demande John) : ce 2/3 est devenu un PLAFOND, pas une largeur
-        // fixe — la piste+zone de tir garde toujours un ratio 1×2
-        // (largeur×hauteur), quitte à faire moins de 2/3 (cf. `recul`
-        // ci-dessous). La colonne restante (1/3 FIXE, à droite) est un
-        // panneau d'info dédié (jet, score, ET tous les contrôles de tir)
-        // sur toute la hauteur de l'écran.
+        // fixe — la piste+zone de tir garde toujours un ratio 1×3
+        // (largeur×hauteur, passé de 1×2 à 1×3 le 31/08), quitte à faire
+        // moins de 2/3 (cf. `recul` ci-dessous). La colonne restante
+        // (1/3 FIXE, à droite) est un panneau d'info dédié (jet, score, ET
+        // tous les contrôles de tir) sur toute la hauteur de l'écran.
     },
 
     // --- Zone de tir : demi-cercle de placement (les boutons de pivot/
@@ -186,10 +186,10 @@ window.QuillesSaintGallConfig = {
     // boutons (+ déviation de la jauge en cas de tir raté).
     recul: {
         // Pas de largeur/plafond de rayon ici : la piste ENTIÈRE (quilles +
-        // zone de tir) garde un ratio FIXE 1×2 — largeur × hauteur, 2 fois
-        // plus haute que large (demande John, 31/08, 3e passe) —, calculé
-        // dans GameScene._recalculerGeometrie comme le plus grand
-        // rectangle 1:2 qui tient dans (largeur ≤ 2/3 écran, hauteur ≤
+        // zone de tir) garde un ratio FIXE 1×3 — largeur × hauteur, 3 fois
+        // plus haute que large (demande John, 31/08, passé de 1×2 à 1×3) —,
+        // calculé dans GameScene._recalculerGeometrie comme le plus grand
+        // rectangle 1:3 qui tient dans (largeur ≤ 2/3 écran, hauteur ≤
         // écran). Le demi-cercle fait TOUJOURS toute la largeur de la
         // piste (diamètre = pisteLargeur) et la zone de tir est
         // dimensionnée exactement à sa hauteur (rayon = pisteLargeur/2).

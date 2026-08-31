@@ -521,19 +521,19 @@ class GameScene extends Phaser.Scene {
         this.colLargeur = w / 3;   // largeur FIXE de la colonne d'info (droite), inchangée
         const budgetPiste = w - this.colLargeur;   // place MAX dispo pour piste+lancement (2/3 avant, un plafond désormais)
 
-        // Zone piste + lancement (quilles + demi-cercle) : ratio FIXE 1×2
-        // (largeur × hauteur, 2 fois plus haute que large — demande John,
-        // 31/08, 3e passe). On prend le plus grand rectangle 1:2 qui tient
-        // dans (largeur ≤ budgetPiste, hauteur ≤ h) : soit la largeur est
-        // le facteur limitant (hauteur totale = 2×largeur ≤ h), soit la
-        // hauteur l'est (largeur = h/2 ≤ budgetPiste). Remplace le plafond
-        // de largeur fixe à 2/3 (30/08-31/08) : cf. _positionnerQuilles
-        // pour le pourquoi de la largeur (écart entre quilles, ex. jet 9,
-        // quilles 4/5), le ratio garantit maintenant qu'une piste ne
-        // devient jamais anormalement basse/étirée sur les formats
-        // extrêmes, dans un sens comme dans l'autre.
-        this.pisteLargeur = Math.min(budgetPiste, h / 2);
-        const pisteHauteurTotale = this.pisteLargeur * 2;
+        // Zone piste + lancement (quilles + demi-cercle) : ratio FIXE 1×3
+        // (largeur × hauteur, 3 fois plus haute que large — demande John,
+        // 31/08, passé de 1×2 à 1×3). On prend le plus grand rectangle 1:3
+        // qui tient dans (largeur ≤ budgetPiste, hauteur ≤ h) : soit la
+        // largeur est le facteur limitant (hauteur totale = 3×largeur ≤ h),
+        // soit la hauteur l'est (largeur = h/3 ≤ budgetPiste). Remplace le
+        // plafond de largeur fixe à 2/3 (30/08-31/08) : cf.
+        // _positionnerQuilles pour le pourquoi de la largeur (écart entre
+        // quilles, ex. jet 9, quilles 4/5), le ratio garantit maintenant
+        // qu'une piste ne devient jamais anormalement basse/étirée sur les
+        // formats extrêmes, dans un sens comme dans l'autre.
+        this.pisteLargeur = Math.min(budgetPiste, h / 3);
+        const pisteHauteurTotale = this.pisteLargeur * 3;
 
         // Écran large/court (paysage) : la largeur devient < budgetPiste →
         // bande vide À GAUCHE de la piste (demande John) — la piste colle
@@ -550,7 +550,7 @@ class GameScene extends Phaser.Scene {
         // h → reste vide EN BAS (demande John) — la piste+lancement colle
         // toujours en HAUT (y=0), jamais centrée ni collée en bas.
         this.cercleRayon = this.pisteLargeur / 2;
-        this.ligneLancerY = pisteHauteurTotale - this.cercleRayon;   // = 1.5 × pisteLargeur
+        this.ligneLancerY = pisteHauteurTotale - this.cercleRayon;   // = 2.5 × pisteLargeur
         this.cercleX = this.pisteOffsetX + this.pisteLargeur / 2;
         this.cercleY = this.ligneLancerY;
 
@@ -592,7 +592,7 @@ class GameScene extends Phaser.Scene {
         this.ciel.fillStyle(cCiel, 1);
         this.ciel.fillRect(0, 0, w, h);
 
-        // Piste (brune, visible) : ratio 1×2 fixe (largeur × hauteur totale
+        // Piste (brune, visible) : ratio 1×3 fixe (largeur × hauteur totale
         // piste+lancement — demande John 31/08, 3e passe, cf.
         // this.pisteLargeur/this.pisteOffsetX), ancrée en HAUT (y=0) et
         // collée au bord de la colonne d'info (this.pisteOffsetX = 0 sauf
@@ -1454,7 +1454,7 @@ class GameScene extends Phaser.Scene {
 
         // Consignes/résultat/rejouer : positionnés en % de LA PISTE
         // (this.ligneLancerY), PAS % d'écran — demande John 31/08, 3e
-        // passe : depuis que ligneLancerY suit le ratio 1×2 (peut être
+        // passe : depuis que ligneLancerY suit le ratio 1×3 (peut être
         // bien moins que ~80% de l'écran), un % d'écran fixe pouvait
         // tomber SOUS ligneLancerY, dans la zone de tir, et chevaucher le
         // demi-cercle/la boule (même souci que pour les quilles, cf.
