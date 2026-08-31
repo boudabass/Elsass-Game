@@ -119,46 +119,66 @@ window.QuillesSaintGallConfig = {
 
     // --- Piste (vue du dessus) ----------------------------------------------
     piste: {
-        ligneLancerYPct: 80,        // % hauteur : ligne de lancer (haut de la zone de recul)
+        // Pas de ligneLancerYPct ici (retiré le 31/08/2026) : la limite
+        // piste/zone de tir (GameScene.ligneLancerY) est désormais calculée
+        // à partir de la largeur de piste réelle (elle-même dérivée du
+        // ratio 1×2, cf. plus bas), pas d'un pourcentage fixe de la
+        // hauteur — cf. GameScene._recalculerGeometrie.
         // Bornes du losange de 9 quilles (quinconce 1-2-3-2-1, cf. en-tête
         // de fichier) : les 3 rangées intermédiaires sont réparties à
         // intervalles réguliers entre ces 2 bornes par GameScene
         // ._positionnerQuilles — pas de valeur séparée par rangée ici.
-        quillesZoneHautYPct: 12,    // % hauteur : quille du fond (idx 0)
-        quillesZoneBasYPct: 34,     // % hauteur : pointe avant = le Roi (idx 8)
+        // Exprimées en % de LA PISTE (GameScene.ligneLancerY), PAS % de
+        // l'écran — rebasées le 31/08/2026, 3e passe (avant : 12/34, en %
+        // de l'écran, cohérent uniquement tant que la piste faisait un %
+        // fixe de l'écran ; ×1,25 pour garder le même rendu visuel qu'avant
+        // sous l'ancienne hypothèse ligneLancerYPct=80 : 12/0.8=15,
+        // 34/0.8=42.5).
+        quillesZoneHautYPct: 15,    // % HAUTEUR DE PISTE : quille du fond (idx 0)
+        quillesZoneBasYPct: 42.5,   // % HAUTEUR DE PISTE : pointe avant = le Roi (idx 8)
         // Marge latérale entre les quilles et le bord de la piste, % de la
         // largeur de la piste (demande John, 30/08 : laisser de l'espace
         // visible de chaque côté plutôt que des quilles collées au bord).
         quillesMargeLateralePct: 20
         // Pas de largeur totale ici : la largeur de la piste est TOUJOURS
-        // celle de GameScene.pisteLargeur (2/3 de l'écran, À GAUCHE, cf.
-        // GameScene._recalculerGeometrie / _positionnerQuilles /
-        // _dessinerDecor). Passée de 1/3 à 2/3 le 31/08/2026 (demande
-        // John) : à 1/3, l'écart entre 2 quilles voisines de la rangée du
-        // milieu (ex. jet 9, quilles 4/5) devenait égal — voire inférieur —
-        // au diamètre de la boule en portrait/carré (où u(), qui régit les
-        // rayons boule/quille, suit la MÊME base que la largeur d'écran),
-        // rendant le passage entre elles physiquement impossible. Doubler
-        // la largeur de piste double l'écart sans toucher aux rayons.
-        // La colonne restante (1/3, à droite) est désormais un panneau
-        // d'info dédié (jet + score) sur toute la hauteur de l'écran.
+        // celle de GameScene.pisteLargeur, cf. GameScene._recalculerGeometrie
+        // / _positionnerQuilles / _dessinerDecor. Passée de 1/3 à 2/3 le
+        // 31/08/2026 1re passe (demande John) : à 1/3, l'écart entre 2
+        // quilles voisines de la rangée du milieu (ex. jet 9, quilles 4/5)
+        // devenait égal — voire inférieur — au diamètre de la boule en
+        // portrait/carré (où u(), qui régit les rayons boule/quille, suit
+        // la MÊME base que la largeur d'écran), rendant le passage entre
+        // elles physiquement impossible. Doubler la largeur de piste double
+        // l'écart sans toucher aux rayons. Puis, 31/08/2026 3e passe
+        // (demande John) : ce 2/3 est devenu un PLAFOND, pas une largeur
+        // fixe — la piste+zone de tir garde toujours un ratio 1×2
+        // (largeur×hauteur), quitte à faire moins de 2/3 (cf. `recul`
+        // ci-dessous). La colonne restante (1/3 FIXE, à droite) est un
+        // panneau d'info dédié (jet, score, ET tous les contrôles de tir)
+        // sur toute la hauteur de l'écran.
     },
 
-    // --- Zone de recul : demi-cercle de placement + boutons de rotation -----
-    // (demande John, 30/08, revu une 2e fois le même jour). La boule se
+    // --- Zone de tir : demi-cercle de placement (les boutons de pivot/
+    // force/tirer sont dans la colonne d'info depuis le 31/08, cf.
+    // GameScene._positionnerColonneInfo) ----------------------------------
+    // (demande John, 30/08, revu plusieurs fois le 31/08). La boule se
     // place n'importe où DANS le demi-cercle (glisser 2D) ; la direction du
     // tir n'est PLUS déduite de la position de la boule mais des boutons
     // ◄/► (rotation). Les deux se combinent au lancer : la boule part de sa
     // position dans le demi-cercle, dans la direction choisie via les
     // boutons (+ déviation de la jauge en cas de tir raté).
     recul: {
-        // Le demi-cercle « part de la piste sur toute sa largeur » : son
-        // diamètre = la largeur pleine de la piste (colLargeur), le côté
-        // plat collé à la ligne de lancer, la courbe vers le bas. Rayon
-        // plafonné à ce facteur × la hauteur de la zone de recul pour
-        // TOUJOURS laisser de la place aux boutons en bas (même en paysage,
-        // où la zone de recul est large mais basse).
-        demiCercleRayonMaxFacteurHauteur: 0.6,
+        // Pas de largeur/plafond de rayon ici : la piste ENTIÈRE (quilles +
+        // zone de tir) garde un ratio FIXE 1×2 — largeur × hauteur, 2 fois
+        // plus haute que large (demande John, 31/08, 3e passe) —, calculé
+        // dans GameScene._recalculerGeometrie comme le plus grand
+        // rectangle 1:2 qui tient dans (largeur ≤ 2/3 écran, hauteur ≤
+        // écran). Le demi-cercle fait TOUJOURS toute la largeur de la
+        // piste (diamètre = pisteLargeur) et la zone de tir est
+        // dimensionnée exactement à sa hauteur (rayon = pisteLargeur/2).
+        // Écran large/court : bande vide À GAUCHE de la piste. Écran haut/
+        // étroit : reste vide EN BAS. Les deux demandés explicitement par
+        // John plutôt que d'étirer la piste hors de son ratio.
         rotationMaxDeg: 10,         // rotation max de la visée, de chaque côté du tout droit
         rotationStepDeg: 1          // incrément par clic sur un bouton ◄/► (10 clics = le max)
     },
