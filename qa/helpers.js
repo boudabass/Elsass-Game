@@ -25,7 +25,7 @@ function armConsole(page) {
 
 /* Connexion au compte test studio (arcade) si l'écran de login est présent. */
 async function loginArcade(page, email, mdp) {
-  await page.goto("https://elsass-game-dev.theelsassisch.fr/login",
+  await page.goto("https://elsass-game-dev.theelsassisch.com/login",
                   { waitUntil: "domcontentloaded", timeout: 45000 })
     .catch((e) => consoleErrors.push("goto-login: " + e.message));
   await sleep(2500);

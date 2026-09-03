@@ -8,7 +8,7 @@
  * Usage : python3 qa/runner.py qa/scenarios/smoke_arcade.js --out <dir>
  */
 export default async ({ page }) => {
-  const GAME_URL = "https://elsass-game-dev.theelsassisch.fr/games/waggis/v1/index.html?gid=3";
+  const GAME_URL = "https://elsass-game-dev.theelsassisch.com/games/waggis/v1/index.html?gid=3";
   const EMAIL = "lacolleacervelle+admin@gmail.com";
   const MDP = "jonjon";
 

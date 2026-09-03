@@ -42,7 +42,7 @@ export default async ({ page }) => {
   armConsole(page);                                  // collecte erreurs console
   await loginArcade(page, "lacolleacervelle+admin@gmail.com", "jonjon");
   await page.setViewport({ width: 1280, height: 720 });
-  await page.goto("https://elsass-game-dev.theelsassisch.fr/games/waggis/v1/index.html?gid=3",
+  await page.goto("https://elsass-game-dev.theelsassisch.com/games/waggis/v1/index.html?gid=3",
                   { waitUntil: "domcontentloaded", timeout: 45000 });
   const ok = await attendScene(page, "menu", 30);    // attente scène Phaser
   // ... interactions, lectures d'état via page.evaluate ...
