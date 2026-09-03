@@ -42,7 +42,7 @@ export default async ({ page }) => {
   armConsole(page);                                  // collecte erreurs console
   await loginArcade(page, "lacolleacervelle+admin@gmail.com", "jonjon");
   await page.setViewport({ width: 1280, height: 720 });
-  await page.goto("https://arcade-dev.theelsassisch.com/games/waggis/v1/index.html?gid=3",
+  await page.goto("https://elsass-game-dev.theelsassisch.fr/games/waggis/v1/index.html?gid=3",
                   { waitUntil: "domcontentloaded", timeout: 45000 });
   const ok = await attendScene(page, "menu", 30);    // attente scène Phaser
   // ... interactions, lectures d'état via page.evaluate ...
@@ -65,7 +65,7 @@ node --check qa/helpers.js && node --check qa/scenarios/<scenario>.js
 
 ## Smoke test de référence
 
-`qa/scenarios/smoke_arcade.js` : navigation réelle sur arcade-dev (waggis v1),
+`qa/scenarios/smoke_arcade.js` : navigation réelle sur elsass-game-dev (waggis v1),
 attente de la scène `menu`, lecture de l'état (clé de scène + boutons),
 screenshots desktop 1280×720 + mobile 390×844. Résultat de référence du
 08/08/2026 : `menu` atteint desktop+mobile, 7 boutons, 0 erreur console.
