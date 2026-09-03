@@ -120,66 +120,23 @@ class MenuScene extends Phaser.Scene {
         this.solOmbre = this.add.graphics().setDepth(3);
         this.waggis = this.add.image(0, 0, "pieton_rouge_1").setDepth(4);
 
-        // --- Bouton principal « Jouer » (pleine largeur) -------------------
-        // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : LE
-        // composant bouton réutilisable core/ui/button.js (Arcade.UI.bouton)
-        // — variante TEXTE SIMPLE (sans icône), même style partagé (fond,
-        // coins arrondis, ombre, feedback clic). Plus de code dupliqué.
-        this.boutonJouer = Arcade.UI.bouton(this, {
-            label: C.textes.jouer,
-            couleur: C.couleurs.boutonJouer,  // VERT (Jouer — décision John 08/08)
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => this.jouer()
-        });
-
-        // --- Grille 2×2 des boutons secondaires (correction John 08/08, ---
-        // test GATE menu) : ligne 1 = Niveaux · Personnages, ligne 2 =
-        // Boutique · Classement. Chaque bouton est sur DEUX LIGNES — icône
-        // en haut, texte BLANC en dessous, le tout centré DANS le bouton
-        // (fini le libellé sombre posé hors du bouton).
-        this.icones = [
-            {
-                emoji: "🗺️",
-                label: C.textes.niveaux,
-                onClick: () => this.aller(LevelsScene.KEY)
-            },
-            {
-                emoji: "🐤",
-                label: C.textes.personnages,
-                onClick: () => this.aller(CharactersScene.KEY)
-            },
-            {
-                emoji: "🛒",
-                label: C.textes.boutique,
-                onClick: () => this.aller(ShopScene.KEY)
-            },
-            {
-                emoji: "🏆",
-                label: C.textes.classement,
-                onClick: () => this.aller(ClassementScene.KEY)
-            }
-        ].map((ic) => ({
-            bouton: Arcade.UI.bouton(this, {
-                icone: ic.emoji,
-                label: ic.label,
-                couleur: C.couleurs.boutonSecondaire,  // NOIR (secondaires — décision John 08/08)
-                ombre: C.couleurs.ombreBouton,
-                police: C.police.famille,
-                onClick: ic.onClick
-            })
-        }));
-
-        // --- ⚙️ Réglages : VRAI bouton en bas à droite (correction John ----
-        // 08/08) — plus une icône discrète en coin : même bouton 2 lignes
-        // (icône + libellé) que les secondaires, placé en bas à droite.
-        this.boutonReglages = Arcade.UI.bouton(this, {
-            icone: "⚙️",
-            label: C.textes.reglages,
-            couleur: C.couleurs.bouton,  // ROUGE (Réglages — décision John 08/08)
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => this.aller(SettingsScene.KEY)
+        // --- Bloc d'actions du menu (Jouer + grille + Réglages) -----------
+        // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : le
+        // composant porte lui-même les couleurs du design system The
+        // Elsassisch (plus de couleur/ombre en dur ici) et adapte la grille
+        // au nombre de tuiles secondaires (4 -> 2×2, comme avant, mêmes
+        // valeurs). Ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
+        // Classement (ordre inchangé, GATE menu 08/08).
+        Arcade.UI.menuActions(this, {
+            jouer: { label: C.textes.jouer, onClick: () => this.jouer() },
+            secondaires: [
+                { icone: "🗺️", label: C.textes.niveaux, onClick: () => this.aller(LevelsScene.KEY) },
+                { icone: "🐤", label: C.textes.personnages, onClick: () => this.aller(CharactersScene.KEY) },
+                { icone: "🛒", label: C.textes.boutique, onClick: () => this.aller(ShopScene.KEY) },
+                { icone: "🏆", label: C.textes.classement, onClick: () => this.aller(ClassementScene.KEY) }
+            ],
+            reglages: { label: C.textes.reglages, onClick: () => this.aller(SettingsScene.KEY) },
+            police: C.police.famille
         });
 
         // --- Mise en page (recalculée à chaque rotation) --------------------
@@ -278,75 +235,9 @@ class MenuScene extends Phaser.Scene {
                 this._dessinerSolOmbre(w / 2, yWaggis + hWaggis / 2, hWaggis * 0.9);
             }
 
-            // « Jouer » pleine largeur (80 % de la largeur d'écran). Sa
-            // largeur est la RÉFÉRENCE de la page : chaque ligne de la
-            // grille 2×2 des boutons secondaires reprend exactement cette
-            // largeur (correction John 08/08).
-            const largeurJouer = w * 0.8;
-            const hauteurJouer = u(11.5);
-
-            // Grille 2×2 des boutons secondaires (correction John 08/08) :
-            // ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
-            // Classement. CHAQUE LIGNE a la MÊME LARGEUR TOTALE que le
-            // bouton « Jouer » (largeurJouer) : les 2 boutons d'une ligne
-            // se partagent cette largeur, séparés par un espace de u(4.5).
-            // Centrée horizontalement.
-            const largeurSec = (largeurJouer - u(4.5)) / 2;
-            const hauteurSec = u(10.5);
-            const pasX = largeurSec + u(4.5);
-            const pasY = hauteurSec + u(4.5);
-            const xCol0 = w / 2 - pasX / 2;
-            const xCol1 = w / 2 + pasX / 2;
-            const ySol = h * 0.965;
-            const hauteurGrille = hauteurSec + pasY;
-
-            // Empilement vertical UNIFORME (correction John 08/08 — test
-            // GATE menu) : le MÊME espace u(4.5) — celui d'entre les 2
-            // lignes de la grille — partout, entre TOUS les boutons, et
-            // une LIGNE VIDE (hauteur d'un bouton secondaire, u(10.5))
-            // sous la grille, respiration avant le bas de l'écran. Tout
-            // est empilé, jamais superposé (règle John) — l'empilement est
-            // ancré EN BAS (départ du sol) :
-            //   [Jouer]
-            //   u(4.5)
-            //   [ligne 1 : Niveaux · Personnages]
-            //   u(4.5)
-            //   [ligne 2 : Boutique · Classement]
-            //   u(4.5)
-            //   [ligne VIDE u(10.5) — Réglages calé à droite dans cette
-            //    ligne]
-            // Le bas de la grille est calculé depuis le sol : ligne vide
-            // u(10.5) + espace u(4.5), puis chaque étage remonte d'un
-            // u(4.5), « Jouer » fermant l'empilement au-dessus.
-            const yReglages = ySol - hauteurSec / 2;
-            const basGrille = yReglages - hauteurSec / 2 - u(4.5);
-            const hautGrille = basGrille - hauteurGrille;
-            const basJouer = hautGrille - u(4.5);
-            const yJouer = basJouer - hauteurJouer / 2;
-            const yLigne1 = hautGrille + hauteurSec / 2;
-            const yLigne2 = yLigne1 + pasY;
-
-            this.boutonJouer
-                .redimensionner(largeurJouer, hauteurJouer)
-                .setPosition(w / 2, yJouer);
-
-            this.icones.forEach((ic, i) => {
-                const x = i % 2 === 0 ? xCol0 : xCol1;
-                const y = i < 2 ? yLigne1 : yLigne2;
-                ic.bouton.redimensionner(largeurSec, hauteurSec).setPosition(x, y);
-            });
-
-            // ⚙️ Réglages : vrai bouton en bas à droite, dans la ligne vide
-            // sous la grille (correction John 08/08). La grille occupant
-            // TOUTE la largeur de « Jouer », il ne peut plus s'aligner sur
-            // une ligne sans la chevaucher (surtout sur mobile) : il garde
-            // sa taille compacte (u(15), découplée de largeurSec), est
-            // posé sur le sol et séparé de la grille par le MÊME espace
-            // u(4.5) que partout — jamais superposé (règle John).
-            const largeurReglages = u(15);
-            this.boutonReglages
-                .redimensionner(largeurReglages, hauteurSec)
-                .setPosition(w - u(8.5), yReglages);
+            // Jouer + grille + Réglages : géré par Arcade.UI.menuActions
+            // (core/ui/menuActions.js), abonné à son propre Arcade.UI.layout
+            // — plus rien à positionner ici pour ce bloc.
         };
 
         UI.layout(this, this._miseEnPage);
@@ -420,14 +311,12 @@ class MenuScene extends Phaser.Scene {
     }
 
     // --- Boutons -------------------------------------------------------------
-    // ⭐ REFONTE 08/08/2026 (décision John, art. 704 Chantier B) : tous les
-    // boutons du menu utilisent LE composant bouton réutilisable
-    // core/ui/button.js (Arcade.UI.bouton — dossier UI) : Jouer (variante
-    // texte simple), la grille 2×2 et Réglages (variante icône + texte).
-    // Le style (fond, coins arrondis, ombre portée, feedback au clic) est
-    // partagé par le socle — plus aucune copie locale dans la scène.
-    // (L'ancien code _creerBouton / _creerBoutonSecondaire / _enfoncer /
-    // _relacher a été supprimé : il dupliquait le composant.)
+    // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : Jouer,
+    // la grille de tuiles secondaires et Réglages sont construits ET
+    // positionnés par Arcade.UI.menuActions (create()) — couleurs du design
+    // system résolues par Arcade.UI.boutonMenu (core/ui/menuBouton.js),
+    // rendu par core/ui/button.js. Plus aucune couleur, ombre, ni mise en
+    // page de bouton de menu codée dans cette scène.
 
     // --- Décor de fond --------------------------------------------------------
 

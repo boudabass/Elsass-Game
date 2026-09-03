@@ -21,7 +21,7 @@ window.CigogneConfig = {
         // persistantes Quitter (haut-gauche) et Plein écran (haut-droite) —
         // lus par Arcade.UI.iconesPlateforme (core/ui.js) via les options de
         // boot (main.js).
-        retour: "Retour",
+        retour: "Quitter",
         pleinEcran: "Plein écran"
     },
 

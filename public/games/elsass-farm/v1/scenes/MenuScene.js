@@ -52,14 +52,17 @@ class MenuScene extends Phaser.Scene {
             .setStroke(C.couleurs.contour, 2)
             .setShadow(0, 2, "rgba(20, 18, 16, 0.3)", 2, false, true);
 
-        // « Jouer » : LE composant bouton partagé (core/ui/button.js),
-        // variante texte simple, VERT charte, pleine largeur.
-        this.boutonJouer = Arcade.UI.bouton(this, {
-            label: C.textes.jouer,
-            couleur: C.couleurs.boutonJouer,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => this.jouer()
+        // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : le
+        // bloc d'actions (ici juste « Jouer », pas de tuile secondaire)
+        // porte lui-même les couleurs du design system et se positionne —
+        // plus de bouton construit/positionné à la main dans la scène.
+        // C.menu.largeurJouerPct/hauteurJouerU sont déjà les valeurs par
+        // défaut du composant (80 / 11.5) : pas besoin de les repasser.
+        Arcade.UI.menuActions(this, {
+            jouer: { label: C.textes.jouer, onClick: () => this.jouer() },
+            secondaires: [],
+            reglages: null,
+            police: C.police.famille
         });
 
         // Mise en page recalculée à chaque rotation / redimensionnement.
@@ -73,12 +76,6 @@ class MenuScene extends Phaser.Scene {
             this.accroche
                 .setFontSize(Math.round(u(C.menu.tailleAccrocheU)) + "px")
                 .setPosition(w / 2, h * C.menu.titreY + u(C.menu.tailleTitreU) * 0.85);
-
-            const largeurJouer = w * (C.menu.largeurJouerPct / 100);
-            const hauteurJouer = u(C.menu.hauteurJouerU);
-            this.boutonJouer
-                .redimensionner(largeurJouer, hauteurJouer)
-                .setPosition(w / 2, h * 0.78);
         });
 
         this.cameras.main.fadeIn(220, 0, 0, 0);

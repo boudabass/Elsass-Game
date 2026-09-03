@@ -3,6 +3,14 @@
 > Rédigé le 03/08/2026. Remplace l'arcade `game-4` (p5.js), qui est gelée.
 > Repo **public** → jamais de domaine ni de base réels dans les fichiers versionnés
 > (placeholders : `monsite.com`, `votre-instance`, tout le reste en variables d'env).
+>
+> **Note (30/08/2026)** : ce plan couvrait le lancement du socle + Cigogne v1
+> (étapes 1-9 ci-dessous, §5). Il est **historique** — depuis, Waggis,
+> Similitude, Elsass Farm Bloc A et plusieurs spikes (Schieweschlawe,
+> Quilles Saint-Gall) ont été livrés par-dessus ce socle. Pour l'état courant
+> du projet, se référer au `CLAUDE.md` du repo (non versionné) et à l'article
+> Odoo 732 (passation), pas à ce fichier — gardé pour la trace des décisions
+> fondatrices (§1, §2, §7) qui restent valables.
 
 ---
 
@@ -102,14 +110,16 @@ et ne montera dans `core/` que si un deuxième jeu en a besoin.
 | **1** | Squelette : Next.js repris de game-4, nettoyé de tout p5 | Claude | ✅ fait le 04/08 |
 | **2** | Socle `core/` : Phaser 4.2.1 en local + les 6 briques | Claude | ✅ fait le 04/08 |
 | **3** | **Cigogne v1 Phaser** (menu / jeu / game over, meilleur score) | Claude | ✅ fait le 04/08 |
-| **4** | Push GitHub → pull Coolify → variables d'env → deploy `arcade-dev` | John | à faire |
-| **5** | Fiche du jeu créée dans `/admin`, puis test réel sur téléphone | John | à faire |
-| **6** | **GATE** : validation de Cigogne, puis bascule en production | John | à faire |
-| **7** | Assets : repackaging en atlas + tilesets Tiled (voir §6) | Claude | à faire |
-| **8** | Réécriture de la doc Odoo (hub 403) pour Phaser | Claude | à faire |
-| **9** | Elsass Farm en Phaser | — | plan séparé |
+| **4** | Push GitHub → pull Coolify → variables d'env → deploy `arcade-dev` | John | ✅ fait |
+| **5** | Fiche du jeu créée dans `/admin`, puis test réel sur téléphone | John | ✅ fait |
+| **6** | **GATE** : validation de Cigogne, puis bascule en production | John | ✅ fait |
+| **7** | Assets : repackaging en atlas + tilesets Tiled (voir §6) | Claude | partiel — atlas Kenney empaquetés (10/08), pas encore consommés par un jeu |
+| **8** | Réécriture de la doc Odoo (hub 403) pour Phaser | Claude | partiel — bannière d'avertissement posée le 10/08, contenu détaillé pas réécrit |
+| **9** | Elsass Farm en Phaser | — | Bloc A livré et en prod (v0.7.1, 25/08) |
 
-Rien ne part en production avant l'étape 6.
+Rien ne part en production avant l'étape 6. **Depuis** : Waggis (v1) et
+Similitude (v1+v2) livrés et en prod ; spikes Schieweschlawe (PRD Odoo 873)
+et Quilles Saint-Gall (PRD Odoo 875) en cours d'itération directe sur `dev`.
 
 **Vérifié le 04/08** : syntaxe de tous les fichiers JS (`node --check`) et
 typage de l'application (`tsc --noEmit`) sans erreur. Le `next build` complet
@@ -162,4 +172,7 @@ NOT EXISTS` dans `db.ts`). Rien à migrer, catalogue republié via `/admin`.
 - Clic / tap uniquement, jamais de clavier ni de manette.
 - Identique sur smartphone, tablette et PC.
 - Gratuit, réservé aux clients connectés via Odoo.
-- Claude commite en local, **John pousse** via GitHub Desktop.
+- Claude commite **et pousse directement** sur `origin` (décision John,
+  10/08/2026 — avant cette date Claude commitait en local et John poussait
+  via GitHub Desktop ; jugé inutile comme étape manuelle). Toujours avec
+  prudence : `node --check` / `tsc --noEmit` au minimum avant de pousser.

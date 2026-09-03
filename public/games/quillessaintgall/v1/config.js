@@ -1,0 +1,529 @@
+/*
+ * config.js — réglages de Quilles Saint-Gall (PRD article 875).
+ *
+ * La visée/physique (§3-6) est le spike v1 VALIDÉ par John le 30/08/2026
+ * (commit 6fa096e) — non modifiée ici :
+ *   1. la VUE DU DESSUS + les 9 quilles (cf. disposition en losange
+ *      ci-dessous) ;
+ *   2. la PHYSIQUE DE COLLISION boule/quilles (test de distance manuel,
+ *      cf. GameScene) : la boule roule en ligne droite vers le haut,
+ *      chaque quille touchée tombe et sort du jeu ;
+ *   3. le TIR EN 2 ÉTAPES RÉUTILISÉ de Schieweschlawe (873 §5) : placement
+ *      de la boule dans un DEMI-CERCLE (glisser libre 2D) dont le côté
+ *      plat est collé à la ligne de lancer, orientation de la visée via 2
+ *      boutons ◄/► EN BAS de la zone de recul (rotation, 1° par clic, max
+ *      10° de chaque côté), FORCE du tir réglable via 2 boutons -/+ EN
+ *      HAUT de la colonne de droite (au-dessus de « Tirer », avec une
+ *      barre de niveau) : plus la force est haute, plus le tir est rapide
+ *      MAIS plus la zone orange de la jauge est étroite (plus dur à
+ *      réussir). Puis jauge à aiguille mobile + zone orange fixe. Ici la
+ *      déviation est un ANGLE (pas une distance) : un tir manqué fait
+ *      dévier la trajectoire de la boule par rapport à l'angle choisi
+ *      plutôt que de rater le terrain.
+ *
+ * Section `jets` (§7-9, ajoutée le 30/08/2026) : la VRAIE structure d'une
+ * partie — 17 jets en 6 phases, barème fidèle aux règles fédérales (max
+ * 200 points).
+ *
+ * CORRECTION DU 30/08/2026, 1re passe (soir) — disposition ET barème des
+ * phases C/D/E refaits d'après l'image Wikimedia « Schema_emplacements_
+ * quilles_saint_gall.png » (article Odoo 780), lue pixel par pixel. Roi
+ * en pointe isolée du losange (idx8).
+ *
+ * CORRECTION DU 30/08/2026, 2e passe (même soir, après retour de John :
+ * "au moins la moitié des formes n'est pas bonne") — trouvé un règlement
+ * technique fédéral (PDF FFBSQ, via web.archive.org) dont un schéma
+ * vectoriel semblait montrer le Roi au CENTRE du losange plutôt qu'en
+ * pointe. Cette 2e passe a déplacé le Roi/prépondérante à idx4 partout.
+ * ELLE ÉTAIT FAUSSE — cf. 3e passe : ce schéma était une illustration
+ * générique des cotes de la piste, pas une indication de la quille
+ * prépondérante par figure.
+ *
+ * CORRECTION DU 30/08/2026, 3e passe (même soir) — John a directement
+ * ajouté à l'article 780 les RÈGLES DU CLUB OFFICIEL avec la disposition
+ * exacte des 9 quilles pour CHACUNE des 8 figures (grille chiffrée avec
+ * légende 0=vide/1=prépondérante/2=présente), bien plus fiable que les 2
+ * sources précédentes. Comparée à cette grille :
+ *   - Le Roi/prépondérante est bien en POINTE ISOLÉE (idx8), PAS au
+ *     centre — la 1re passe avait raison, la 2e passe (théorie du PDF
+ *     fédéral) est ANNULÉE. Reconfirmé sur la figure du jet 4 (jeu plein
+ *     renforcé) ET les figures des jets 5-6 (idx8 présent et
+ *     prépondérante) — le schéma du PDF fédéral montrait juste les
+ *     cotes générales de la piste, pas la prépondérante par figure.
+ *   - Les 4 sous-ensembles + prépondérante des jets 5-8 (indices lus sur
+ *     l'image Wikimedia en 1re passe) sont VALIDÉS À L'IDENTIQUE par
+ *     cette grille officielle, chiffre par chiffre — aucun changement.
+ *     Fait confirmé : la prépondérante n'est PAS toujours le Roi (jets
+ *     7-8 : une quille normale de la figure, idx7/idx6 — le Roi n'est
+ *     même pas posé sur ces 2 figures-là).
+ *   - Phases D/E (jets 9-17, indices/ordre/points par quille) : VALIDÉES
+ *     À L'IDENTIQUE, aucun changement — y compris les 2 exceptions de
+ *     ricochet (jets 12 et 16) et le modèle de persistance de la 2e passe
+ *     (la grille officielle montre explicitement les quilles déjà
+ *     tombées passer de "2" à "0" jet après jet, sans jamais se
+ *     réinitialiser en cours de phase — confirme le modèle implémenté).
+ *   3e passe ANNULÉE SUR LE SEUL POINT DU ROI par la 4e passe ci-dessous —
+ *   tout le reste (sous-ensembles/prépondérantes des figures 5-8, phases
+ *   D/E) reste valide.
+ *
+ * CORRECTION DU 31/08/2026, 4e passe (ANNULÉE, cf. 5e passe ci-dessous) —
+ * John a entièrement réécrit l'article 780 (et ajouté 2 sous-articles,
+ * 876/877) d'après le règlement de la Commission Technique & Sportive de
+ * l'Amicale des Quilles Saint-Gall. L'article 876 dit : « La quille
+ * centrale du parallélogramme, nommée "le Roi"... ». Cette 4e passe a lu
+ * cette phrase comme « le Roi est une quille physique fixe, distincte,
+ * toujours au centre du losange complet », et a déplacé la
+ * prépondérante du jet 4 idx8→idx4 en conséquence. ERREUR — cf. 5e passe.
+ *
+ * CORRECTION DU 31/08/2026, 5e passe (même soir, juste après) — John,
+ * en désaccord immédiat avec la 4e passe : « le Roi c'est la quille
+ * prépondérante ... il n'y a pas de Roi fixe au centre ... seule la
+ * figure compte pour la position » (d'après des vidéos de club qu'il a
+ * vues). En relisant le diagramme de la Figure 1/Figure 2 de l'article
+ * 780 (le même qui avait servi à la 3e passe) à la lumière de sa légende
+ * officielle (« ( ) = Quille prépondérante ») : le marqueur `( )` y est
+ * à la POINTE (dernière rangée, position isolée), PAS au centre — donc
+ * même le diagramme du jeu plein (jets 1-4) confirme idx8, pas idx4. La
+ * 4e passe s'était fiée à une lecture générique de la phrase de 876 au
+ * lieu de relire le diagramme concret déjà présent dans 780. Conclusion
+ * retenue, confirmée par John :
+ *   - « Le Roi » n'est PAS une quille physique distincte, plus grosse,
+ *     à une position fixe. C'est simplement le NOM COURANT de la quille
+ *     prépondérante DU JET EN COURS — un concept UNIQUE, pas deux. Sa
+ *     position varie donc jet par jet, exactement comme les indices déjà
+ *     codés dans `jets` ci-dessous (aucune quille n'a de statut spécial
+ *     en dehors du jet où elle est prépondérante).
+ *   - Reverti : prépondérante du jet 4 idx4→idx8 (retour à l'état de la
+ *     3e passe). Retiré : le rendu visuel « quille plus grosse » (config
+ *     `quille.diametreRoiCm`, flag `roi` sur une quille fixe en JS) — il
+ *     n'y a plus qu'UN mécanisme d'affichage, l'anneau doré dynamique
+ *     autour de la prépondérante DU JET EN COURS
+ *     (`GameScene._dessinerMarqueurPrependerante`, déjà correct, suit
+ *     `jets[n].prependerante` / `jets[n].figure.prependerante`).
+ *   - Sous-ensembles/prépondérantes des jets 5-8 (indices 8, 8, 7, 6) :
+ *     INCHANGÉS — jamais remis en cause par cette passe, toujours
+ *     validés contre la grille officielle du club (3e passe).
+ *
+ * Disposition (LOSANGE, inchangée depuis la 1re passe) : indices 0-8
+ * numérotés rangée par rangée, fond → avant : 0 = fond (1 quille) ; 1,2 =
+ * rangée suivante (2, gauche→droite) ; 3,4,5 = rangée du milieu, la plus
+ * large (3, gauche/centre/droite) ; 6,7 = rangée suivante (2) ; 8 =
+ * pointe avant (1 quille) — aucune de ces 9 positions n'est une quille
+ * physique spéciale ; « prépondérante » est une propriété PAR JET, lue
+ * dans `jets` ci-dessous, jamais liée à un indice fixe.
+ *
+ * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
+ * ICI, tous les textes joueur dans `textes`, tailles en % d'écran (u() pour
+ * polices/hauteurs/marges, % de largeur réelle pour la jauge).
+ */
+window.QuillesSaintGallConfig = {
+    key: "quillessaintgall",
+    titre: "Quilles Saint-Gall",
+
+    // --- Textes (libellés français, tous les textes joueur) ----------------
+    textes: {
+        sousTitre: "Partie complète — 17 jets, 6 phases",
+        consigneLigne1: "Place la boule, oriente avec ◄ ►",
+        consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
+        force: "Force",
+        tirer: "Tirer",
+        arreter: "Tape pour arrêter",
+        conforme: "Conforme !",
+        manque: "Manqué",
+        rejouer: "Rejouer",
+        quillesTombees: "Quilles tombées : {n}/9",
+        prependeranteTombee: " · Prépondérante touchée !",
+        aucune: "Aucune quille touchée",
+
+        // --- Progression (colonne de gauche, remplace le compteur en
+        // direct du spike — PRD §3) ------------------------------------
+        jetProgression: "Jet {n}/17",
+        scoreCumule: "Score : {score}/200",
+
+        // --- Info du jet en cours (remplace consigneLigne2 pour les
+        // phases C/D/E, cf. GameScene._texteConsigne2PourJet) -----------
+        prependerante: "★ Prépondérante : quille {n}",
+        cibleARenverser: "Quille à renverser : n°{n}",
+
+        // --- Retour de jet (écran entre 2 jets) -------------------------
+        pointsGagnes: "+{n} point(s)",
+        ordreNonRespecte: "Ordre non respecté — nouvel essai ({n}/3)",
+        jetAnnuleDefinitif: "3 essais épuisés — 0 point",
+        continuer: "Jet suivant",
+        rejouerJet: "Nouvel essai",
+
+        // --- Fin de partie ------------------------------------------------
+        finPartie: "Partie terminée !",
+        scoreFinalTexte: "Score : {score}/200",
+        nouveauRecord: "Nouveau record !",
+        meilleurScore: "Meilleur score : {score}/200",
+        rejouerPartie: "Rejouer la partie"
+    },
+
+    // --- Piste (vue du dessus) ----------------------------------------------
+    piste: {
+        // Pas de ligneLancerYPct ici (retiré le 31/08/2026) : la limite
+        // piste/zone de tir (GameScene.ligneLancerY) est désormais calculée
+        // à partir de la largeur de piste réelle (elle-même dérivée du
+        // ratio 1×2, cf. plus bas), pas d'un pourcentage fixe de la
+        // hauteur — cf. GameScene._recalculerGeometrie.
+        // --- Échelle réelle (demande John, 31/08 : "il faut que ce soit
+        // proportionnel car la piste fait 200cm de large") -----------------
+        // Largeur RÉELLE de la piste (article 780 : "entre 180cm et 200cm
+        // de large" — on prend la borne haute). Sert de référence commune :
+        // GameScene calcule `pxParCm = pisteLargeur / largeurReelleCm` et
+        // s'en sert pour dimensionner en cm réels tout ce qui doit être
+        // proportionnel à la piste (marge quilles↔bord, diagonale du
+        // losange, diamètre quille/boule) — plus aucune valeur indépendante
+        // en % arbitraire pour ces éléments-là.
+        largeurReelleCm: 200,
+        // --- Grille fixe des quilles (refonte du 31/08, dernière passe) ---
+        // John a remplacé l'approche précédente (diagonale en cm dérivée
+        // de la marge quilles↔bord) par une GRILLE FIXE, CARRÉE, calculée
+        // UNIQUEMENT sur la largeur de piste : "peu importe l'espace que
+        // cela prend sur la piste, la grille doit être carrée 1/1". Cause
+        // du bug précédent : la hauteur du losange était dérivée en % de
+        // LA HAUTEUR de piste (this.ligneLancerY, échelle différente de la
+        // largeur) — sur certains formats, ça écrasait le losange près du
+        // bord haut (row 0 quasi collée à y=0, sous le titre).
+        // Grille 5×5, largeur ET hauteur = grilleLargeurPct % de
+        // pisteLargeur (60% → une case = 60/5 = 12% de pisteLargeur,
+        // demande John), donc un vrai carré peu importe le format d'écran
+        // (les 2 dimensions suivent la MÊME base : pisteLargeur).
+        grilleLargeurPct: 60,
+        grilleCases: 5,
+        // Marge FIXE entre le haut de la piste et le haut de la grille, en
+        // % de LA HAUTEUR de piste (this.ligneLancerY) — seule valeur ici
+        // encore liée à cette échelle-là, volontairement : une simple
+        // marge d'ancrage, pas une dimension de la grille elle-même. Peut
+        // rester petite car le titre/sous-titre ne sont plus dessinés sur
+        // la piste (demande John : les déplacer dans le panneau d'info
+        // pour libérer cet espace, cf. GameScene._positionnerColonneInfo).
+        grilleHautYPct: 6
+        // Pas de largeur totale ici : la largeur de la piste est TOUJOURS
+        // celle de GameScene.pisteLargeur, cf. GameScene._recalculerGeometrie
+        // / _positionnerQuilles / _dessinerDecor. Passée de 1/3 à 2/3 le
+        // 31/08/2026 1re passe (demande John) : à 1/3, l'écart entre 2
+        // quilles voisines de la rangée du milieu (ex. jet 9, quilles 4/5)
+        // devenait égal — voire inférieur — au diamètre de la boule en
+        // portrait/carré (où u(), qui régit les rayons boule/quille, suit
+        // la MÊME base que la largeur d'écran), rendant le passage entre
+        // elles physiquement impossible. Doubler la largeur de piste double
+        // l'écart sans toucher aux rayons. Puis, 31/08/2026 3e passe
+        // (demande John) : ce 2/3 est devenu un PLAFOND, pas une largeur
+        // fixe — la piste+zone de tir garde toujours un ratio 1×3
+        // (largeur×hauteur, passé de 1×2 à 1×3 le 31/08), quitte à faire
+        // moins de 2/3 (cf. `recul` ci-dessous). La colonne restante
+        // (1/3 FIXE, à droite) est un panneau d'info dédié (jet, score, ET
+        // tous les contrôles de tir) sur toute la hauteur de l'écran.
+    },
+
+    // --- Zone de tir : demi-cercle de placement (les boutons de pivot/
+    // force/tirer sont dans la colonne d'info depuis le 31/08, cf.
+    // GameScene._positionnerColonneInfo) ----------------------------------
+    // (demande John, 30/08, revu plusieurs fois le 31/08). La boule se
+    // place n'importe où DANS le demi-cercle (glisser 2D) ; la direction du
+    // tir n'est PLUS déduite de la position de la boule mais des boutons
+    // ◄/► (rotation). Les deux se combinent au lancer : la boule part de sa
+    // position dans le demi-cercle, dans la direction choisie via les
+    // boutons (+ déviation de la jauge en cas de tir raté).
+    recul: {
+        // Pas de largeur/plafond de rayon ici : la piste ENTIÈRE (quilles +
+        // zone de tir) garde un ratio FIXE 1×3 — largeur × hauteur, 3 fois
+        // plus haute que large (demande John, 31/08, passé de 1×2 à 1×3) —,
+        // calculé dans GameScene._recalculerGeometrie comme le plus grand
+        // rectangle 1:3 qui tient dans (largeur ≤ 2/3 écran, hauteur ≤
+        // écran). Le demi-cercle fait TOUJOURS toute la largeur de la
+        // piste (diamètre = pisteLargeur) et la zone de tir est
+        // dimensionnée exactement à sa hauteur (rayon = pisteLargeur/2).
+        // Écran large/court : bande vide À GAUCHE de la piste. Écran haut/
+        // étroit : reste vide EN BAS. Les deux demandés explicitement par
+        // John plutôt que d'étirer la piste hors de son ratio.
+        rotationMaxDeg: 10,         // rotation max de la visée, de chaque côté du tout droit
+        rotationStepDeg: 1          // incrément par clic sur un bouton ◄/► (10 clics = le max)
+    },
+
+    // --- Quilles (9, en losange/quinconce, TOUTES la même taille — pas de
+    // quille physiquement plus grosse : « le Roi » = la quille prépondérante
+    // DU JET EN COURS, un indice par jet dans `jets` ci-dessous, pas une
+    // quille distincte (corrigé le 31/08, 5e passe — cf. en-tête de fichier)
+    // -------------------------------------------------------------------
+    quille: {
+        // Diamètre RÉEL en cm (article 780 : "diamètre maximum de 12cm"),
+        // converti en pixels via GameScene.pxParCm (demande John, 31/08 :
+        // proportionnel à la largeur réelle de piste, cf. piste.largeurReelleCm
+        // ci-dessus) — remplace l'ancien rayonPct (% du plus petit côté de
+        // l'écran, sans lien avec l'échelle de la piste). Confirmé par
+        // John (31/08, dernière passe) : 12cm/200cm = 6% de la largeur de
+        // piste, soit la moitié d'une case de la grille (12%, cf.
+        // piste.grilleLargeurPct) — la quille tient centrée dans sa case.
+        diametreCm: 12,
+        // Hauteur RÉELLE en cm (article 780/876 : "hauteur de 42cm") —
+        // 42/200 = 21% de la largeur de piste. Utilisée UNIQUEMENT pour la
+        // longueur du rectangle d'une quille TOMBÉE (couchée au sol, vue du
+        // dessus) — demande John 31/08 : "elle doit faire 21% de long sur
+        // 6% de large" (6% = diametreCm ci-dessus, déjà utilisé pour le
+        // diamètre de la quille debout). Sans effet sur la quille debout
+        // (toujours un cercle de diametreCm).
+        hauteurCm: 42,
+        // Rayon de collision = rayon visuel × ce facteur. À 1, la hitbox est
+        // PILE la taille visuelle de la quille (demande John, 30/08 — plus
+        // d'inflation artificielle).
+        rayonCollisionFacteur: 1,
+        // --- Physique RÉALISTE (31/08, refonte demandée par John : "on
+        // connaît maintenant le poids des boules et des quilles, il faut
+        // rendre ça plus réaliste") — remplace l'ancien modèle par
+        // fractions empiriques (transfertFacteurEntreQuilles/
+        // amortissementRebondEntreQuilles côté quille, transfertFacteurMin/
+        // Max côté boule) par de VRAIS corps Arcade Physics circulaires
+        // avec masse réelle : Phaser calcule lui-même l'échange de vitesse
+        // par conservation de quantité de mouvement (collision élastique),
+        // cf. GameScene._creerQuilles / _processCollisionBouleQuille /
+        // _processCollisionQuilleQuille. Poids réel article 876 (table des
+        // quilles) : entre 2,700 et 2,850 kg — valeur moyenne retenue.
+        masseKg: 2.8,
+        // Restitution (rebond) Arcade Physics pour les corps quille — un
+        // choc entre 2 quilles (même masse) ou une quille encore debout
+        // qui sert de "mur" à une autre quille qui glisse (choc trop
+        // faible pour la faire tomber, cf. vitesseMinRenverseAutreQuillePct).
+        // Relevé le 01/09 (0.15→0.85, demande John) : dans Arcade Physics,
+        // `bounce` multiplie TOUTE la vitesse résultante du corps après un
+        // choc (pas seulement la composante réfléchie, contrairement à une
+        // restitution classique, cf. `separateCircle` du moteur) — à 0.15
+        // une quille renversée ne recevait presque aucune vitesse (elle
+        // basculait quasiment sur place), ce qui contredisait la demande
+        // du 30/08 ("la quille doit vraiment se déplacer"). Vérifié
+        // chiffré le 01/09 : à 0.15, un choc à vitesse d'impact 198 ne
+        // transmettait que ~3 de vitesse à la quille ; l'objectif est
+        // qu'elle glisse pour de vrai.
+        bounce: 0.85,
+        // Ralentissement d'une quille qui glisse après avoir été renversée
+        // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
+        // juste basculer sur place) — fraction de sa vitesse perdue par
+        // seconde, appliquée directement à `body.velocity` chaque frame
+        // (GameScene.update). Plus haut = elle s'arrête plus vite.
+        frictionGlissementPar_s: 4,
+        // Seuil de vitesse (% de hauteur écran/s) en dessous duquel une
+        // quille qui glisse et touche une quille encore debout ne la
+        // renverse pas (elle agit comme un mur immobile, cf.
+        // Body.immovable dans _processCollisionQuilleQuille) — règle
+        // fédérale du ricochet (quille qui revient de la fosse en renverse
+        // une autre, jets 12/16), simulée pour de vrai depuis le 31/08.
+        vitesseMinRenverseAutreQuillePct: 8
+    },
+
+    // --- Boule ---------------------------------------------------------------
+    boule: {
+        // Diamètre RÉEL : 20cm = 10% de la largeur de piste (tranché par
+        // John le 31/08, dernière passe — dernière pièce de la mise à
+        // l'échelle réelle : piste/grille de quilles/quille/boule suivent
+        // désormais TOUS la même base, this.pxParCm). Converti en pixels
+        // via GameScene.pxParCm, même échelle que la piste/les quilles.
+        diametreCm: 20,
+        vitessePctH_par_s: 55,       // vitesse de déplacement, % de hauteur écran / s
+        // Poids réel (article 876, table des boules — diamètre 20 → entre
+        // 5,4 et 5,7 kg) : environ 2× le poids d'une quille (2,8kg), cf.
+        // demande John 31/08. Utilisé par Arcade Physics (body.mass) pour
+        // calculer un échange de vitesse réaliste par conservation de
+        // quantité de mouvement à chaque collision — remplace l'ancien
+        // `transfertFacteurMin/Max` (fractions empiriques indépendantes
+        // du poids réel).
+        masseKg: 5.5,
+        // Restitution (rebond) Arcade Physics — utilisée quand la boule
+        // percute une quille qui reste debout (mur immobile, choc trop
+        // faible pour la renverser), et intervient aussi dans la vitesse
+        // qu'elle garde après avoir renversé une quille (`bounce` s'applique
+        // à TOUTE la vitesse résultante du corps, pas juste au rebond, cf.
+        // `separateCircle` du moteur — donc aussi au cas "elle continue tout
+        // droit"). Relevé le 01/09 (0.15→0.85, demande John, même
+        // raisonnement que `quille.bounce` ci-dessous) : à 0.15 la boule
+        // perdait ~85% de sa vitesse au moindre contact (198→28 mesuré),
+        // impossible d'enchaîner plusieurs quilles sur un même tir fort.
+        // Pas de correctif manuel sur la direction du rebond (retiré le
+        // 01/09, demande explicite de John : la physique réaliste — masse
+        // boule ≈ 2× masse quille — empêche déjà tout recul significatif
+        // sur un choc qui renverse une quille ; sur un choc qui n'en
+        // renverse aucune (mur), un léger recul visuel est désormais
+        // laissé possible, "le jeu le permet").
+        bounce: 0.85,
+        // Ralentissement continu appliqué à la boule à CHAQUE frame une
+        // fois qu'elle a touché au moins une quille (demande John, 30/08 :
+        // sans ça, une boule qui continue tout droit après un choc ne
+        // ralentit plus jamais toute seule). Fraction de vitesse perdue par
+        // seconde, en plus de l'éventuel rebond/transfert au contact lui-même.
+        // Abaissé le 31/08 (1.2→0.6, demande John) : la boule perdait déjà
+        // trop de vitesse ENTRE deux chocs pour espérer en renverser un 3e.
+        frictionApresChocPar_s: 0.6,
+        // Vitesse en dessous de laquelle la boule est considérée arrêtée
+        // (% de hauteur écran / s) — filet de sécurité après plusieurs
+        // rebonds qui l'ont ralentie, pour ne jamais la laisser trembler
+        // indéfiniment coincée entre des quilles.
+        vitesseArretPct: 5,
+        // Vitesse minimale (% de hauteur écran / s) pour RENVERSER une
+        // quille au contact (demande John, 30/08). En dessous, la boule
+        // rebondit quand même (choc réel, cf. TestScene._reagirCollision)
+        // mais la quille reste debout — trop lente pour avoir la force de
+        // la faire tomber. Entre `vitesseArretPct` (3) et la vitesse de
+        // lancer (55), pour laisser 2-3 quilles tomber sur un tir fort
+        // avant que la boule, ralentie par les rebonds, devienne trop
+        // faible.
+        vitesseMinRenversePct: 7,
+        // Vitesse du lancer = vitessePctH_par_s × un facteur qui dépend de
+        // la FORCE choisie (§ force ci-dessous), interpolé entre ces 2
+        // bornes (demande John, 30/08 : 2 boutons pour régler la force).
+        forceVitesseMinFacteur: 0.6,
+        forceVitesseMaxFacteur: 1.4
+    },
+
+    // --- Force du tir (2 boutons -/+ , colonne de droite au-dessus de
+    // « Tirer », demande John 30/08) --------------------------------------
+    // Plus la force est haute, plus le tir est rapide (boule.force*Facteur)
+    // MAIS plus il est risqué : la zone orange de la jauge de précision
+    // rétrécit (jauge.zoneOrangeLargeur Max→Min ci-dessous).
+    force: {
+        min: 0,
+        max: 100,
+        step: 10,        // incrément par clic sur -/+ (10 clics = min→max)
+        defaut: 50
+    },
+
+    // --- Jauge de précision (étape 2 du tir, réutilisation de 873 §5) -------
+    // Un seul élément mobile (l'aiguille) ; la zone orange (le bon endroit)
+    // est tirée au hasard une seule fois par tir et ne bouge plus. Sa
+    // LARGEUR dépend de la force choisie (interpolée Max→Min).
+    jauge: {
+        // ÷2 (demande John, 30/08 : l'aiguille allait trop vite à 1.1).
+        vitesseBalayagePar_s: 0.55,
+        zoneOrangeLargeurMaxPct: 24,   // force = 0 (facile)
+        zoneOrangeLargeurMinPct: 8,    // force = 100 (difficile)
+        delaiFeedbackMs: 500,
+        deviationAngleMaxDeg: 20,    // déviation angulaire max en cas d'arrêt raté extrême
+        largeurPct: 60,
+        hauteurU: 5
+    },
+
+    // --- Structure d'une partie (PRD §7-9) -----------------------------------
+    partie: {
+        // Nombre d'essais avant qu'un jet à ordre imposé (D/E) rejoué sans
+        // succès soit compté à 0 point (PRD §9, proposition retenue).
+        tentativesMax: 3
+    },
+
+    // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
+    // Indices de quilles 0-8, losange fond → avant (cf. en-tête de fichier) :
+    // 0 = fond ; 1,2 = rangée suivante (G/D) ; 3,4,5 = rangée du milieu, la
+    // plus large (G/CENTRE/D) ; 6,7 = rangée suivante (G/D) ; 8 = pointe
+    // avant. Même numérotation dans GameScene._creerQuilles. `prependerante`
+    // (jet 4 et figures 5-8) est un indice PROPRE À CHAQUE JET — « le Roi »
+    // n'est qu'un synonyme de « la quille prépondérante du jet en cours »,
+    // PAS une quille distincte à position fixe (5e passe, 31/08, cf.
+    // en-tête de fichier).
+    // type: 'plein' (phases A/B, 9 quilles, points = quilles tombées ×
+    //   pointsParQuille — ou, si `prependerante` est défini (jet 4),
+    //   × pointsSiPrependerante/pointsSinon selon qu'elle est tombée) |
+    //   'figure' (phase C, sous-ensemble de 4 quilles, points = quilles
+    //   tombées × (pointsSiPrependerante si la prépondérante est tombée,
+    //   sinon pointsSinon)) | 'ordre' (phases D/E, sous-ensemble FIGÉ POUR
+    //   TOUTE LA PHASE — persistance : les quilles restent tombées d'un
+    //   jet à l'autre —, `cible` = la seule quille à faire tomber CE jet,
+    //   `points` = valeur propre à ce jet, `ricochetAutorise` (jets 12/16
+    //   seulement) = si la cible ET la toute dernière quille de la phase
+    //   tombent ensemble, ce n'est pas une faute (exception fédérale) —
+    //   cf. GameScene._calculerOrdreJet / _demarrerJet.
+    jets: [
+        // --- Phase A — jeu plein (jets 1-3, 1 bois/quille, max 27) -------
+        { numero: 1, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        { numero: 2, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        { numero: 3, phase: "A", type: "plein", quillesDebout: "toutes", pointsParQuille: 1 },
+        // --- Phase B — jeu plein renforcé (jet 4, max 18) ----------------
+        // 2 bois/quille SI la prépondérante (idx8, pointe — cf. légende
+        // « ( ) » du diagramme Figure 2 de l'article 780, reconfirmée en
+        // 5e passe) est renversée, sinon 1 bois/quille.
+        { numero: 4, phase: "B", type: "plein", quillesDebout: "toutes",
+          prependerante: 8, pointsSiPrependerante: 2, pointsSinon: 1 },
+        // --- Phase C — figures (jets 5-8, 1 jet/figure, max 20 chacun) ---
+        // Sous-ensembles ET prépondérante VALIDÉS chiffre par chiffre par
+        // la grille officielle du club (article 780, légende 0/1/2)
+        // ajoutée par John en 3e passe — identiques à la 1re lecture de
+        // l'image Wikimedia, jamais remis en cause depuis (indépendants
+        // de toute notion de "Roi").
+        { numero: 5, phase: "C", type: "figure",
+          figure: { indices: [1, 4, 7, 8], prependerante: 8 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // Figure 2 : symétrique de la figure 1 (miroir gauche/droite).
+        { numero: 6, phase: "C", type: "figure",
+          figure: { indices: [2, 4, 6, 8], prependerante: 8 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        { numero: 7, phase: "C", type: "figure",
+          figure: { indices: [1, 4, 5, 7], prependerante: 7 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // Figure 4 : symétrique de la figure 3 (miroir gauche/droite).
+        { numero: 8, phase: "C", type: "figure",
+          figure: { indices: [2, 3, 4, 6], prependerante: 6 },
+          pointsSiPrependerante: 5, pointsSinon: 2, maxPoints: 20 },
+        // --- Phase D — ordre imposé court (jets 9-13, total 50) ----------
+        // Les 5 quilles (rangées 1 et milieu, idx 1/2/3/4/5) sont posées
+        // UNE FOIS pour toute la phase (persistance) ; l'ordre ET les
+        // points par quille (6/8/10/12/14) viennent de l'image Wikimedia.
+        // Exception fédérale sur le jet 12 (ricochet vers le jet 13).
+        { numero: 9, phase: "D", type: "ordre",
+          figure: { indices: [1, 2, 3, 4, 5] }, cible: 1, points: 6 },
+        { numero: 10, phase: "D", type: "ordre",
+          figure: { indices: [1, 2, 3, 4, 5] }, cible: 2, points: 8 },
+        { numero: 11, phase: "D", type: "ordre",
+          figure: { indices: [1, 2, 3, 4, 5] }, cible: 4, points: 10 },
+        { numero: 12, phase: "D", type: "ordre", ricochetAutorise: true,
+          figure: { indices: [1, 2, 3, 4, 5] }, cible: 3, points: 12 },
+        { numero: 13, phase: "D", type: "ordre",
+          figure: { indices: [1, 2, 3, 4, 5] }, cible: 5, points: 14 },
+        // --- Phase E — ordre imposé long (jets 14-17, total 25) ----------
+        // 4 quilles debout (rangée 1 + milieu-centre + pointe avant, idx
+        // 1/2/4/8), posées UNE FOIS pour toute la phase (persistance) ;
+        // ordre ET points (5/5/10/5) lus sur l'image Wikimedia. Exception
+        // fédérale sur le jet 16 (ricochet vers le jet 17).
+        { numero: 14, phase: "E", type: "ordre",
+          figure: { indices: [1, 2, 4, 8] }, cible: 1, points: 5 },
+        { numero: 15, phase: "E", type: "ordre",
+          figure: { indices: [1, 2, 4, 8] }, cible: 2, points: 5 },
+        { numero: 16, phase: "E", type: "ordre", ricochetAutorise: true,
+          figure: { indices: [1, 2, 4, 8] }, cible: 8, points: 10 },
+        { numero: 17, phase: "E", type: "ordre",
+          figure: { indices: [1, 2, 4, 8] }, cible: 4, points: 5 }
+    ],
+
+    // --- Couleurs (vue du dessus, piste couverte — pas de vent/nuit) --------
+    couleurs: {
+        ciel: "#12161f",
+        piste: "#7a5233",           // brun (bois/asphalte) — demande John : piste visible
+        pisteBord: "#4a3220",
+        recul: "#0e1420",
+        texte: "#e8eef7",
+        texteSombre: "#141210",
+        // Panneau lumineux du vrai jeu (demande John 31/08) : les 9 quilles
+        // sont TOUTES identiques physiquement, seul l'affichage varie.
+        // quilleBase = base neutre de la texture "quille" (tintée en jaune
+        // ou rouge au runtime, cf. GameScene._appliquerEtatQuille) ;
+        // quilleEnPlace = JAUNE (debout, pas prépondérante) ;
+        // quillePreponderante = ROUGE (debout ET prépondérante du jet en
+        // cours) ; quilleTombee = BLANC (couchée au sol, texture
+        // "quilleTombee", rectangle — jamais tintée).
+        quilleBase: "#ffffff",
+        quilleEnPlace: "#f4c430",
+        quillePreponderante: "#e5484d",
+        quilleTombee: "#ffffff",
+        quilleContour: "#2b3547",
+        boule: 0xff7a1a,
+        bouleClair: 0xffd23f,
+        ombreBoule: 0x000000,
+        trajectoire: "#8fd3ff",
+        cercle: "#8fd3ff",
+        bouton: "#2E9E4F",
+        boutonRotation: "#1d3557",
+        force: "#e08f2b",
+        jaugeFond: "#14212b",
+        jaugeBarre: "#2E9E4F",
+        jaugeZoneOrange: "#ff8c1a",
+        jaugeAiguille: "#ffffff",
+        resultat: "#ffd23f"
+    }
+};

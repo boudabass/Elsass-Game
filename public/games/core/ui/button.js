@@ -21,6 +21,11 @@
  *                               // au-dessus de « Acheter » en boutique)
  *       couleurLigneHaut: "#F2B93D",
  *       couleur: "#141210",     // fond du bouton — NOIR par défaut
+ *       alphaCorps: 1,           // OPTIONNEL : opacité du fond (< 0.9 =
+ *                                // tuile translucide, ex. menu, sans le
+ *                                // voile clair du dessus)
+ *       contourAlpha: 0,         // OPTIONNEL : liseré blanc léger (tuile
+ *                                // translucide du menu)
  *       ombre: "rgba(20,18,16,0.28)",
  *       police: "system-ui, …",
  *       textColor: "#ffffff",
@@ -157,6 +162,13 @@
     Arcade.UI.bouton = function (scene, o) {
         o = o || {};
 
+        // alphaCorps / contourAlpha (25/08, refonte menu) : tuile translucide
+        // (fond blanc semi-transparent + liseré blanc léger) pour les
+        // boutons secondaires du nouveau menu principal — PAS un nouveau
+        // mode, juste 2 options optionnelles sur le rendu existant. Défauts
+        // (1 / 0) : aucun changement pour les boutons déjà en place.
+        var alphaCorps = (typeof o.alphaCorps === "number") ? o.alphaCorps : 1;
+        var contourAlpha = (typeof o.contourAlpha === "number") ? o.contourAlpha : 0;
         var couleur = o.couleur || "#141210";
         // NOIR par défaut (boutons secondaires — Niveaux, Personnages,
         // Boutique, Classement ; décision John 08/08 : couleur PAR BOUTON).
@@ -340,16 +352,29 @@
             ombreG.setPosition(x, y);
             // Corps du bouton (couleur du jeu).
             corps.clear();
-            corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, 1);
+            corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, alphaCorps);
             corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
+            // Liseré clair optionnel (tuile translucide du menu) : le voile
+            // du dessous suffit à distinguer un bouton opaque, mais une
+            // tuile translucide a besoin d'un contour pour rester lisible
+            // sur un fond qui peut être clair par endroits.
+            if (contourAlpha > 0) {
+                corps.lineStyle(Math.max(1, hauteur * 0.015), 0xffffff, contourAlpha);
+                corps.strokeRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
+            }
             // Dégradé léger : voile clair sur la moitié haute (spec 709).
             // Coins HAUTS au rayon du bouton (le voile épouse le corps),
             // coins BAS droits : le rayon du corps vaut 58 % de la hauteur
             // du voile, ses coins bas s'arrondissaient donc en plein milieu
-            // du bouton au lieu de couper net (25/08).
-            corps.fillStyle(0xffffff, 0.16);
-            corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
-                largeur, hauteur * 0.52, { tl: r, tr: r, bl: 0, br: 0 });
+            // du bouton au lieu de couper net (25/08). Sauté pour les tuiles
+            // translucides (alphaCorps < 0.9) : le voile blanc par-dessus un
+            // fond déjà translucide ferait un bloc trop clair, pas l'effet
+            // "verre dépoli" recherché.
+            if (alphaCorps >= 0.9) {
+                corps.fillStyle(0xffffff, 0.16);
+                corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
+                    largeur, hauteur * 0.52, { tl: r, tr: r, bl: 0, br: 0 });
+            }
             corps.setPosition(x, y);
 
             var coteIcone = hauteur * 0.45;  // même proportion partout

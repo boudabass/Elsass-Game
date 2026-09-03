@@ -92,7 +92,7 @@ window.WaggisConfig = {
 
         // « Retour » ramène au menu depuis les écrans du menu (Niveaux,
         // Personnages, Boutique, Réglages, Classement).
-        retour: "Retour",
+        retour: "Quitter",
 
         // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
         // art. 704 Chantier B) : libellés affichés SOUS les icônes

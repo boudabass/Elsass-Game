@@ -1,5 +1,5 @@
 /*
- * SMOKE TEST du harnais QA — navigation réelle sur arcade-dev (waggis v1).
+ * SMOKE TEST du harnais QA — navigation réelle sur elsass-game-dev (waggis v1).
  *
  * Preuve que le harnais fonctionne : chargement du jeu, attente de la scène
  * menu, lecture de l'état Phaser (clé de scène active, boutons), screenshot
@@ -8,7 +8,7 @@
  * Usage : python3 qa/runner.py qa/scenarios/smoke_arcade.js --out <dir>
  */
 export default async ({ page }) => {
-  const GAME_URL = "https://arcade-dev.theelsassisch.com/games/waggis/v1/index.html?gid=3";
+  const GAME_URL = "https://elsass-game-dev.theelsassisch.com/games/waggis/v1/index.html?gid=3";
   const EMAIL = "lacolleacervelle+admin@gmail.com";
   const MDP = "jonjon";
 

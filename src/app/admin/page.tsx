@@ -43,8 +43,8 @@ export default async function AdminPage() {
   const detected = detectGames().filter((d) => !knownUrls.has(d.url));
 
   return (
-    <div className="container mx-auto py-8 space-y-8 animate-in fade-in duration-500">
-      <div className="border-b pb-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="border-b border-elsass-line pb-6">
         <h1 className="font-heading text-3xl text-elsass-ink sm:text-4xl flex items-center gap-3">
           <Settings className="w-8 h-8 text-elsass-red" />
           Gestion du catalogue
@@ -55,57 +55,62 @@ export default async function AdminPage() {
         </p>
       </div>
 
-      {/* Jeux détectés dans le dossier public/games */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FolderSearch className="w-5 h-5 text-elsass-red" /> Jeux détectés dans le dossier
-          </CardTitle>
-          <CardDescription>
-            Trouvés dans <code>public/games/</code> et pas encore au catalogue. Un clic pour les ajouter (ils arrivent en « Publié » : masque-les ensuite si besoin).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {detected.length === 0 ? (
-            <p className="text-muted-foreground italic">Rien à ajouter : tous les jeux du dossier sont déjà au catalogue.</p>
-          ) : (
-            detected.map((d) => (
-              <form key={d.url} action={addGameAction} className="flex flex-wrap items-center gap-3 border rounded-lg p-3">
-                <input type="hidden" name="url" value={d.url} />
-                <code className="text-xs bg-elsass-line/50 px-2 py-1 rounded">{d.url}</code>
-                <Input name="name" defaultValue={d.suggestedName} className="w-48" required />
-                <Input name="id" type="number" placeholder="ID (auto)" className="w-28" />
-                <Button type="submit" size="sm" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
-                  <Plus className="w-4 h-4 mr-1" /> Ajouter
-                </Button>
-              </form>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      {/* Outil interne, hors mockup mobile : garde toute la largeur dispo,
+          les 2 cartes se répartissent côte à côte dès `lg` au lieu de rester
+          empilées sur un desktop qui a la place. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Jeux détectés dans le dossier public/games */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderSearch className="w-5 h-5 text-elsass-red" /> Jeux détectés dans le dossier
+            </CardTitle>
+            <CardDescription>
+              Trouvés dans <code>public/games/</code> et pas encore au catalogue. Un clic pour les ajouter (ils arrivent en « Publié » : masque-les ensuite si besoin).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {detected.length === 0 ? (
+              <p className="text-muted-foreground italic">Rien à ajouter : tous les jeux du dossier sont déjà au catalogue.</p>
+            ) : (
+              detected.map((d) => (
+                <form key={d.url} action={addGameAction} className="flex flex-wrap items-center gap-3 border rounded-lg p-3">
+                  <input type="hidden" name="url" value={d.url} />
+                  <code className="text-xs bg-elsass-line/50 px-2 py-1 rounded">{d.url}</code>
+                  <Input name="name" defaultValue={d.suggestedName} className="w-48" required />
+                  <Input name="id" type="number" placeholder="ID (auto)" className="w-28" />
+                  <Button type="submit" size="sm" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
+                    <Plus className="w-4 h-4 mr-1" /> Ajouter
+                  </Button>
+                </form>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Ajout d'un jeu */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-elsass-red" /> Ajouter un jeu
-          </CardTitle>
-          <CardDescription>
-            URL = chemin du jeu, ex. <code>/games/_template/v1/index.html</code>. ID vide = automatique.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={addGameAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input name="name" placeholder="Nom du jeu" required />
-            <Input name="url" placeholder="/games/mon-jeu/v1/index.html" required />
-            <Textarea name="description" placeholder="Description (optionnel)" className="md:col-span-2" />
-            <Input name="id" type="number" placeholder="ID (optionnel, sinon auto)" />
-            <Button type="submit" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
-              <Plus className="mr-2 w-4 h-4" /> Ajouter
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Ajout d'un jeu */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-elsass-red" /> Ajouter un jeu
+            </CardTitle>
+            <CardDescription>
+              URL = chemin du jeu, ex. <code>/games/_template/v1/index.html</code>. ID vide = automatique.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={addGameAction} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input name="name" placeholder="Nom du jeu" required />
+              <Input name="url" placeholder="/games/mon-jeu/v1/index.html" required />
+              <Textarea name="description" placeholder="Description (optionnel)" className="md:col-span-2" />
+              <Input name="id" type="number" placeholder="ID (optionnel, sinon auto)" />
+              <Button type="submit" className="bg-elsass-red hover:bg-elsass-red/90 text-white">
+                <Plus className="mr-2 w-4 h-4" /> Ajouter
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Liste des jeux */}
       <Card>
