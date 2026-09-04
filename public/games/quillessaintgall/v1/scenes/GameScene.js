@@ -29,11 +29,18 @@
  *      documentée dans l'en-tête de config.js).
  *   4. L'ÉCRAN DE FIN DE PARTIE (jet 17 résolu) : score final /200,
  *      envoi à Arcade.Score (meilleur score), bouton pour rejouer une
- *      partie complète depuis le jet 1.
+ *      partie complète depuis le jet 1, ou revenir au menu (changer de
+ *      palier).
  *
- * Volontairement HORS SCOPE (PRD §10/12, non tranché par John) : paliers
- * de difficulté, mode tutoriel, scène Menu séparée — la partie démarre
- * directement au jet 1 à l'ouverture du jeu, comme le spike.
+ * AJOUTÉ le 04/09/2026 (PRD §10/12, tranché par John) : palier de
+ * difficulté choisi dans MenuScene (nouvelle scène), reçu ici via
+ * `data.palier` — 'normal' par défaut si la scène est lancée sans passer
+ * par le menu. Décision explicite de John : la difficulté NE TOUCHE
+ * JAMAIS aux règles d'une partie (toujours 17 jets, 6 phases, barème
+ * fixe, pas de mode tutoriel séparé/raccourci) — seulement 3 leviers sur
+ * la PRÉCISION du tir (config.paliers) : vitesse de l'aiguille de la
+ * jauge (_avancerJauge), largeur de sa zone orange (_demarrerJauge),
+ * longueur de la ligne d'aide à la visée (_dessinerVisee).
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -88,7 +95,20 @@ class GameScene extends Phaser.Scene {
         g.destroy();
     }
 
-    create() {
+    create(data) {
+        const C = window.QuillesSaintGallConfig;
+
+        // Palier de difficulté choisi dans MenuScene (§10/12, ajouté le
+        // 04/09/2026) — 'normal' par défaut si la scène est lancée
+        // directement sans passer par le menu (lien direct, debug). Ne
+        // touche JAMAIS aux règles de la partie (toujours 17 jets, 6
+        // phases, barème fixe) — seulement 3 leviers sur la PRÉCISION du
+        // tir (cf. _demarrerJauge / _avancerJauge / _dessinerVisee),
+        // décision explicite de John : pas de mode tutoriel séparé, pas de
+        // quilles/jauge modifiées en taille, juste ces 3 leviers.
+        this.palier = (data && C.paliers[data.palier]) ? data.palier : "normal";
+        this.palierConf = C.paliers[this.palier];
+
         // Vue du dessus : pas de gravité de monde.
         this.physics.world.gravity.y = 0;
 
@@ -106,6 +126,7 @@ class GameScene extends Phaser.Scene {
         this.jaugeZoneOrangeLargeurPctActuelle = window.QuillesSaintGallConfig.jauge.zoneOrangeLargeurMaxPct;
         this.feedbackRestant = 0;
         this.boutonRejouer = null;
+        this.boutonMenu = null;
 
         this._creerDecor();
         this._creerQuilles();
@@ -321,6 +342,16 @@ class GameScene extends Phaser.Scene {
             textColor: C.couleurs.texte,
             onClick: () => this._demarrerPartie()
         });
+        // Retour au menu (§10/12, ajouté 04/09) : seul moyen de CHANGER de
+        // palier — « Rejouer » garde le palier en cours (this.palierConf
+        // inchangé, cf. _demarrerPartie).
+        if (this.boutonMenu) { this.boutonMenu.destroy(); this.boutonMenu = null; }
+        this.boutonMenu = Arcade.UI.bouton(this, {
+            label: C.textes.menu,
+            couleur: C.couleurs.boutonRotation,
+            textColor: C.couleurs.texte,
+            onClick: () => this.scene.start(MenuScene.KEY)
+        });
 
         this._positionnerTextes();
     }
@@ -356,6 +387,7 @@ class GameScene extends Phaser.Scene {
 
     _masquerRetourJet() {
         if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
+        if (this.boutonMenu) { this.boutonMenu.destroy(); this.boutonMenu = null; }
         this.texteResultat.setVisible(false).setText("");
     }
 
@@ -701,7 +733,9 @@ class GameScene extends Phaser.Scene {
     _creerTextes() {
         const C = window.QuillesSaintGallConfig;
         this.texteTitre = Arcade.UI.text(this, 0, 0, C.titre, 7, C.couleurs.texte).setDepth(21);
-        this.texteSousTitre = Arcade.UI.text(this, 0, 0, C.textes.sousTitre, 3, C.couleurs.texte).setDepth(21);
+        this.texteSousTitre = Arcade.UI.text(this, 0, 0,
+            C.textes.sousTitre.replace("{palier}", this.palierConf.label),
+            3, C.couleurs.texte).setDepth(21);
         this.consigne1 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne1, 3.2, C.couleurs.texte).setDepth(21);
         this.consigne2 = Arcade.UI.text(this, 0, 0, C.textes.consigneLigne2, 3.2, C.couleurs.texte).setDepth(21);
         this.texteJauge = Arcade.UI.text(this, 0, 0, C.textes.arreter, 4, C.couleurs.texte)
@@ -1287,10 +1321,15 @@ class GameScene extends Phaser.Scene {
         // position actuelle de la boule (angle 0 = tout droit vers le haut).
         const angleRad = Phaser.Math.DegToRad(this.aimAngleDeg);
         const dirX = Math.sin(angleRad), dirY = -Math.cos(angleRad);
-        const longueur = this.bouleY;
+        // Palier de difficulté : longueur de la ligne d'aide à la visée
+        // (§10/12, choisi dans MenuScene) — pleine longueur en facile,
+        // absente en difficile (facteur 0), le joueur juge seul l'angle.
+        const longueur = this.bouleY * this.palierConf.aideViseeLongueurFacteur;
         this.viseeG.lineStyle(UI.u(this, 0.5), coul, 0.9);
-        this.viseeG.lineBetween(this.bouleX, this.bouleY,
-            this.bouleX + dirX * longueur, this.bouleY + dirY * longueur);
+        if (longueur > 0) {
+            this.viseeG.lineBetween(this.bouleX, this.bouleY,
+                this.bouleX + dirX * longueur, this.bouleY + dirY * longueur);
+        }
         this.viseeG.strokeCircle(this.bouleX, this.bouleY, UI.u(this, 3));
     }
 
@@ -1308,8 +1347,14 @@ class GameScene extends Phaser.Scene {
         // tir peut être dévié — la zone orange se réduit). Figée ici, ne
         // change plus pendant la jauge même si on pouvait toucher -/+.
         const t = (this.force - C.force.min) / (C.force.max - C.force.min);
-        this.jaugeZoneOrangeLargeurPctActuelle = C.jauge.zoneOrangeLargeurMaxPct +
+        const largeurSelonForce = C.jauge.zoneOrangeLargeurMaxPct +
             t * (C.jauge.zoneOrangeLargeurMinPct - C.jauge.zoneOrangeLargeurMaxPct);
+        // Palier de difficulté (§10/12, choisi dans MenuScene) : multiplicateur
+        // appliqué PAR-DESSUS le calcul selon la force ci-dessus, avec un
+        // plancher absolu pour rester jouable même à force 100% en difficile.
+        this.jaugeZoneOrangeLargeurPctActuelle = Math.max(
+            C.jauge.largeurMinAbsoluePct,
+            largeurSelonForce * this.palierConf.zoneOrangeMultiplicateur);
 
         const demiOrange = this.jaugeZoneOrangeLargeurPctActuelle / 200;
         this.jaugeZoneCentre = demiOrange + Math.random() * (1 - 2 * demiOrange);
@@ -1323,8 +1368,11 @@ class GameScene extends Phaser.Scene {
     _avancerJauge(dt) {
         const C = window.QuillesSaintGallConfig;
         this.jaugeTemps += dt;
+        // Palier de difficulté : multiplicateur sur la vitesse de balayage
+        // de l'aiguille (§10/12, choisi dans MenuScene).
+        const vitesse = C.jauge.vitesseBalayagePar_s * this.palierConf.vitesseBalayageMultiplicateur;
         this.jaugeNeedle = 0.5 + 0.5 *
-            Math.sin(2 * Math.PI * C.jauge.vitesseBalayagePar_s * this.jaugeTemps);
+            Math.sin(2 * Math.PI * vitesse * this.jaugeTemps);
         this._dessinerJaugeBarre();
     }
 
@@ -1615,6 +1663,13 @@ class GameScene extends Phaser.Scene {
         if (this.boutonRejouer) {
             this.boutonRejouer.redimensionner(UI.u(this, 30), UI.u(this, 10))
                 .setPosition(pisteCentreX, this.ligneLancerY * 0.75);
+        }
+
+        // Bouton Menu : seulement présent sur l'écran de FIN DE PARTIE
+        // (pas sur le retour entre 2 jets), juste sous Rejouer.
+        if (this.boutonMenu) {
+            this.boutonMenu.redimensionner(UI.u(this, 30), UI.u(this, 10))
+                .setPosition(pisteCentreX, this.ligneLancerY * 0.75 + UI.u(this, 12));
         }
     }
 

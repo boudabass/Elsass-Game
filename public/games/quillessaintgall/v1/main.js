@@ -14,8 +14,8 @@
     Arcade.boot({
         key: C.key,
         backgroundColor: C.couleurs.ciel,
-        scenes: [GameScene],
-        firstScene: GameScene.KEY,
+        scenes: [MenuScene, GameScene],
+        firstScene: MenuScene.KEY,
 
         // Chargement : aucune image téléchargée, les textures (quille,
         // boule) sont DESSINÉES puis mises en mémoire par Phaser.
