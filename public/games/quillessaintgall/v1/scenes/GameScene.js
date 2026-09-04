@@ -1346,12 +1346,19 @@ class GameScene extends Phaser.Scene {
         const longueur = aide.tailleBoule
             ? this.pxParCm * C.boule.diametreCm
             : this.bouleY * aide.pctPiste;
+        // Le trait part du BORD du repère rond (pas du centre de la
+        // boule) : en difficile, un trait de la taille de la boule tracé
+        // depuis le centre restait entièrement caché sous ce repère (plus
+        // grand que le trait lui-même) — invisible en pratique, alors que
+        // le but est justement de voir la rotation choisie.
+        const rayonRepere = UI.u(this, 3);
         this.viseeG.lineStyle(UI.u(this, 0.5), coul, 0.9);
         if (longueur > 0) {
-            this.viseeG.lineBetween(this.bouleX, this.bouleY,
-                this.bouleX + dirX * longueur, this.bouleY + dirY * longueur);
+            this.viseeG.lineBetween(
+                this.bouleX + dirX * rayonRepere, this.bouleY + dirY * rayonRepere,
+                this.bouleX + dirX * (rayonRepere + longueur), this.bouleY + dirY * (rayonRepere + longueur));
         }
-        this.viseeG.strokeCircle(this.bouleX, this.bouleY, UI.u(this, 3));
+        this.viseeG.strokeCircle(this.bouleX, this.bouleY, rayonRepere);
     }
 
     // --- Jauge de précision (étape 2) -----------------------------------------
