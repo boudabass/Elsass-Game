@@ -1037,6 +1037,21 @@ class GameScene extends Phaser.Scene {
         this.texteCompteur.setFontSize(Math.round(UI.u(this, 3.2)) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.texteCompteur.displayHeight / 2);
+        curY += this.texteCompteur.displayHeight + UI.u(this, 2.5);
+
+        // --- Consignes de tir, 2 lignes (sous le compteur) — DÉPLACÉES ICI
+        // le 04/09/2026 (demande John : elles étaient centrées sur la
+        // piste et s'y chevauchaient, elles doivent être dans la colonne
+        // de droite, comme le reste du texte). Empilage par hauteur
+        // mesurée, même principe que titre/sous-titre/compteur ci-dessus.
+        this.consigne1.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+            .setWordWrapWidth(w3 * 0.85, true)
+            .setPosition(xCentre, curY + this.consigne1.displayHeight / 2);
+        curY += this.consigne1.displayHeight + UI.u(this, 1);
+
+        this.consigne2.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+            .setWordWrapWidth(w3 * 0.85, true)
+            .setPosition(xCentre, curY + this.consigne2.displayHeight / 2);
     }
 
     // --- Quilles ---------------------------------------------------------------
@@ -1322,9 +1337,15 @@ class GameScene extends Phaser.Scene {
         const angleRad = Phaser.Math.DegToRad(this.aimAngleDeg);
         const dirX = Math.sin(angleRad), dirY = -Math.cos(angleRad);
         // Palier de difficulté : longueur de la ligne d'aide à la visée
-        // (§10/12, choisi dans MenuScene) — pleine longueur en facile,
-        // absente en difficile (facteur 0), le joueur juge seul l'angle.
-        const longueur = this.bouleY * this.palierConf.aideViseeLongueurFacteur;
+        // (§10/12, choisi dans MenuScene) — fraction de la piste en
+        // facile/normal, OU un petit trait FIXE de la taille de la boule
+        // en difficile (demande John 04/09 : sans aucune ligne on ne voit
+        // plus du tout la rotation choisie — il faut un repère minimal,
+        // pas une fraction qui deviendrait invisible).
+        const aide = this.palierConf.aideVisee;
+        const longueur = aide.tailleBoule
+            ? this.pxParCm * C.boule.diametreCm
+            : this.bouleY * aide.pctPiste;
         this.viseeG.lineStyle(UI.u(this, 0.5), coul, 0.9);
         if (longueur > 0) {
             this.viseeG.lineBetween(this.bouleX, this.bouleY,
@@ -1633,20 +1654,11 @@ class GameScene extends Phaser.Scene {
         // texteCompteur (jet n/17 + score) : positionné dans
         // _positionnerColonneInfo (colonne d'info, en haut) — pas ici.
 
-        // Consignes/résultat/rejouer : positionnés en % de LA PISTE
-        // (this.ligneLancerY), PAS % d'écran — demande John 31/08, 3e
-        // passe : depuis que ligneLancerY suit le ratio 1×3 (peut être
-        // bien moins que ~80% de l'écran), un % d'écran fixe pouvait
-        // tomber SOUS ligneLancerY, dans la zone de tir, et chevaucher le
-        // demi-cercle/la boule (même souci que pour les quilles, cf.
-        // _positionnerQuilles).
-        if (this.consigne1.visible) {
-            this.consigne1.setPosition(pisteCentreX, this.ligneLancerY * 0.7)
-                .setFontSize(Math.round(UI.u(this, 3.2)) + "px");
-            this.consigne2.setPosition(pisteCentreX, this.ligneLancerY * 0.7 + UI.u(this, 4.2))
-                .setFontSize(Math.round(UI.u(this, 3.2)) + "px")
-                .setWordWrapWidth(wp * 0.85, true);
-        }
+        // Consignes : DÉPLACÉES dans la colonne d'info le 04/09/2026
+        // (demande John : les 2 lignes en blanc sur la piste se
+        // chevauchaient, elles doivent être « sur la droite ») — cf.
+        // _positionnerColonneInfo. Résultat/rejouer restent ici, centrés
+        // sur LA PISTE (this.ligneLancerY), inchangé.
 
         if (this.texteJauge.visible) {
             this.texteJauge.setPosition(pisteCentreX,

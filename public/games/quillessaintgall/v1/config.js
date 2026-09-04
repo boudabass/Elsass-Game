@@ -424,10 +424,16 @@ window.QuillesSaintGallConfig = {
     //   - zoneOrangeMultiplicateur : multiplie la largeur de la zone orange
     //     déjà calculée selon la force (GameScene._demarrerJauge) — zone
     //     plus étroite = plus dur à viser juste.
-    //   - aideViseeLongueurFacteur : fraction de la ligne d'aide à la visée
-    //     (la trajectoire bleue) affichée pendant le placement
-    //     (GameScene._dessinerVisee) — 0 = aucune ligne, le joueur juge
-    //     l'angle seul.
+    //   - aideVisee : longueur de la ligne d'aide à la visée (la
+    //     trajectoire bleue) affichée pendant le placement
+    //     (GameScene._dessinerVisee), sous 2 formes possibles —
+    //     { pctPiste } = fraction de la longueur totale de la piste
+    //     (facile/normal), OU { tailleBoule: true } = un petit trait FIXE,
+    //     de la même taille que le diamètre de la boule (difficile —
+    //     demande John 04/09 : "on ne voit plus du tout vers où va la
+    //     balle" avec 0, "il faut laisser un petit trait de la même
+    //     taille que la balle, sinon on ne voit jamais la rotation" — pas
+    //     une fraction de la piste, un repère minimal constant).
     // `label` : libellé du bouton dans MenuScene ET du sous-titre en jeu
     // (config.textes.sousTitre) — une seule source pour les deux.
     paliers: {
@@ -435,19 +441,19 @@ window.QuillesSaintGallConfig = {
             label: "Facile",
             vitesseBalayageMultiplicateur: 0.7,
             zoneOrangeMultiplicateur: 1.4,
-            aideViseeLongueurFacteur: 1
+            aideVisee: { pctPiste: 1 }
         },
         normal: {
             label: "Normal",
             vitesseBalayageMultiplicateur: 1,
             zoneOrangeMultiplicateur: 1,
-            aideViseeLongueurFacteur: 1
+            aideVisee: { pctPiste: 0.5 }
         },
         difficile: {
             label: "Difficile",
             vitesseBalayageMultiplicateur: 1.4,
             zoneOrangeMultiplicateur: 0.6,
-            aideViseeLongueurFacteur: 0
+            aideVisee: { tailleBoule: true }
         }
     },
 
