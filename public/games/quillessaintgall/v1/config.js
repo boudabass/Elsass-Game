@@ -122,7 +122,13 @@ window.QuillesSaintGallConfig = {
 
     // --- Textes (libellés français, tous les textes joueur) ----------------
     textes: {
-        sousTitre: "Partie complète — 17 jets, 6 phases",
+        // {palier} : remplacé par config.paliers[x].label (GameScene._creerTextes).
+        sousTitre: "Partie complète — 17 jets, 6 phases · {palier}",
+
+        // --- Menu (choix du palier de difficulté, ajouté 04/09/2026,
+        // PRD §10/12) ------------------------------------------------------
+        menuSousTitre: "Choisis ta difficulté",
+        menu: "Menu",
         consigneLigne1: "Place la boule, oriente avec ◄ ►",
         consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
         force: "Force",
@@ -399,7 +405,56 @@ window.QuillesSaintGallConfig = {
         delaiFeedbackMs: 500,
         deviationAngleMaxDeg: 20,    // déviation angulaire max en cas d'arrêt raté extrême
         largeurPct: 60,
-        hauteurU: 5
+        hauteurU: 5,
+        // Largeur MINIMALE de la zone orange une fois le multiplicateur de
+        // palier appliqué (cf. `paliers` ci-dessous) — évite qu'un palier
+        // difficile combiné à une force à 100% ne rende la jauge quasi
+        // impossible à réussir (GameScene._demarrerJauge).
+        largeurMinAbsoluePct: 3
+    },
+
+    // --- Paliers de difficulté (PRD §10/12, ajoutés 04/09/2026 — choisis
+    // dans MenuScene avant la partie) ----------------------------------------
+    // Décision explicite de John : la difficulté ne touche JAMAIS les
+    // règles d'une partie (toujours 17 jets, 6 phases, barème fixe, pas de
+    // mode tutoriel/partie raccourcie) — seulement 3 leviers sur la
+    // PRÉCISION du tir, fixés une fois pour toute la partie :
+    //   - vitesseBalayageMultiplicateur : multiplie jauge.vitesseBalayagePar_s
+    //     (GameScene._avancerJauge) — aiguille plus rapide = plus dur à arrêter.
+    //   - zoneOrangeMultiplicateur : multiplie la largeur de la zone orange
+    //     déjà calculée selon la force (GameScene._demarrerJauge) — zone
+    //     plus étroite = plus dur à viser juste.
+    //   - aideVisee : longueur de la ligne d'aide à la visée (la
+    //     trajectoire bleue) affichée pendant le placement
+    //     (GameScene._dessinerVisee), sous 2 formes possibles —
+    //     { pctPiste } = fraction de la longueur totale de la piste
+    //     (facile/normal), OU { tailleBoule: true } = un petit trait FIXE,
+    //     de la même taille que le diamètre de la boule (difficile —
+    //     demande John 04/09 : "on ne voit plus du tout vers où va la
+    //     balle" avec 0, "il faut laisser un petit trait de la même
+    //     taille que la balle, sinon on ne voit jamais la rotation" — pas
+    //     une fraction de la piste, un repère minimal constant).
+    // `label` : libellé du bouton dans MenuScene ET du sous-titre en jeu
+    // (config.textes.sousTitre) — une seule source pour les deux.
+    paliers: {
+        facile: {
+            label: "Facile",
+            vitesseBalayageMultiplicateur: 0.7,
+            zoneOrangeMultiplicateur: 1.4,
+            aideVisee: { pctPiste: 1 }
+        },
+        normal: {
+            label: "Normal",
+            vitesseBalayageMultiplicateur: 1,
+            zoneOrangeMultiplicateur: 1,
+            aideVisee: { pctPiste: 0.5 }
+        },
+        difficile: {
+            label: "Difficile",
+            vitesseBalayageMultiplicateur: 1.4,
+            zoneOrangeMultiplicateur: 0.6,
+            aideVisee: { tailleBoule: true }
+        }
     },
 
     // --- Structure d'une partie (PRD §7-9) -----------------------------------
