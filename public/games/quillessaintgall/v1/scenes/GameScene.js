@@ -22,11 +22,13 @@
  *      quilles tombées EN DIRECT du spike (PRD §3).
  *   3. L'ORDRE IMPOSÉ (phases D/E) : la chute de chaque quille est
  *      horodatée (`ordreChute`) pendant le jet ; à l'arrêt de la boule,
- *      on vérifie que les quilles REQUISES sont tombées dans le bon
- *      ordre, sans que 2 d'entre elles tombent au même frame (sinon jet
- *      ANNULÉ, quilles relevées, jusqu'à `config.partie.tentativesMax`
- *      essais — cf. _calculerOrdreJet, interprétation prototype
- *      documentée dans l'en-tête de config.js).
+ *      on distingue 2 cas (PRD 875 §9, décision John 09/09/2026) :
+ *      - cible non tombée SANS violation → 0 point, jet suivant (art. 877
+ *        art. 10) ;
+ *      - violation (ordre non respecté, 2+ quilles requises simultanément
+ *        hors ricochet) → les quilles requises du jet se relèvent,
+ *        réédition SANS LIMITE de reprises.
+ *      Cf. _calculerOrdreJet.
  *   4. L'ÉCRAN DE FIN DE PARTIE (jet 17 résolu) : score final /200,
  *      envoi à Arcade.Score (meilleur score), bouton pour rejouer une
  *      partie complète depuis le jet 1, ou revenir au menu (changer de
@@ -461,8 +463,11 @@ class GameScene extends Phaser.Scene {
      *     uniquement) : la cible ET la TOUTE DERNIÈRE quille de la phase
      *     tombent ENSEMBLE (ricochet), rien d'autre → pas une faute, les
      *     2 jets sont validés d'un coup (cf. _jetTermine, avance de 2) ;
-     *   - tout autre cas (cible non tombée, ou une AUTRE quille tombe) →
-     *     jet annulé (nouvel essai, article 11).
+     *   - aucune quille requise ne tombe → PAS une faute (art. 877
+     *     art. 10), jet compté 0 point, on passe au jet suivant ;
+     *   - tout autre cas (mauvaise quille, 2+ quilles requises
+     *     simultanément hors ricochet) → violation : les quilles requises
+     *     du jet se relèvent, réédition SANS LIMITE de reprises.
      */
     _calculerOrdreJet(jc) {
         const chutes = this.ordreChute.filter((c) => jc.figure.indices.includes(c.index));
@@ -478,8 +483,17 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        if (indicesChus.length !== 1 || indicesChus[0] !== jc.cible) return { annule: true };
-        return { annule: false, points: jc.points };
+        // Aucune quille de la figure n'est tombée : cible non atteinte
+        // SANS violation (art. 877 art. 10) → 0 point, jet suivant.
+        if (indicesChus.length === 0) return { annule: true, violation: false };
+
+        // La cible tombe seule → jet conforme, points normaux.
+        if (indicesChus.length === 1 && indicesChus[0] === jc.cible) return { annule: false, points: jc.points };
+
+        // Tout autre cas (mauvaise quille, 2+ quilles requises ensemble
+        // hors ricochet) → violation : les quilles requises se relèvent,
+        // réédition sans limite.
+        return { annule: true, violation: true };
     }
 
     /** Cible + points du DERNIER jet de la phase D ou E (exception de
@@ -1591,22 +1605,22 @@ class GameScene extends Phaser.Scene {
         const resultat = this._calculerScoreJet();
 
         if (resultat.annule) {
-            this.tentativeCourante++;
-            if (this.tentativeCourante <= C.partie.tentativesMax) {
+            if (resultat.violation) {
+                // Violation (ordre non respecté, 2+ quilles requises
+                // ensemble hors ricochet) : réédition sans limite
+                // (PRD 875 §9, décision John 09/09/2026).
                 this._afficherRetourJet({
-                    texte: C.textes.ordreNonRespecte.replace("{n}", this.tentativeCourante),
+                    texte: C.textes.ordreNonRespecte,
                     boutonLabel: C.textes.rejouerJet,
                     onContinuer: () => this._demarrerJet(this.numeroJet)
                 });
                 return;
             }
-            // 3 essais épuisés : 0 point pour ce jet, on avance. En ordre
-            // imposé, la cible reste debout (obstacle pour la suite de la
-            // phase, cf. _calculerOrdreJet) — pas ajoutée à
-            // ordrePhaseAbattues puisqu'elle n'est jamais tombée.
+            // Cible non atteinte SANS violation (art. 877 art. 10) :
+            // 0 point, on passe au jet suivant.
             this.tentativeCourante = 1;
             this._afficherRetourJet({
-                texte: C.textes.jetAnnuleDefinitif,
+                texte: C.textes.cibleNonAtteinte,
                 boutonLabel: this.numeroJet < 17 ? C.textes.continuer : C.textes.finPartie,
                 onContinuer: () => this._avancerApresJet()
             });

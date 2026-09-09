@@ -153,8 +153,8 @@ window.QuillesSaintGallConfig = {
 
         // --- Retour de jet (écran entre 2 jets) -------------------------
         pointsGagnes: "+{n} point(s)",
-        ordreNonRespecte: "Ordre non respecté — nouvel essai ({n}/3)",
-        jetAnnuleDefinitif: "3 essais épuisés — 0 point",
+        ordreNonRespecte: "Ordre non respecté — Nouvel essai",
+        cibleNonAtteinte: "Cible non atteinte — 0 point",
         continuer: "Jet suivant",
         rejouerJet: "Nouvel essai",
 
@@ -459,9 +459,6 @@ window.QuillesSaintGallConfig = {
 
     // --- Structure d'une partie (PRD §7-9) -----------------------------------
     partie: {
-        // Nombre d'essais avant qu'un jet à ordre imposé (D/E) rejoué sans
-        // succès soit compté à 0 point (PRD §9, proposition retenue).
-        tentativesMax: 3
     },
 
     // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
