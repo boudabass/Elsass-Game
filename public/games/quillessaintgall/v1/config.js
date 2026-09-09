@@ -163,7 +163,8 @@ window.QuillesSaintGallConfig = {
         scoreFinalTexte: "Score : {score}/200",
         nouveauRecord: "Nouveau record !",
         meilleurScore: "Meilleur score : {score}/200",
-        rejouerPartie: "Rejouer la partie"
+        rejouerPartie: "Rejouer la partie",
+        fauteBande: "Bande latérale touchée — Nouvel essai"
     },
 
     // --- Piste (vue du dessus) ----------------------------------------------
@@ -222,6 +223,23 @@ window.QuillesSaintGallConfig = {
         // moins de 2/3 (cf. `recul` ci-dessous). La colonne restante
         // (1/3 FIXE, à droite) est un panneau d'info dédié (jet, score, ET
         // tous les contrôles de tir) sur toute la hauteur de l'écran.
+    },
+
+    // --- Bandes latérales (article 877, art. 11 — PRD 875 §12, 09/09/2026) --
+    // Deux bandes longeant la piste de part et d'autre (de la fosse jusqu'à
+    // la zone de lancer). La boule peut REBONDIR dessus (collision solide),
+    // mais tout contact boule↔bande rend le jet FAUTIF (réédition sans
+    // limite). Une quille restée debout après contact avec une bande est
+    // considérée comme renversée (compter ses points normalement).
+    bande: {
+        // Largeur RÉELLE en cm (article 876 : les bornes latérales
+        // délimitent une piste de 200cm — la bande elle-même est une
+        // planche, ~15cm de large). Convertie via pxParCm comme la piste.
+        largeurCm: 15,
+        // Couleurs identiques à la piste pour la continuité visuelle
+        // (même style visuel que la piste, demande John).
+        couleur: "#7a5233",
+        couleurBord: "#4a3220"
     },
 
     // --- Zone de tir : demi-cercle de placement (les boutons de pivot/

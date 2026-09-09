@@ -94,6 +94,12 @@ class GameScene extends Phaser.Scene {
         g.fillCircle(19, 19, 5);
         g.generateTexture("boule", 48, 48);
 
+        // Bande latérale (1×1, blanc — simple texture pour le corps
+        // physique ; le rendu visuel dans _dessinerDecor est indépendant).
+        g.fillStyle(0xffffff, 1);
+        g.fillRect(0, 0, 1, 1);
+        g.generateTexture("bande", 1, 1);
+
         g.destroy();
     }
 
@@ -133,6 +139,7 @@ class GameScene extends Phaser.Scene {
         this._creerDecor();
         this._creerQuilles();
         this._creerBouleEtOmbre();
+        this._creerBandes();
         this._creerColliders();
         this._creerVisee();
         this._creerJauge();
@@ -141,6 +148,12 @@ class GameScene extends Phaser.Scene {
         this._creerBarreForce();
         this._creerBoutonsForce();
         this._creerTextes();
+
+        // PRD 875 §12 : le flag bouleToucheBande peut être levé pendant la
+        // création (boule et bandes se chevauchent à l'origine avant
+        // positionnement) — on le réinitialise ici, une fois tous les
+        // corps en place.
+        this.bouleToucheBande = false;
 
         // Démarre la partie (jet 1) : ne positionne rien visuellement tant
         // que la géométrie de l'écran (this.w/this.h) n'est pas connue —
@@ -259,6 +272,7 @@ class GameScene extends Phaser.Scene {
         this.frameId = 0;
         this.quillesTombeesCount = 0;
         this.prependeranteTombee = false;
+        this.bouleToucheBande = false;   // PRD 875 §12 : flag persistant jusqu'à l'arrêt complet
 
         // Phases D/E (ordre imposé) : la figure reste posée UNE SEULE FOIS
         // pour toute la phase (règlement fédéral : "jets d'affilée" sur la
@@ -563,6 +577,29 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
+     * Bandes latérales (PRD 875 §12, 09/09/2026) : 2 bandes longeant la
+     * piste de part et d'autre (de la fosse jusqu'à la zone de lancer).
+     * Corps immobiles (murs) pour le rebond de la boule et des quilles ;
+     * le rendu visuel est dans _dessinerDecor, indépendant de la physique.
+     */
+    _creerBandes() {
+        // Zones avec corps physiques (PRD 875 §12) : plus simple qu'un sprite
+        // pour des corps rectangulaires invisibles — body.setSize() en pixels
+        // monde, sans interférence d'échelle de texture.
+        this.bandeGauche = this.add.zone(0, 0, 1, 1);
+        this.physics.add.existing(this.bandeGauche, false);
+        this.bandeGauche.body.setImmovable(true);
+        this.bandeGauche.body.setAllowGravity(false);
+        this.bandeGauche.setDepth(3);
+
+        this.bandeDroite = this.add.zone(0, 0, 1, 1);
+        this.physics.add.existing(this.bandeDroite, false);
+        this.bandeDroite.body.setImmovable(true);
+        this.bandeDroite.body.setAllowGravity(false);
+        this.bandeDroite.setDepth(3);
+    }
+
+    /**
      * Colliders Arcade Physics boule↔quilles et quille↔quille (refonte
      * masse réelle du 31/08, cf. commentaire d'en-tête de la classe). Les
      * `processCallback` tournent AVANT que Phaser ne calcule la séparation/
@@ -585,6 +622,34 @@ class GameScene extends Phaser.Scene {
             this.quillesGroup, this.quillesGroup,
             (a, b) => { this._corrigerRebondMur(a, b); this._corrigerRebondMur(b, a); },
             (a, b) => this._processCollisionQuilleQuille(a, b),
+            this
+        );
+        // Boule ↔ bandes latérales (PRD 875 §12) : la boule rebondit
+        // (collision solide), le contact est détecté pour faute.
+        this.physics.add.collider(
+            this.boule, this.bandeGauche,
+            (boule, bande) => this._corrigerRebondMur(boule, bande),
+            (boule, bande) => this._processCollisionBouleBande(boule, bande),
+            this
+        );
+        this.physics.add.collider(
+            this.boule, this.bandeDroite,
+            (boule, bande) => this._corrigerRebondMur(boule, bande),
+            (boule, bande) => this._processCollisionBouleBande(boule, bande),
+            this
+        );
+        // Quilles ↔ bandes (PRD 875 §12) : une quille debout qui touche
+        // une bande est considérée comme renversée.
+        this.physics.add.collider(
+            this.quillesGroup, this.bandeGauche,
+            (quille, bande) => this._corrigerRebondMur(quille, bande),
+            (quille, bande) => this._processCollisionQuilleBande(quille, bande),
+            this
+        );
+        this.physics.add.collider(
+            this.quillesGroup, this.bandeDroite,
+            (quille, bande) => this._corrigerRebondMur(quille, bande),
+            (quille, bande) => this._processCollisionQuilleBande(quille, bande),
             this
         );
     }
@@ -680,6 +745,30 @@ class GameScene extends Phaser.Scene {
         q.body.setImmovable(false);
         q.body.mass = C.quille.masseKg;
         q.body.setBounce(C.quille.bounce);
+    }
+
+    /**
+     * Contact boule↔bande latérale (PRD 875 §12) : marque le flag
+     * persistant qui rendra le jet fautif (_jetTermine).
+     */
+    _processCollisionBouleBande(boule, bande) {
+        this.bouleToucheBande = true;
+        return true;
+    }
+
+    /**
+     * Contact quille↔bande latérale (PRD 875 §12) : une quille restée
+     * DEBOUT après contact avec une bande est considérée comme RENVERSÉE
+     * (compter ses points normalement selon le jet en cours). S'il s'agit
+     * déjà d'une quille tombée, on laisse le rebond physique (corrigerRebondMur)
+     * sans changer son état.
+     */
+    _processCollisionQuilleBande(quille, bande) {
+        if (quille.getData("debout")) {
+            this._toucherQuille(quille);
+            this._rendreQuilleMobile(quille);
+        }
+        return true;
     }
 
     _creerVisee() {
@@ -839,6 +928,7 @@ class GameScene extends Phaser.Scene {
         this.pxParCm = this.pisteLargeur / C.piste.largeurReelleCm;
 
         this._positionnerQuilles();
+        this._positionnerBandes();
         this._majVisee();
 
         this.zoneGlobale.setPosition(0, 0);
@@ -895,6 +985,18 @@ class GameScene extends Phaser.Scene {
         this.sol.fillRect(ox, 0, wp, this.ligneLancerY);
         this.sol.lineStyle(Math.max(1, UI.u(this, 0.25)), cBord, 0.9);
         this.sol.strokeRect(ox, 0, wp, this.ligneLancerY);
+
+        // Bandes latérales (PRD 875 §12) : 2 rectangles longeant la piste
+        // de part et d'autre, même style visuel que la piste (couleur +
+        // bord). La bande droite peut partiellement passer sous le panneau
+        // d'info (semi-transparent) — effet de profondeur acceptable.
+        const bandeLargeurPx = this.pxParCm * C.bande.largeurCm;
+        this.sol.fillStyle(Phaser.Display.Color.HexStringToColor(C.bande.couleur).color, 1);
+        this.sol.fillRect(ox - bandeLargeurPx, 0, bandeLargeurPx, this.ligneLancerY);
+        this.sol.fillRect(ox + wp, 0, bandeLargeurPx, this.ligneLancerY);
+        this.sol.lineStyle(Math.max(1, UI.u(this, 0.2)), cBord, 0.9);
+        this.sol.strokeRect(ox - bandeLargeurPx, 0, bandeLargeurPx, this.ligneLancerY);
+        this.sol.strokeRect(ox + wp, 0, bandeLargeurPx, this.ligneLancerY);
 
         // Panneau d'info (colonne de droite, largeur FIXE this.colLargeur,
         // PLEINE HAUTEUR — demande John 31/08) : légèrement teinté sur
@@ -1168,6 +1270,28 @@ class GameScene extends Phaser.Scene {
             num.setPosition(x, y).setFontSize(Math.round(UI.u(this, 2.4)) + "px");
             num.setVisible(showNumeros && q.getData("debout"));
         });
+    }
+
+    /**
+     * Positionne les 2 bandes latérales (PRD 875 §12) : rectangles
+     * longeant la piste de part et d'autre, de la fosse (y=0) jusqu'à
+     * la zone de lancer (ligneLancerY). Les corps physiques sont des
+     * sprites invisibles redimensionnés ici (body.setSize pour la hitbox).
+     */
+    _positionnerBandes() {
+        const C = window.QuillesSaintGallConfig;
+        const largeurBandePx = this.pxParCm * C.bande.largeurCm;
+        const hauteur = this.ligneLancerY;
+
+        // Bande gauche (entre le bord de la piste et le vide à gauche)
+        const xGauche = this.pisteOffsetX - largeurBandePx / 2;
+        this.bandeGauche.setPosition(xGauche, hauteur / 2);
+        this.bandeGauche.body.setSize(largeurBandePx, hauteur);
+
+        // Bande droite (entre le bord droit de la piste et le panneau d'info)
+        const xDroite = this.pisteOffsetX + this.pisteLargeur + largeurBandePx / 2;
+        this.bandeDroite.setPosition(xDroite, hauteur / 2);
+        this.bandeDroite.body.setSize(largeurBandePx, hauteur);
     }
 
     /**
@@ -1549,15 +1673,14 @@ class GameScene extends Phaser.Scene {
             this.boule.body.setVelocity(vf.x * amorti, vf.y * amorti);
         }
 
-        // Sortie de piste : la fosse en haut, OU les bords RÉELS de la
-        // piste (this.pisteLargeur de large, pas toute la largeur de
-        // l'écran) — le vrai jeu interdit à la boule de toucher les côtés
-        // de la piste avant les quilles (article 780), on modélise ça comme
-        // fin du jet, cohérent avec les rebonds qui peuvent maintenant la
-        // dévier latéralement.
+        // Sortie de piste : la fosse en haut, OU les bords RÉELS au-delà
+        // des bandes latérales (PRD 875 §12) — la boule peut rebondir sur
+        // les bandes (collision physique), ne compte "dehors" qu'une fois
+        // passée la bordure extérieure de la bande.
+        const bandeL = this.pxParCm * C.bande.largeurCm;
         const dehors = this.boule.y < -20 ||
-            this.boule.x < this.pisteOffsetX - 20 ||
-            this.boule.x > this.pisteOffsetX + this.pisteLargeur + 20;
+            this.boule.x < this.pisteOffsetX - bandeL - 20 ||
+            this.boule.x > this.pisteOffsetX + this.pisteLargeur + bandeL + 20;
 
         // Filet de sécurité : après plusieurs rebonds amortis, la boule
         // peut devenir trop lente pour jamais sortir de la zone de quilles
@@ -1600,6 +1723,18 @@ class GameScene extends Phaser.Scene {
         this.etat = "jetResultat";
         this.boule.body.setVelocity(0, 0);
         this.ombreBoule.setVisible(false);
+
+        // PRD 875 §12 : tout jet dont la boule touche une bande latérale
+        // est FAUTIF — réédition sans limite (même traitement que la
+        // faute d'ordre, carte parent t_a543158c).
+        if (this.bouleToucheBande) {
+            this._afficherRetourJet({
+                texte: C.textes.fauteBande,
+                boutonLabel: C.textes.rejouerJet,
+                onContinuer: () => this._demarrerJet(this.numeroJet)
+            });
+            return;
+        }
 
         const jc = this.jetConfig;
         const resultat = this._calculerScoreJet();
