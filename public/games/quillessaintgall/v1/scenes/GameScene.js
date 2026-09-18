@@ -43,7 +43,7 @@
  * la PRÉCISION du tir (config.paliers) : vitesse de l'aiguille de la
  * jauge (JaugePrecision.avancer), largeur de sa zone orange
  * (JaugePrecision.demarrer), longueur de la ligne d'aide à la visée
- * (_dessinerVisee).
+ * (Visee.dessiner).
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -112,7 +112,7 @@ class GameScene extends Phaser.Scene {
         // directement sans passer par le menu (lien direct, debug). Ne
         // touche JAMAIS aux règles de la partie (toujours 17 jets, 6
         // phases, barème fixe) — seulement 3 leviers sur la PRÉCISION du
-        // tir (cf. JaugePrecision / _dessinerVisee),
+        // tir (cf. JaugePrecision / Visee),
         // décision explicite de John : pas de mode tutoriel séparé, pas de
         // quilles/jauge modifiées en taille, juste ces 3 leviers.
         this.palier = (data && C.paliers[data.palier]) ? data.palier : "normal";
@@ -137,7 +137,8 @@ class GameScene extends Phaser.Scene {
         this._creerBouleEtOmbre();
         this._creerBandes();
         this._creerColliders();
-        this._creerVisee();
+        this.visee = new Visee(this);
+        this.visee.creer();
         this.jauge = new JaugePrecision(this);
         this.jauge.creer();
         this._creerBouton();
@@ -162,7 +163,7 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0, 0).setInteractive();
         this.zoneGlobale.on("pointerdown", (p) => this._pointerDown(p));
         this.zoneGlobale.on("pointermove", (p) => {
-            if (this.glisse && this.etat === "placement") this._poserBoule(p);
+            if (this.glisse && this.etat === "placement") this.visee.poser(p);
         });
         this.zoneGlobale.on("pointerup", () => { this.glisse = false; });
         this.zoneGlobale.on("pointerupoutside", () => { this.glisse = false; });
@@ -299,9 +300,7 @@ class GameScene extends Phaser.Scene {
         });
 
         this.force = C.force.defaut;
-        this.placementFracX = 0;
-        this.placementFracY = 0.5;
-        this.aimAngleDeg = 0;
+        this.visee.reset();
         this.etat = "placement";
 
         this._majTextesProgression();
@@ -566,7 +565,7 @@ class GameScene extends Phaser.Scene {
         // cf. genererTextures) — même convention que l'ancien calcul manuel
         // (`displayWidth / 2`, cf. historique) : le corps Arcade suit
         // ensuite l'échelle appliquée par setDisplaySize dans
-        // _poserBouleVisuel.
+        // Visee.positionnerBoule.
         this.boule.body.setCircle(24);
         this.boule.body.mass = C.boule.masseKg;
         this.boule.body.setBounce(C.boule.bounce);
@@ -766,10 +765,6 @@ class GameScene extends Phaser.Scene {
         return true;
     }
 
-    _creerVisee() {
-        this.viseeG = this.add.graphics().setDepth(3);
-    }
-
     _creerBouton() {
         const C = window.QuillesSaintGallConfig;
         this.boutonTirer = Arcade.UI.bouton(this, {
@@ -791,14 +786,14 @@ class GameScene extends Phaser.Scene {
             couleur: C.couleurs.boutonRotation,
             textColor: C.couleurs.texte,
             marqueurClic: true,
-            onClick: () => this._pivoterVisee(-1)
+            onClick: () => this.visee.pivoter(-1)
         });
         this.boutonRotDroite = Arcade.UI.bouton(this, {
             label: "►",
             couleur: C.couleurs.boutonRotation,
             textColor: C.couleurs.texte,
             marqueurClic: true,
-            onClick: () => this._pivoterVisee(1)
+            onClick: () => this.visee.pivoter(1)
         });
     }
 
@@ -915,12 +910,12 @@ class GameScene extends Phaser.Scene {
         // (pixels) représente C.piste.largeurReelleCm (200cm réels) — sert
         // à convertir en pixels tout ce qui doit être proportionnel à la
         // piste (marge quilles, diagonale du losange, diamètre quille/
-        // boule), cf. _positionnerQuilles et _poserBouleVisuel.
+        // boule), cf. _positionnerQuilles et Visee.positionnerBoule.
         this.pxParCm = this.pisteLargeur / C.piste.largeurReelleCm;
 
         this._positionnerQuilles();
         this._positionnerBandes();
-        this._majVisee();
+        this.visee.majPosition();
 
         this.zoneGlobale.setPosition(0, 0);
         this.zoneGlobale.setSize(w, h);
@@ -929,12 +924,12 @@ class GameScene extends Phaser.Scene {
         }
 
         this._dessinerDecor();
-        this._dessinerVisee();
+        this.visee.dessiner();
         this.jauge.dessiner();
         this._positionnerColonneInfo();
         this._positionnerTextes();
 
-        if (this.etat === "placement") this._poserBouleVisuel();
+        if (this.etat === "placement") this.visee.positionnerBoule();
     }
 
     _dessinerDecor() {
@@ -1024,15 +1019,6 @@ class GameScene extends Phaser.Scene {
     // est maintenant dimensionnée en 2/1 pour contenir JUSTE le demi-
     // cercle sur toute la largeur de la piste, plus de plafond lié aux
     // boutons puisqu'ils ne sont plus dans cette zone).
-
-    _pivoterVisee(sens) {
-        if (this.etat !== "placement") return;
-        const C = window.QuillesSaintGallConfig;
-        this.aimAngleDeg = Phaser.Math.Clamp(
-            this.aimAngleDeg + sens * C.recul.rotationStepDeg,
-            -C.recul.rotationMaxDeg, C.recul.rotationMaxDeg);
-        this._dessinerVisee();
-    }
 
     _ajusterForce(sens) {
         if (this.etat !== "placement") return;
@@ -1400,96 +1386,6 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // --- Visée (placement dans le cercle + rotation par boutons) -------------
-
-    _majVisee() {
-        if (this.cercleRayon === undefined) return;   // pas encore de géométrie
-        this.bouleX = this.cercleX + this.placementFracX * this.cercleRayon;
-        this.bouleY = this.cercleY + this.placementFracY * this.cercleRayon;
-    }
-
-    _poserBoule(p) {
-        // Glisser libre en 2D, clampé au DEMI-cercle de placement : jamais
-        // au-dessus de la ligne de lancer (dy < 0 interdit — le côté plat
-        // du demi-cercle), et jamais au-delà du rayon (glisser au-delà
-        // colle au bord, comme un curseur).
-        const dx = p.x - this.cercleX;
-        const dy = Math.max(0, p.y - this.cercleY);
-        const dist = Math.hypot(dx, dy);
-        if (dist <= this.cercleRayon) {
-            this.placementFracX = dx / this.cercleRayon;
-            this.placementFracY = dy / this.cercleRayon;
-        } else if (dist > 0) {
-            this.placementFracX = dx / dist;
-            this.placementFracY = dy / dist;
-        }
-        this._majVisee();
-        this._poserBouleVisuel();
-        this._dessinerVisee();
-    }
-
-    _poserBouleVisuel() {
-        const C = window.QuillesSaintGallConfig;
-        // Rayon RÉEL (diamètre en cm × this.pxParCm), demande John 31/08 —
-        // même échelle que la piste/les quilles, remplace l'ancien % du
-        // plus petit côté de l'écran (UI.u).
-        const rayon = this.pxParCm * (C.boule.diametreCm / 2);
-        this.boule.setDisplaySize(rayon * 2, rayon * 2);
-        this.boule.setPosition(this.bouleX, this.bouleY);
-        this.boule.body.setVelocity(0, 0);
-        this.boule.body.updateFromGameObject();
-        this.ombreBoule.setPosition(this.bouleX, this.bouleY);
-        this.ombreBoule.setRadius(rayon * 0.42);
-        this.ombreBoule.setVisible(true);
-    }
-
-    _dessinerVisee() {
-        const C = window.QuillesSaintGallConfig;
-        const UI = Arcade.UI;
-        const coulCercle = Phaser.Display.Color.HexStringToColor(C.couleurs.cercle).color;
-        const coul = Phaser.Display.Color.HexStringToColor(C.couleurs.trajectoire).color;
-
-        this.viseeG.clear();
-        if (this.etat !== "placement") return;
-
-        // Demi-cercle de placement (zone où la boule peut être posée) :
-        // seulement l'arc du BAS (0 → PI, sens horaire = vers le bas en
-        // coordonnées écran), le côté plat coïncide avec la ligne de lancer
-        // déjà dessinée par la piste (pas besoin de la retracer).
-        this.viseeG.lineStyle(UI.u(this, 0.4), coulCercle, 0.5);
-        this.viseeG.beginPath();
-        this.viseeG.arc(this.cercleX, this.cercleY, this.cercleRayon, 0, Math.PI, false);
-        this.viseeG.strokePath();
-
-        // Ligne de visée : direction choisie via les boutons ◄/►, depuis la
-        // position actuelle de la boule (angle 0 = tout droit vers le haut).
-        const angleRad = Phaser.Math.DegToRad(this.aimAngleDeg);
-        const dirX = Math.sin(angleRad), dirY = -Math.cos(angleRad);
-        // Palier de difficulté : longueur de la ligne d'aide à la visée
-        // (§10/12, choisi dans MenuScene) — fraction de la piste en
-        // facile/normal, OU un petit trait FIXE de la taille de la boule
-        // en difficile (demande John 04/09 : sans aucune ligne on ne voit
-        // plus du tout la rotation choisie — il faut un repère minimal,
-        // pas une fraction qui deviendrait invisible).
-        const aide = this.palierConf.aideVisee;
-        const longueur = aide.tailleBoule
-            ? this.pxParCm * C.boule.diametreCm
-            : this.bouleY * aide.pctPiste;
-        // Le trait part du BORD du repère rond (pas du centre de la
-        // boule) : en difficile, un trait de la taille de la boule tracé
-        // depuis le centre restait entièrement caché sous ce repère (plus
-        // grand que le trait lui-même) — invisible en pratique, alors que
-        // le but est justement de voir la rotation choisie.
-        const rayonRepere = UI.u(this, 3);
-        this.viseeG.lineStyle(UI.u(this, 0.5), coul, 0.9);
-        if (longueur > 0) {
-            this.viseeG.lineBetween(
-                this.bouleX + dirX * rayonRepere, this.bouleY + dirY * rayonRepere,
-                this.bouleX + dirX * (rayonRepere + longueur), this.bouleY + dirY * (rayonRepere + longueur));
-        }
-        this.viseeG.strokeCircle(this.bouleX, this.bouleY, rayonRepere);
-    }
-
     // --- Jauge de précision (étape 2) -----------------------------------------
 
     _demarrerJauge() {
@@ -1498,7 +1394,7 @@ class GameScene extends Phaser.Scene {
         this.jauge.demarrer();
         this.texteJauge.setVisible(true);
         this._cacherConsignes();
-        this._dessinerVisee();
+        this.visee.dessiner();
         this._positionnerTextes();
     }
 
@@ -1522,7 +1418,7 @@ class GameScene extends Phaser.Scene {
             const dy = p.y - this.cercleY;
             if (dy >= 0 && Math.hypot(dx, dy) <= this.cercleRayon) {
                 this.glisse = true;
-                this._poserBoule(p);
+                this.visee.poser(p);
             }
         } else if (this.etat === "jauge") {
             this._arreterJauge();
@@ -1541,7 +1437,7 @@ class GameScene extends Phaser.Scene {
         // droit).
         const signe = Math.random() < 0.5 ? 1 : -1;
         const deviationDeg = this.jauge.deviation * C.jauge.deviationAngleMaxDeg * signe;
-        const angleRad = Phaser.Math.DegToRad(this.aimAngleDeg + deviationDeg);
+        const angleRad = Phaser.Math.DegToRad(this.visee.angleDeg + deviationDeg);
 
         // Vitesse = vitesse de base × un facteur qui dépend de la force
         // choisie (demande John, 30/08 : 2 boutons -/+ pour régler la force
@@ -1558,7 +1454,7 @@ class GameScene extends Phaser.Scene {
 
         this.etat = "lancer";
         this.texteJauge.setVisible(false);
-        this._dessinerVisee();
+        this.visee.dessiner();
     }
 
     _suivreBoule(dt) {
