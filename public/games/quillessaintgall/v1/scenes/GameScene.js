@@ -41,8 +41,9 @@
  * JAMAIS aux règles d'une partie (toujours 17 jets, 6 phases, barème
  * fixe, pas de mode tutoriel séparé/raccourci) — seulement 3 leviers sur
  * la PRÉCISION du tir (config.paliers) : vitesse de l'aiguille de la
- * jauge (_avancerJauge), largeur de sa zone orange (_demarrerJauge),
- * longueur de la ligne d'aide à la visée (_dessinerVisee).
+ * jauge (JaugePrecision.avancer), largeur de sa zone orange
+ * (JaugePrecision.demarrer), longueur de la ligne d'aide à la visée
+ * (_dessinerVisee).
  */
 class GameScene extends Phaser.Scene {
     static KEY = "jeu";
@@ -111,7 +112,7 @@ class GameScene extends Phaser.Scene {
         // directement sans passer par le menu (lien direct, debug). Ne
         // touche JAMAIS aux règles de la partie (toujours 17 jets, 6
         // phases, barème fixe) — seulement 3 leviers sur la PRÉCISION du
-        // tir (cf. _demarrerJauge / _avancerJauge / _dessinerVisee),
+        // tir (cf. JaugePrecision / _dessinerVisee),
         // décision explicite de John : pas de mode tutoriel séparé, pas de
         // quilles/jauge modifiées en taille, juste ces 3 leviers.
         this.palier = (data && C.paliers[data.palier]) ? data.palier : "normal";
@@ -127,11 +128,6 @@ class GameScene extends Phaser.Scene {
 
         // Jauge de précision (état interne au tir en cours, indépendant
         // du jet/de la partie).
-        this.jaugeTemps = 0;
-        this.jaugeNeedle = 0.5;
-        this.jaugeZoneCentre = 0.5;
-        this.jaugeDeviation = 0;
-        this.jaugeZoneOrangeLargeurPctActuelle = window.QuillesSaintGallConfig.jauge.zoneOrangeLargeurMaxPct;
         this.feedbackRestant = 0;
         this.boutonRejouer = null;
         this.boutonMenu = null;
@@ -142,7 +138,8 @@ class GameScene extends Phaser.Scene {
         this._creerBandes();
         this._creerColliders();
         this._creerVisee();
-        this._creerJauge();
+        this.jauge = new JaugePrecision(this);
+        this.jauge.creer();
         this._creerBouton();
         this._creerBoutonsRotation();
         this._creerBarreForce();
@@ -180,7 +177,7 @@ class GameScene extends Phaser.Scene {
     update(time, delta) {
         const dt = delta / 1000;
         if (this.etat === "jauge") {
-            this._avancerJauge(dt);
+            this.jauge.avancer(dt);
         } else if (this.etat === "feedback") {
             this.feedbackRestant -= delta;
             if (this.feedbackRestant <= 0) this._lancer();
@@ -773,10 +770,6 @@ class GameScene extends Phaser.Scene {
         this.viseeG = this.add.graphics().setDepth(3);
     }
 
-    _creerJauge() {
-        this.jaugeG = this.add.graphics().setDepth(22);
-    }
-
     _creerBouton() {
         const C = window.QuillesSaintGallConfig;
         this.boutonTirer = Arcade.UI.bouton(this, {
@@ -937,7 +930,7 @@ class GameScene extends Phaser.Scene {
 
         this._dessinerDecor();
         this._dessinerVisee();
-        this._dessinerJaugeBarre();
+        this.jauge.dessiner();
         this._positionnerColonneInfo();
         this._positionnerTextes();
 
@@ -1501,100 +1494,21 @@ class GameScene extends Phaser.Scene {
 
     _demarrerJauge() {
         if (this.etat !== "placement") return;
-        const C = window.QuillesSaintGallConfig;
         this.etat = "jauge";
-        this.jaugeTemps = 0;
-        this.jaugeNeedle = 0.5;
-
-        // Largeur de la zone orange pour CE tir, interpolée depuis la force
-        // choisie (demande John, 30/08 : plus la force est haute, plus le
-        // tir peut être dévié — la zone orange se réduit). Figée ici, ne
-        // change plus pendant la jauge même si on pouvait toucher -/+.
-        const t = (this.force - C.force.min) / (C.force.max - C.force.min);
-        const largeurSelonForce = C.jauge.zoneOrangeLargeurMaxPct +
-            t * (C.jauge.zoneOrangeLargeurMinPct - C.jauge.zoneOrangeLargeurMaxPct);
-        // Palier de difficulté (§10/12, choisi dans MenuScene) : multiplicateur
-        // appliqué PAR-DESSUS le calcul selon la force ci-dessus, avec un
-        // plancher absolu pour rester jouable même à force 100% en difficile.
-        this.jaugeZoneOrangeLargeurPctActuelle = Math.max(
-            C.jauge.largeurMinAbsoluePct,
-            largeurSelonForce * this.palierConf.zoneOrangeMultiplicateur);
-
-        const demiOrange = this.jaugeZoneOrangeLargeurPctActuelle / 200;
-        this.jaugeZoneCentre = demiOrange + Math.random() * (1 - 2 * demiOrange);
-        this.jaugeDeviation = 0;
+        this.jauge.demarrer();
         this.texteJauge.setVisible(true);
         this._cacherConsignes();
         this._dessinerVisee();
         this._positionnerTextes();
     }
 
-    _avancerJauge(dt) {
-        const C = window.QuillesSaintGallConfig;
-        this.jaugeTemps += dt;
-        // Palier de difficulté : multiplicateur sur la vitesse de balayage
-        // de l'aiguille (§10/12, choisi dans MenuScene).
-        const vitesse = C.jauge.vitesseBalayagePar_s * this.palierConf.vitesseBalayageMultiplicateur;
-        this.jaugeNeedle = 0.5 + 0.5 *
-            Math.sin(2 * Math.PI * vitesse * this.jaugeTemps);
-        this._dessinerJaugeBarre();
-    }
-
     _arreterJauge() {
         if (this.etat !== "jauge") return;
         const C = window.QuillesSaintGallConfig;
-
-        const demiOrange = this.jaugeZoneOrangeLargeurPctActuelle / 200;
-        const d = Math.abs(this.jaugeNeedle - this.jaugeZoneCentre);
-        if (d <= demiOrange) {
-            this.jaugeDeviation = 0;
-        } else {
-            this.jaugeDeviation = Phaser.Math.Clamp(
-                (d - demiOrange) / (1 - demiOrange), 0, 1);
-        }
-
+        const conforme = this.jauge.arreter();
         this.etat = "feedback";
         this.feedbackRestant = C.jauge.delaiFeedbackMs;
-        this.texteJauge.setText(
-            this.jaugeDeviation === 0 ? C.textes.conforme : C.textes.manque);
-        this._dessinerJaugeBarre();
-    }
-
-    _dessinerJaugeBarre() {
-        const C = window.QuillesSaintGallConfig;
-        const UI = Arcade.UI;
-        // Centrée sur la PISTE (pas tout l'écran) — même raison que
-        // _positionnerTextes (demande John 31/08). `this.pisteOffsetX` :
-        // décalage de la piste quand une bande vide se forme à sa gauche.
-        const wp = this.pisteLargeur;
-        const ox = this.pisteOffsetX;
-
-        this.jaugeG.clear();
-        if (this.etat !== "jauge" && this.etat !== "feedback") return;
-
-        const largeur = (C.jauge.largeurPct / 100) * wp;
-        const hauteur = UI.u(this, C.jauge.hauteurU);
-        const x = ox + (wp - largeur) / 2;
-        const y = this.ligneLancerY - hauteur - UI.u(this, 2);
-
-        const cFond = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeFond).color;
-        const cBarre = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeBarre).color;
-        const cOrange = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeZoneOrange).color;
-        const cAiguille = Phaser.Display.Color.HexStringToColor(C.couleurs.jaugeAiguille).color;
-
-        this.jaugeG.fillStyle(cFond, 1);
-        this.jaugeG.fillRoundedRect(x, y, largeur, hauteur, hauteur * 0.3);
-        this.jaugeG.fillStyle(cBarre, 0.35);
-        this.jaugeG.fillRoundedRect(x, y, largeur, hauteur, hauteur * 0.3);
-
-        const oW = (this.jaugeZoneOrangeLargeurPctActuelle / 100) * largeur;
-        const oC = x + this.jaugeZoneCentre * largeur;
-        this.jaugeG.fillStyle(cOrange, 0.9);
-        this.jaugeG.fillRoundedRect(oC - oW / 2, y, oW, hauteur, hauteur * 0.3);
-
-        const nX = x + this.jaugeNeedle * largeur;
-        this.jaugeG.lineStyle(Math.max(1, UI.u(this, 0.4)), cAiguille, 1);
-        this.jaugeG.lineBetween(nX, y - hauteur * 0.2, nX, y + hauteur * 1.2);
+        this.texteJauge.setText(conforme ? C.textes.conforme : C.textes.manque);
     }
 
     // --- Interactions ------------------------------------------------------------
@@ -1626,7 +1540,7 @@ class GameScene extends Phaser.Scene {
         // d'arrêt raté sur la jauge (par rapport à CET angle, pas au tout
         // droit).
         const signe = Math.random() < 0.5 ? 1 : -1;
-        const deviationDeg = this.jaugeDeviation * C.jauge.deviationAngleMaxDeg * signe;
+        const deviationDeg = this.jauge.deviation * C.jauge.deviationAngleMaxDeg * signe;
         const angleRad = Phaser.Math.DegToRad(this.aimAngleDeg + deviationDeg);
 
         // Vitesse = vitesse de base × un facteur qui dépend de la force
