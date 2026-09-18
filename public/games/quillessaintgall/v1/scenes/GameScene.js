@@ -244,7 +244,6 @@ class GameScene extends Phaser.Scene {
     /** Démarre une NOUVELLE partie complète : score à 0, jet 1. */
     _demarrerPartie() {
         this.scoreTotal = 0;
-        this.tentativeCourante = 1;
         this._masquerRetourJet();
         this._demarrerJet(1);
     }
@@ -581,22 +580,29 @@ class GameScene extends Phaser.Scene {
      * piste de part et d'autre (de la fosse jusqu'à la zone de lancer).
      * Corps immobiles (murs) pour le rebond de la boule et des quilles ;
      * le rendu visuel est dans _dessinerDecor, indépendant de la physique.
+     * Regroupées dans `this.bandes` (même idiome que `this.quillesGroup`) :
+     * un seul collider par paire d'acteurs suffit alors dans _creerColliders,
+     * au lieu d'un par bande.
      */
     _creerBandes() {
-        // Zones avec corps physiques (PRD 875 §12) : plus simple qu'un sprite
-        // pour des corps rectangulaires invisibles — body.setSize() en pixels
-        // monde, sans interférence d'échelle de texture.
-        this.bandeGauche = this.add.zone(0, 0, 1, 1);
-        this.physics.add.existing(this.bandeGauche, false);
-        this.bandeGauche.body.setImmovable(true);
-        this.bandeGauche.body.setAllowGravity(false);
-        this.bandeGauche.setDepth(3);
+        this.bandes = this.physics.add.group();
+        this.bandeGauche = this._creerBande();
+        this.bandeDroite = this._creerBande();
+    }
 
-        this.bandeDroite = this.add.zone(0, 0, 1, 1);
-        this.physics.add.existing(this.bandeDroite, false);
-        this.bandeDroite.body.setImmovable(true);
-        this.bandeDroite.body.setAllowGravity(false);
-        this.bandeDroite.setDepth(3);
+    /**
+     * Zone avec corps physique (PRD 875 §12) : plus simple qu'un sprite
+     * pour un corps rectangulaire invisible — body.setSize() en pixels
+     * monde, sans interférence d'échelle de texture.
+     */
+    _creerBande() {
+        const bande = this.add.zone(0, 0, 1, 1);
+        this.physics.add.existing(bande, false);
+        bande.body.setImmovable(true);
+        bande.body.setAllowGravity(false);
+        bande.setDepth(3);
+        this.bandes.add(bande);
+        return bande;
     }
 
     /**
@@ -625,15 +631,11 @@ class GameScene extends Phaser.Scene {
             this
         );
         // Boule ↔ bandes latérales (PRD 875 §12) : la boule rebondit
-        // (collision solide), le contact est détecté pour faute.
+        // (collision solide), le contact est détecté pour faute. Un seul
+        // collider pour les 2 bandes (`this.bandes`, groupe), même idiome
+        // que boule↔quillesGroup ci-dessus.
         this.physics.add.collider(
-            this.boule, this.bandeGauche,
-            (boule, bande) => this._corrigerRebondMur(boule, bande),
-            (boule, bande) => this._processCollisionBouleBande(boule, bande),
-            this
-        );
-        this.physics.add.collider(
-            this.boule, this.bandeDroite,
+            this.boule, this.bandes,
             (boule, bande) => this._corrigerRebondMur(boule, bande),
             (boule, bande) => this._processCollisionBouleBande(boule, bande),
             this
@@ -641,13 +643,7 @@ class GameScene extends Phaser.Scene {
         // Quilles ↔ bandes (PRD 875 §12) : une quille debout qui touche
         // une bande est considérée comme renversée.
         this.physics.add.collider(
-            this.quillesGroup, this.bandeGauche,
-            (quille, bande) => this._corrigerRebondMur(quille, bande),
-            (quille, bande) => this._processCollisionQuilleBande(quille, bande),
-            this
-        );
-        this.physics.add.collider(
-            this.quillesGroup, this.bandeDroite,
+            this.quillesGroup, this.bandes,
             (quille, bande) => this._corrigerRebondMur(quille, bande),
             (quille, bande) => this._processCollisionQuilleBande(quille, bande),
             this
@@ -761,11 +757,13 @@ class GameScene extends Phaser.Scene {
      * DEBOUT après contact avec une bande est considérée comme RENVERSÉE
      * (compter ses points normalement selon le jet en cours). S'il s'agit
      * déjà d'une quille tombée, on laisse le rebond physique (corrigerRebondMur)
-     * sans changer son état.
+     * sans changer son état. Direction de chute = normale de contact
+     * (quille - bande), même convention que _corrigerRebondMur — la quille
+     * tombe en s'écartant de la bande, pas toujours vers le bas.
      */
     _processCollisionQuilleBande(quille, bande) {
         if (quille.getData("debout")) {
-            this._toucherQuille(quille);
+            this._toucherQuille(quille, quille.x - bande.x, quille.y - bande.y);
             this._rendreQuilleMobile(quille);
         }
         return true;
@@ -1753,7 +1751,6 @@ class GameScene extends Phaser.Scene {
             }
             // Cible non atteinte SANS violation (art. 877 art. 10) :
             // 0 point, on passe au jet suivant.
-            this.tentativeCourante = 1;
             this._afficherRetourJet({
                 texte: C.textes.cibleNonAtteinte,
                 boutonLabel: this.numeroJet < 17 ? C.textes.continuer : C.textes.finPartie,
@@ -1774,7 +1771,6 @@ class GameScene extends Phaser.Scene {
 
         const pointsTotal = resultat.points + (resultat.pointsSupplementaires || 0);
         this.scoreTotal += pointsTotal;
-        this.tentativeCourante = 1;
         this._majTextesProgression();
 
         const texteQuilles = this.quillesTombeesCount === 0
