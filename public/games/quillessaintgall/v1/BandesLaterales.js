@@ -42,10 +42,14 @@ class BandesLaterales {
         const scene = this.scene;
         const bande = scene.add.zone(0, 0, 1, 1);
         scene.physics.add.existing(bande, false);
+        bande.setDepth(3);
+        // `groupe.add()` réinitialise immovable/allowGravity aux défauts
+        // Phaser (false/true, confirmé le 19/09/2026) — les régler APRÈS
+        // l'ajout au groupe, pas avant, sinon la bande redevient un corps
+        // mobile soumis à la gravité (silencieusement, sans erreur).
+        this.groupe.add(bande);
         bande.body.setImmovable(true);
         bande.body.setAllowGravity(false);
-        bande.setDepth(3);
-        this.groupe.add(bande);
         return bande;
     }
 
