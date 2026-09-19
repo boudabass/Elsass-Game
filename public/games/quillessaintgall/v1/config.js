@@ -475,10 +475,6 @@ window.QuillesSaintGallConfig = {
         }
     },
 
-    // --- Structure d'une partie (PRD §7-9) -----------------------------------
-    partie: {
-    },
-
     // --- Les 17 jets, en 6 phases (PRD §7-9) ---------------------------------
     // Indices de quilles 0-8, losange fond → avant (cf. en-tête de fichier) :
     // 0 = fond ; 1,2 = rangée suivante (G/D) ; 3,4,5 = rangée du milieu, la
