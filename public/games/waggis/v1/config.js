@@ -106,8 +106,6 @@ window.WaggisConfig = {
         // pagination de la grille (5 × 5 = 25 niveaux par page, ◀ / ▶) et
         // cadenas des niveaux verrouillés (déverrouillage strictement
         // linéaire : terminer le niveau N débloque N+1).
-        pagePrecedente: "◀",
-        pageSuivante: "▶",
         pageInfo: "Page {page} / {total}",
         verrouille: "🔒",
 
@@ -134,6 +132,7 @@ window.WaggisConfig = {
         // 🔒 vient du préfixe textes.verrouille (CharactersScene concatène
         // verrouille + aDebloquer).
         aDebloquer: "Débloque-le en Boutique",
+        aDebloquerCourt: "En boutique",   // colonne étroite (mobile)
 
         // MENU-5 (spec 709 §7 boutons — écran Réglages, SettingsScene, et
         // Classement, ClassementScene) : le son (on/off UNIQUEMENT — pas de
@@ -388,15 +387,9 @@ window.WaggisConfig = {
     // horizontal se calcule TOUJOURS en % de la largeur réelle `w`
     // (les hauteurs et les polices, elles, restent en u()).
     listes: {
-        largeurPct: 76,         // Personnages / Boutique : % de la largeur
-        largeurClassementPct: 60,   // Classement : tableau rang/nom/score
         largeurMaxU: 110,       // garde-fou : jamais plus large que u(110),
                                 // sinon une ligne s'étire sur un écran très
                                 // large et le texte se perd dans le vide
-        // Marge latérale de la grille de Niveaux : sans elle, la tuile est
-        // calculée sur (w − gaps) / 5 et la grille colle EXACTEMENT aux
-        // deux bords de l'écran en mobile portrait (412 px sur 412).
-        margeGrilleU: 4,
         // ⭐ Pagination ADAPTATIVE (09/08). Sur un écran écrasé en hauteur
         // (mobile en paysage), remplir la page au nombre maximal donnait
         // des lignes de 22 px et des tuiles de 38 px : illisible et
@@ -421,23 +414,12 @@ window.WaggisConfig = {
     couleurs: {
         ciel: "#87ceeb",
         texte: "#141210",
-        texteClair: "#ffffff",
-        bouton: "#E31B23",
-        // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08 —
-        // couleur PAR BOUTON dans le composant Arcade.UI.bouton) : NOIR
-        // par défaut pour les boutons secondaires (Niveaux, Personnages,
-        // Boutique, Classement — grille 2×2), ROUGE pour Retour / Plein
-        // écran / Réglages, VERT pour le bouton Jouer.
-        boutonSecondaire: "#141210",
-        boutonJouer: "#2E9E4F",
-        // Encadré du record sur l'écran de fin : orange, texte noir à
-        // l'intérieur (lisible sur le fond bleu ciel).
-        encadreRecord: "#F2B93D",
-        // MENU-3 (spec 709 — écran Niveaux, LevelsScene) : couleurs des
-        // tuiles selon l'état du niveau — complété (vert), verrouillé
-        // (gris) ; « en cours » utilise la couleur bouton (rouge Waggis).
-        complete: "#2E9E4F",
-        verrouille: "#8A8A8A",
+        // Texte secondaire posé sur une carte crème (prix, « Trop cher »,
+        // « Déjà débloqué ») — encre adoucie, refonte charte 24/09.
+        texteDiscret: "#7A7064",
+        // Boutons, cartes, tuiles de niveaux, encadré du record : couleurs
+        // de la marque, fournies par le socle (core/ui/tokens.js, cartes
+        // core/ui/ecran.js) depuis la refonte charte du 24/09.
         // Bande rails : lit de ballast (gravier) sous la voie — la texture
         // rogrpg_rails est ajourée, le fond opaque est dessiné en dessous.
         ballast: "#5c5750",
@@ -450,41 +432,19 @@ window.WaggisConfig = {
         // ⭐ REFONTE menu 08/08/2026 (spec 709 — révision 08/08) : visuel
         // du menu principal — dégradé de ciel (deux teintes interpolées,
         // cielHaut en haut → cielBas en bas), silhouette des toits
-        // alsaciens + bande de sol en bas d'écran, ombre portée des
-        // boutons, fond blanc des boutons ronds d'icônes (liseré rouge
-        // Waggis = couleur bouton).
+        // alsaciens + bande de sol en bas d'écran.
         cielHaut: "#4FA8E8",
         cielBas: "#D9EFFC",
         toits: "#8C3B42",
-        solMenu: "#7CB85C",
-        ombreBouton: "rgba(20, 18, 16, 0.28)",
-        iconeFond: "#FFFFFF",
-
-        // ⭐ REFONTE écrans secondaires 08/08/2026 (spec 709 — révision
-        // 08/08) : cartes niveaux/personnages avec ombre portée + coins
-        // arrondis, état verrouillé = overlay semi-transparent + cadenas
-        // fin, sélection active = bordure/glow au lieu de l'aplat vert.
-        // VALEURS NUMÉRIQUES OBLIGATOIRES pour les Graphics (le renderer
-        // WebGL ne convertit pas les chaînes CSS — QA 08/08, NC1) :
-        // ombrePortee s'utilise avec un alpha (ex. fillStyle(0x141210,
-        // 0.25)) ; fondCarte et liseretActif sont convertis par
-        // Phaser.Display.Color.HexStringToColor(...).color.
-        ombrePortee: 0x141210,
-        fondCarte: "#FFFFFF",
-        liseretActif: "#2E9E4F",
+        solMenu: "#7CB85C"
     },
 
-    // --- Police (REFONTE 08/08/2026, spec 709 — révision 08/08) -----------
-    // « Police système par défaut → police ronde/friendly type jeu mobile ».
-    // Choix studio : Azimut, la police de marque The Elsassisch, déjà
-    // auto-hébergée dans public/fonts/azimut/ (licence CC BY-ND 4.0, voir
-    // src/lib/fonts.ts) — pas de CDN externe. Seul le Regular est chargé
-    // (règle marque : pas de graisse grasse — l'emphase se fait par la
-    // taille et les MAJUSCULES). Le @font-face est injecté par MenuScene ;
-    // repli silencieux sur les polices système si la police n'arrive pas
-    // (hors ligne).
+    // --- Police ------------------------------------------------------------
     police: {
-        famille: "'Azimut', 'Baloo 2', 'Nunito', system-ui, sans-serif",
-        url: "/fonts/azimut/Azimut-Regular.woff2"
+        // 24/09/2026 (refonte charte) : Montserrat, la police de TEXTE de
+        // la marque — Azimut est réservée aux titres, dessinés par le socle
+        // (core/ui/menuPrincipal.js, core/ui/ecran.js). Les deux sont
+        // chargées par le socle (core/ui/polices.js) : plus d'url ici.
+        famille: "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif"
     }
 };

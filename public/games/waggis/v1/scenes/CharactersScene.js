@@ -33,6 +33,10 @@
  *  - police ronde Azimut (marque, C.police.famille) sur tous les textes ;
  *  - transitions animées fade entre écrans (WaggisUI.aller).
  *
+ * ⭐ REFONTE CHARTE 24/09/2026 : en-tête, retour et mise en page par le
+ * gabarit commun core/ui/ecran.js ; lignes = cartes crème de la charte
+ * (Arcade.UI.carte) — bord rouge = skin actif, fond « ligne » = verrouillé.
+ *
  * Mobile-first : tailles en % du plus petit côté (Arcade.UI.u), mise en
  * page recalculée à chaque rotation (Arcade.UI.layout), 100 % clic/tap
  * (article 409). Scène propre à Waggis (article 709 : pas dans core/ tant
@@ -61,66 +65,27 @@ class CharactersScene extends Phaser.Scene {
 
         // --- Fond : dégradé de ciel (spec 709 révision 08/08) --------------
         this.fond = this.add.graphics().setDepth(0);
-
-        // --- Titre (police Azimut + relief) + pièces -----------------------
-        const titre = this.add.text(0, 0, C.textes.personnages, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
-        const pieces = this.add.text(0, 0, "", {
-            fontFamily: C.police.famille,
-            color: C.couleurs.texte,
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setShadow(0, 2, "rgba(255, 255, 255, 0.7)", 2, false, true);
-        this.piecesTexte = pieces;
+        UI.layout(this, (w, h) => WaggisUI.ciel(this.fond, w, h));
 
         // --- Liste des skins -------------------------------------------------
-        this._lignes = [];   // objets { ombre, fond, sprite, nom, etat, zone, cadenas? }
+        this._lignes = [];   // objets { fond, sprite, conteneur, zone, cadenas? }
 
-        // --- Retour au menu (bouton refondu) --------------------------------
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: "#141210",
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
+        // Refonte charte du 24/09 : en-tête (pièces en pastille), retour et
+        // mise en page par le gabarit commun des écrans (core/ui/ecran.js) ;
+        // la liste se range dans la zone qu'il fournit.
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.personnages,
+            infos: [C.textes.pieces.replace("{pieces}", this.registry.get("wallet") || 0)],
+            retour: { label: C.textes.retour, onClick: () => WaggisUI.aller(this, MenuScene.KEY) },
+            contenu: (zone) => {
+                this.zone = zone;
+                this._dessinerListe();
+            }
         });
-        this.retour = retour;
-
-        // Mise en page recalculée à chaque rotation : titre en haut, pièces,
-        // liste centrée, retour en bas.
-        UI.layout(this, (w, h) => {
-            WaggisUI.ciel(this.fond, w, h);
-            titre.setPosition(w / 2, h * 0.08)
-                 .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            pieces.setPosition(w / 2, h * 0.155)
-                  .setFontSize(Math.round(UI.u(this, 4)) + "px");
-            retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
-                  .setPosition(w / 2, h * 0.91);
-            this._dessinerListe();
-        });
-        this._majPieces();
 
         // Transition d'arrivée : fondu depuis le noir (spec 709).
         this.cameras.main.fadeIn(220, 0, 0, 0);
-    }
-
-    /** Rafraîchit le texte des pièces (data.wallet). */
-    _majPieces() {
-        const wallet = this.registry.get("wallet") || 0;
-        if (this.piecesTexte) {
-            this.piecesTexte.setText(
-                this.C.textes.pieces.replace("{pieces}", wallet)
-            );
-        }
     }
 
     /**
@@ -131,7 +96,6 @@ class CharactersScene extends Phaser.Scene {
         const C = this.C;
         const UI = Arcade.UI;
         this._lignes.forEach((l) => {
-            l.ombre.destroy();
             l.fond.destroy();
             l.sprite.destroy();
             l.conteneur.destroy();
@@ -141,22 +105,19 @@ class CharactersScene extends Phaser.Scene {
         this._lignes = [];
 
         const ids = Object.keys(C.personnages);
-        const w = this.scale.width;
-        const h = this.scale.height;
+        const zone = this.zone;
         const ligneH = UI.u(this, 12);
         const gap = UI.u(this, 1.4);
         // Largeur de liste = % de la LARGEUR RÉELLE (jamais u(), qui mesure
         // le plus petit côté), plafonnée pour ne pas s'étirer à l'infini
         // sur un écran très large (config.listes).
-        const listeW = Math.min((w * C.listes.largeurPct) / 100,
-            UI.u(this, C.listes.largeurMaxU));
-        const total = ids.length * ligneH + (ids.length - 1) * gap;
-        let y = h * 0.21 + ligneH / 2;
+        const listeW = Math.min(zone.largeur, UI.u(this, C.listes.largeurMaxU));
+        let y = zone.y + ligneH / 2;
 
         ids.forEach((id) => {
             const perso = C.personnages[id];
             const debloque = this.debloques.indexOf(id) >= 0;
-            this._creerLigne(id, perso, debloque, w / 2, y, listeW, ligneH);
+            this._creerLigne(id, perso, debloque, zone.cx, y, listeW, ligneH);
             y += ligneH + gap;
         });
     }
@@ -173,38 +134,16 @@ class CharactersScene extends Phaser.Scene {
         const C = this.C;
         const UI = Arcade.UI;
         const estActif = this.actif === id;
-        const hex = (s) => Phaser.Display.Color.HexStringToColor(s).color;
-        const r = hauteur * 0.18;
+        const T = Arcade.UI.tokens;
 
-        // Ombre portée sous la ligne.
-        const ombre = this.add.graphics();
-        ombre.fillStyle(C.couleurs.ombrePortee, 0.22);
-        ombre.fillRoundedRect(x - largeur / 2, y - hauteur / 2 + hauteur * 0.06,
-            largeur, hauteur, r);
-
-        // Corps de la ligne.
+        // Carte de la charte (core/ui/ecran.js) : bord ROUGE = skin actif,
+        // fond « ligne » = verrouillé.
         const fond = this.add.graphics();
-        fond.fillStyle(hex(C.couleurs.fondCarte), 1);
-        fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+        Arcade.UI.carte(fond, x - largeur / 2, y - hauteur / 2, largeur, hauteur,
+            !debloque ? "verrou" : (estActif ? "selection" : "normal"));
 
-        let couleurEtat = C.couleurs.texte;
-        let couleurSprite = null;   // null = alpha normal
-        if (!debloque) {
-            // VERROUILLÉ : overlay sombre semi-transparent (spec 709) par-
-            // dessus le fond clair, sprite estompé.
-            fond.fillStyle(C.couleurs.ombrePortee, 0.45);
-            fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
-            couleurSprite = 0.4;
-        } else if (estActif) {
-            // ACTIF : bordure/glow verte au lieu de l'aplat vert (spec 709).
-            const liseret = hex(C.couleurs.liseretActif);
-            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), liseret, 1);
-            fond.strokeRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
-            fond.lineStyle(Math.max(4, Math.round(UI.u(this, 1.6))), liseret, 0.25);
-            fond.strokeRoundedRect(x - largeur / 2 - UI.u(this, 0.4),
-                y - hauteur / 2 - UI.u(this, 0.4),
-                largeur + UI.u(this, 0.8), hauteur + UI.u(this, 0.8), r);
-        }
+        let couleurEtat = T.encre;
+        const couleurSprite = debloque ? null : 0.4;   // null = alpha normal
 
         // Sprite du personnage : frame de repos (frames[0]), en hauteur de
         // ligne × 0,8 — le fond reste visible autour (vignette).
@@ -228,7 +167,7 @@ class CharactersScene extends Phaser.Scene {
             .text(0, 0, perso.nom, {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 4)) + "px",
-                color: !debloque ? "#ffffff" : "#141210",
+                color: !debloque ? C.couleurs.texteDiscret : T.encre,
                 align: "left"
             })
             .setOrigin(0, 0.5);
@@ -239,13 +178,13 @@ class CharactersScene extends Phaser.Scene {
         let etatTexte = "";
         if (!debloque) {
             etatTexte = C.textes.verrouille + " " + C.textes.aDebloquer;
-            couleurEtat = "#ffffff";
+            couleurEtat = C.couleurs.texteDiscret;
         } else if (estActif) {
             etatTexte = C.textes.actif;
-            couleurEtat = C.couleurs.liseretActif;
+            couleurEtat = T.rouge;
         } else {
             etatTexte = C.textes.selectionner;
-            couleurEtat = C.couleurs.bouton;
+            couleurEtat = T.encre;
         }
         const etat = this.add
             .text(0, 0, etatTexte, {
@@ -258,6 +197,11 @@ class CharactersScene extends Phaser.Scene {
 
         // Ajustement anti-chevauchement : l'état tient dans la moitié
         // droite du bloc, le nom dans ce qui reste à gauche.
+        // Libellé COURT avant toute réduction de police (même règle que la
+        // Boutique, FIX 09/08) : un mot court à taille normale se lit.
+        if (!debloque && etat.width > texteW * 0.5) {
+            etat.setText(C.textes.verrouille + " " + C.textes.aDebloquerCourt);
+        }
         let fsEtat = 3.4;
         while (etat.width > texteW * 0.5 && fsEtat > 2.4) {
             fsEtat -= 0.2;
@@ -284,8 +228,8 @@ class CharactersScene extends Phaser.Scene {
             // 08/08 : « icône cadenas plus fine »).
             const cadenas = this.add.graphics();
             WaggisUI.cadenas(cadenas, x - largeur / 2 + hauteur * 0.6, y,
-                hauteur * 0.42, 0xffffff);
-            this._lignes.push({ ombre, fond, sprite, conteneur, cadenas, zone });
+                hauteur * 0.42, Arcade.UI.couleur(C.couleurs.texteDiscret).valeur);
+            this._lignes.push({ fond, sprite, conteneur, cadenas, zone });
             return;
         }
         if (!estActif) {
@@ -296,7 +240,7 @@ class CharactersScene extends Phaser.Scene {
                 this.selectionner(id);
             });
         }
-        this._lignes.push({ ombre, fond, sprite, conteneur, zone });
+        this._lignes.push({ fond, sprite, conteneur, zone });
     }
 
     /**

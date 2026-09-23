@@ -19,6 +19,8 @@
  *       accroche: "Traverse Strasbourg…",        // optionnel
  *       surtitre: "The Elsassisch · Arcade",     // optionnel (défaut)
  *       infos: ["🏆 Meilleur score : 0"],         // 0..N pastilles, optionnel
+ *                                                 // ("" = pastille masquée
+ *                                                 // jusqu'à son setInfo)
  *       illustration: function (cx, cy, hauteurMax, largeurMax) { … },
  *                                                 // optionnel : place le
  *                                                 // visuel du jeu dans la
@@ -26,7 +28,10 @@
  *       // Bloc d'actions : mêmes options que Arcade.UI.menuActions
  *       jouer: { label, onClick } | null,
  *       secondaires: [{ icone, label, onClick }],
- *       reglages: { label, onClick } | null
+ *       reglages: { label, onClick } | null,
+ *       iconesPlateforme: false  // optionnel : écran SANS Quitter / Plein
+ *                                // écran (fin de partie) — l'en-tête
+ *                                // remonte en haut de l'écran
  *   });
  *   menu.setInfo(0, "🏆 Meilleur score : 12");  // ex. après Score.load()
  *
@@ -112,7 +117,7 @@
                 .setPosition(x + pX, curseur);
             curseur += surtitre.height + u(1);
 
-            ajusterLargeur(titre, u(10), interieur, u(5));
+            ajusterLargeur(titre, u(o.tailleTitreU || 10), interieur, u(5));
             titre.setPosition(x + pX, curseur);
             curseur += titre.height;
 
@@ -124,7 +129,7 @@
             }
 
             pastilles.clear();
-            if (infos.length) {
+            if (infos.some(function (t) { return t.text !== ""; })) {
                 curseur += u(3);
                 var hP = u(6.5);
                 var mP = u(2.6);
@@ -132,6 +137,10 @@
                 var px = x + pX;
                 var py = curseur;
                 infos.forEach(function (t) {
+                    // Pastille vide = masquée (valeur pas encore connue,
+                    // ex. le gain de pièces avant l'envoi du score).
+                    t.setVisible(t.text !== "");
+                    if (t.text === "") return;
                     ajusterLargeur(t, u(3), interieur - 2 * mP, u(2));
                     var lP = t.width + 2 * mP;
                     if (px > x + pX && px + lP > x + pX + interieur) {
@@ -201,8 +210,9 @@
 
         var miseEnPage = function (w, h) {
             // Sous les boutons Quitter / Plein écran (marge u(2) + hauteur
-            // u(10.5), cf. Arcade.UI.iconesPlateforme) + respiration.
-            var haut = u(2) + u(10.5) + u(3);
+            // u(10.5), cf. Arcade.UI.iconesPlateforme) + respiration — sauf
+            // sur un écran qui ne les affiche pas (fin de partie).
+            var haut = o.iconesPlateforme === false ? u(4) : u(2) + u(10.5) + u(3);
             var bas = h * 0.965;
             var ecart = u(3);
             var hActions = actions.hauteur();

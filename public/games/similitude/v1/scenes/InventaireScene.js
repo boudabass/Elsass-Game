@@ -41,61 +41,26 @@ class InventaireScene extends Phaser.Scene {
         // Fond : dégradé (spec 728 §7).
         this.fond = this.add.graphics().setDepth(0);
 
-        // Titre de l'écran (police Azimut + relief, pattern Waggis).
-        const titre = this.add.text(0, 0, C.textes.inventaire, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
-
-        // Retour au menu (composant partagé Arcade.UI.bouton).
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => SimilitudeUI.aller(this, MenuScene.KEY)
-        });
-
         // --- Les 4 lignes jokers -------------------------------------------
         this._lignes = [];
 
-        UI.layout(this, (w, h) => {
-            SimilitudeUI.ciel(this.fond, w, h);
-
-            const u = (n) => UI.u(this, n);
-            const espace = u(C.menu.espaceU);
-
-            titre.setPosition(w / 2, h * 0.07)
-                 .setFontSize(Math.round(u(9)) + "px");
-
-            // Retour ancré au sol (pattern CommentJouerScene / Classement).
-            const hauteurRetour = u(9);
-            const yRetour = h * 0.965 - hauteurRetour / 2;
-            retour.redimensionner(u(40), hauteurRetour)
-                  .setPosition(w / 2, yRetour);
-
-            // Bande des lignes : du dessous du titre au-dessus du retour,
-            // répartie en 4 lignes égales (une par joker) — la hauteur de
-            // ligne est recalculée à chaque rotation (pattern tableau à
-            // hauteur variable du Classement) : rien ne déborde.
-            const hautBande = h * 0.13;
-            const basBande = yRetour - hauteurRetour / 2 - espace;
-            // Hauteur de ligne PLAFONNÉE (config) puis pile centrée dans la
-            // bande — sans plafond, les lignes deviennent des pavés plus
-            // hauts que larges sur mobile (bug vu par John le 09/08).
-            const hDispo = basBande - hautBande;
-            const hLigne = Math.max(u(8),
-                Math.min(u(C.inventaire.hauteurLigneMaxU),
-                    hDispo / C.jokers.length));
-            const y0 = hautBande +
-                Math.max(0, (hDispo - hLigne * C.jokers.length) / 2);
-
-            this._dessinerLignes(w, y0, hLigne, u);
+        // Refonte charte du 24/09 : en-tête, retour et mise en page par le
+        // gabarit commun des écrans (core/ui/ecran.js). Dans la zone : 4
+        // lignes égales, hauteur PLAFONNÉE (config) puis pile centrée —
+        // sans plafond, les lignes deviennent des pavés plus hauts que
+        // larges sur mobile (bug vu par John le 09/08).
+        UI.layout(this, (w, h) => SimilitudeUI.ciel(this.fond, w, h));
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.inventaire,
+            retour: { label: C.textes.retour, onClick: () => SimilitudeUI.aller(this, MenuScene.KEY) },
+            contenu: (zone) => {
+                const u = (n) => UI.u(this, n);
+                const hLigne = Math.max(u(8),
+                    Math.min(u(C.inventaire.hauteurLigneMaxU), zone.hauteur / C.jokers.length));
+                const y0 = zone.y + Math.max(0, (zone.hauteur - hLigne * C.jokers.length) / 2);
+                this._dessinerLignes(zone, y0, hLigne, u);
+            }
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 728 §7).
@@ -106,10 +71,9 @@ class InventaireScene extends Phaser.Scene {
      * (Re)dessine les 4 lignes jokers. Détruit les lignes de la passe
      * précédente (pattern ClassementScene — objets non réutilisés).
      */
-    _dessinerLignes(w, y0, hLigne, u) {
+    _dessinerLignes(zone, y0, hLigne, u) {
         const C = this.C;
         this._lignes.forEach((l) => {
-            l.ombre.destroy();
             l.fond.destroy();
             l.emoji.destroy();
             l.nom.destroy();
@@ -124,9 +88,9 @@ class InventaireScene extends Phaser.Scene {
         // l'écran (w) et non sur u() (le plus petit côté), sinon les 3
         // colonnes se chevauchaient. Carte un peu plus basse que son pas
         // vertical : les lignes ne se touchent plus.
-        const largeur = (w * C.inventaire.largeurLignePct) / 100;
+        const largeur = zone.largeur;
         const hCarte = Math.max(u(6), hLigne - u(C.inventaire.espaceLigneU));
-        const x = w / 2;
+        const x = zone.cx;
 
         C.jokers.forEach((j, i) => {
             const y = y0 + hLigne * (i + 0.5);
@@ -150,7 +114,7 @@ class InventaireScene extends Phaser.Scene {
         const C = this.C;
         const inv = C.inventaire;
         const zero = possede <= 0;
-        const r = hauteur * 0.2;
+        const T = Arcade.UI.tokens;
 
         // --- Géométrie des 3 colonnes -------------------------------------
         // Largeurs = % de la largeur de la LIGNE (jamais u(), qui mesure le
@@ -170,15 +134,11 @@ class InventaireScene extends Phaser.Scene {
                                  : droite - marge;
         const wrapMilieu = Math.max(u(10), borneDroite - xMilieu);
 
-        // Ombre portée sous la ligne (VALEUR NUMÉRIQUE — WebGL, QA NC1).
-        const ombre = this.add.graphics().setDepth(2);
-        ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-        ombre.fillRoundedRect(x - largeur / 2, y - hauteur / 2 + hauteur * 0.05,
-            largeur, hauteur, r);
-
+        // Carte de la charte (core/ui/ecran.js) : fond « ligne » quand le
+        // joker n'est pas possédé (grisé, spec 728 §6).
         const fond = this.add.graphics().setDepth(3);
-        fond.fillStyle(0x141210, zero ? 0.45 : 0.85);
-        fond.fillRoundedRect(x - largeur / 2, y - hauteur / 2, largeur, hauteur, r);
+        Arcade.UI.carte(fond, x - largeur / 2, y - hauteur / 2, largeur, hauteur,
+            zero ? "verrou" : "normal");
 
         // --- Colonne 1 (gauche) : icône AU-DESSUS de la quantité ----------
         const emoji = this.add.text(0, 0, j.emoji, {
@@ -194,28 +154,28 @@ class InventaireScene extends Phaser.Scene {
         const quantite = this.add.text(0, 0,
             C.textes.quantite.replace("{n}", possede), {
                 fontFamily: C.police.famille,
-                color: zero ? "#8a8a8a" : C.couleurs.combo,
+                fontStyle: "bold",
+                color: zero ? C.couleurs.texteDiscret : T.rouge,
                 align: "center"
             })
             .setOrigin(0.5)
             .setDepth(4)
-            .setStroke("#141210", 2)
             .setFontSize(Math.round(u(inv.tailleQuantiteU)) + "px")
             .setPosition(xGauche, y + hauteur * 0.24);
 
         // --- Colonne 2 (milieu) : nom AU-DESSUS de la description ---------
         const nom = this.add.text(0, 0, j.nom, {
             fontFamily: C.police.famille,
-            color: "#ffffff",
+            fontStyle: "bold",
+            color: T.encre,
             align: "left"
         })
             .setOrigin(0, 0.5)
             .setDepth(4)
-            .setStroke("#141210", 2)
             .setFontSize(Math.round(u(inv.tailleNomU)) + "px")
             .setPosition(xMilieu, y - hauteur * 0.18)
             .setWordWrapWidth(wrapMilieu, true)
-            .setAlpha(zero ? 0.35 : 1);
+            .setAlpha(zero ? 0.6 : 1);
 
         const e = C.effetsJokers;
         const effet = C.textes.commentJokerEffet[j.cle]
@@ -223,7 +183,7 @@ class InventaireScene extends Phaser.Scene {
             .replace("{e}", e.foudreEnergie);
         const effetT = this.add.text(0, 0, effet, {
             fontFamily: C.police.famille,
-            color: "#c9c2b4",
+            color: C.couleurs.texteDiscret,
             align: "left"
         })
             .setOrigin(0, 0.5)
@@ -231,7 +191,7 @@ class InventaireScene extends Phaser.Scene {
             .setFontSize(Math.round(u(inv.tailleEffetU)) + "px")
             .setPosition(xMilieu, y + hauteur * 0.22)
             .setWordWrapWidth(wrapMilieu, true)
-            .setAlpha(zero ? 0.35 : 1);
+            .setAlpha(zero ? 0.6 : 1);
         // Anti-débordement : le texte se réduit plutôt que de sortir de sa
         // colonne (plancher config.inventaire.policeMinU).
         this._ajusterTexte(nom, hauteur * 0.42, u);
@@ -244,12 +204,10 @@ class InventaireScene extends Phaser.Scene {
         // composant partagé) : le libellé ne déborde plus de sa colonne.
         let renvoi = null;
         if (zero) {
-            renvoi = Arcade.UI.bouton(this, {
+            renvoi = Arcade.UI.boutonMenu(this, {
+                variante: "jouer",   // rouge : l'action de la ligne
                 ligneHaut: C.textes.renvoiBoutiqueHaut,
                 label: C.textes.renvoiBoutiqueBas,
-                couleur: C.couleurs.boutonJouer,
-                ombre: C.couleurs.ombreBouton,
-                police: C.police.famille,
                 onClick: () => SimilitudeUI.aller(this, ShopScene.KEY)
             });
             // Hauteur bornée par la largeur : la police du composant est
@@ -261,7 +219,7 @@ class InventaireScene extends Phaser.Scene {
         }
 
         this._lignes.push({
-            ombre, fond, emoji, nom, effet: effetT, quantite, renvoi
+            fond, emoji, nom, effet: effetT, quantite, renvoi
         });
     }
 

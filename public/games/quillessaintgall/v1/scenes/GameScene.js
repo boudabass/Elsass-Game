@@ -342,20 +342,20 @@ class GameScene extends Phaser.Scene {
         ).setVisible(true);
 
         if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
-        this.boutonRejouer = Arcade.UI.bouton(this, {
+        // Boutons de fin aux couleurs de la marque (refonte charte 24/09) :
+        // action principale rouge, retour au menu en tuile crème.
+        this.boutonRejouer = Arcade.UI.boutonMenu(this, {
+            variante: "jouer",
             label: C.textes.rejouerPartie,
-            couleur: C.couleurs.bouton,
-            textColor: C.couleurs.texte,
             onClick: () => this._demarrerPartie()
         });
         // Retour au menu (§10/12, ajouté 04/09) : seul moyen de CHANGER de
         // palier — « Rejouer » garde le palier en cours (this.palierConf
         // inchangé, cf. _demarrerPartie).
         if (this.boutonMenu) { this.boutonMenu.destroy(); this.boutonMenu = null; }
-        this.boutonMenu = Arcade.UI.bouton(this, {
+        this.boutonMenu = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: C.textes.menu,
-            couleur: C.couleurs.boutonRotation,
-            textColor: C.couleurs.texte,
             onClick: () => this.scene.start(MenuScene.KEY)
         });
 
@@ -411,10 +411,9 @@ class GameScene extends Phaser.Scene {
 
         if (this.boutonRejouer) { this.boutonRejouer.destroy(); this.boutonRejouer = null; }
         const C = window.QuillesSaintGallConfig;
-        this.boutonRejouer = Arcade.UI.bouton(this, {
+        this.boutonRejouer = Arcade.UI.boutonMenu(this, {
+            variante: "jouer",
             label: o.boutonLabel,
-            couleur: C.couleurs.bouton,
-            textColor: C.couleurs.texte,
             onClick: o.onContinuer
         });
 

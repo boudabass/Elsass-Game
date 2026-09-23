@@ -16,6 +16,12 @@ window.CigogneConfig = {
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
         jouer: "Commencer",     // bouton principal du menu
+        accroche: "Un tap, un coup d'aile : file entre les toits d'Alsace !",
+        // Écran de fin (OverScene)
+        perdu: "Perdu !",
+        score: "Score : {score}",
+        rejouer: "Rejouer",
+        menu: "Menu",
 
         // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
         // art. 704 Chantier B) : libellés affichés SOUS les icônes
@@ -65,16 +71,8 @@ window.CigogneConfig = {
         toitBord: 0x7a3a28,  // avant-toit
         herbe: 0x6aa84f,
         terre: 0x8b6b4a,
-        texte: "#141210",
-        texteClair: "#ffffff",
-        bouton: "#E31B23",
-        // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08 —
-        // couleur PAR BOUTON dans le composant Arcade.UI.bouton) : VERT
-        // pour le bouton Commencer (le rouge reste la couleur des boutons
-        // Retour / Plein écran / Réglages).
-        boutonJouer: "#2E9E4F",
-        // Encadré du record sur l'écran de fin : orange, texte noir à
-        // l'intérieur (lisible sur le fond bleu ciel).
-        encadreRecord: "#F2B93D"
+        texte: "#141210"
+        // Boutons, encadré du record : couleurs de la marque, fournies par
+        // le socle (core/ui/tokens.js) depuis la refonte charte du 24/09.
     }
 };

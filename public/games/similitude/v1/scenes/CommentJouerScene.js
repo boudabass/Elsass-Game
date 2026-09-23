@@ -47,22 +47,11 @@ class CommentJouerScene extends Phaser.Scene {
         // Fond : dégradé (spec 728 §7).
         this.fond = this.add.graphics().setDepth(0);
 
-        // Titre (police Azimut + relief, pattern Waggis).
-        const titre = this.add.text(0, 0, C.textes.commentJouer, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
-
         // --- Sections (titres) ---------------------------------------------
         this.titreBoucle = this._titreSection(C.textes.commentTitreBoucle);
         this.titreFin = this._titreSection(C.textes.commentTitreFin);
         const titreJokers = this._titreSection(C.textes.commentTitreJokers);
-        const introJokers = this._texte(C.textes.commentJokersIntro, 2.8);
+        const introJokers = this._texte(C.textes.commentJokersIntro);
 
         // --- La boucle en 3 gestes : 3 cartes (emoji + libellé) ------------
         // spec 728 §7 : « la boucle en 3 images » — une carte illustrée par
@@ -71,9 +60,8 @@ class CommentJouerScene extends Phaser.Scene {
         this.boucle = [];
         for (let i = 0; i < 3; i++) {
             this.boucle.push({
-                emoji: this._texte(C.textes.commentBoucleEmojis[i], 4.5),
-                label: this._texte(C.textes.commentBoucle[i], 2.9),
-                ombre: this.add.graphics().setDepth(2),
+                emoji: this._texte(C.textes.commentBoucleEmojis[i]),
+                label: this._texte(C.textes.commentBoucle[i]),
                 fond: this.add.graphics().setDepth(3)
             });
         }
@@ -84,9 +72,8 @@ class CommentJouerScene extends Phaser.Scene {
         const clesFin = ["finChrono", "finEnergie", "finGrillePleine"];
         for (let i = 0; i < 3; i++) {
             this.fins.push({
-                emoji: this._texte(C.textes.commentFinEmojis[i], 4.5),
-                label: this._texte(C.textes[clesFin[i]], 2.9),
-                ombre: this.add.graphics().setDepth(2),
+                emoji: this._texte(C.textes.commentFinEmojis[i]),
+                label: this._texte(C.textes[clesFin[i]]),
                 fond: this.add.graphics().setDepth(3)
             });
         }
@@ -101,52 +88,31 @@ class CommentJouerScene extends Phaser.Scene {
                 .replace("{s}", e.sablierSecondes)
                 .replace("{e}", e.foudreEnergie);
             this.jokers.push({
-                emoji: this._texte(j.emoji, 4.5),
-                nom: this._texte(j.nom, 2.9),
-                effet: this._texte(effet, 2.4),
-                ombre: this.add.graphics().setDepth(2),
+                emoji: this._texte(j.emoji),
+                nom: this._texte(j.nom),
+                effet: this._texte(effet),
                 fond: this.add.graphics().setDepth(3)
             });
         });
 
-        // --- Retour au menu (composant partagé Arcade.UI.bouton) ----------
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => SimilitudeUI.aller(this, MenuScene.KEY)
-        });
-
-        UI.layout(this, (w, h) => {
-            SimilitudeUI.ciel(this.fond, w, h);
-
-            const u = (n) => UI.u(this, n);
-            const espace = u(C.menu.espaceU);
-            const cj = C.commentJouer;
-
-            titre.setPosition(w / 2, h * cj.titreY)
-                 .setFontSize(Math.round(u(cj.titreTailleU)) + "px");
-
-            // --- Retour, ancré en bas (sol) --------------------------------
-            const hauteurRetour = u(cj.retourHauteurU);
-            const yRetour = h * cj.solY - hauteurRetour / 2;
-            retour.redimensionner(u(cj.retourLargeurU), hauteurRetour)
-                  .setPosition(w / 2, yRetour);
-
-            // --- Bande de contenu : du dessous du titre au-dessus du ------
-            // Retour, répartie en 3 blocs égaux (boucle / fins / jokers) —
-            // chaque bloc occupe TOUTE sa hauteur (pattern tableau à
-            // hauteur variable du Classement) : rien ne déborde jamais sur
-            // le Retour (règle John : empilé, jamais superposé).
-            const hautBande = h * cj.bandeHautY;
-            const basBande = yRetour - hauteurRetour / 2 - espace;
-            const blocH = Math.max(u(cj.blocMinU), (basBande - hautBande) / 3);
-
-            this._placerBlocBoucle(w, hautBande, blocH, u);
-            this._placerBlocFins(w, hautBande + blocH, blocH, u);
-            this._placerBlocJokers(w, hautBande + 2 * blocH, blocH, u,
-                titreJokers, introJokers);
+        // Refonte charte du 24/09 : en-tête, retour et mise en page par le
+        // gabarit commun des écrans (core/ui/ecran.js). La zone de contenu
+        // est répartie en 3 blocs égaux (boucle / fins / jokers) — chaque
+        // bloc occupe TOUTE sa hauteur : rien ne déborde jamais sur le
+        // Retour (règle John : empilé, jamais superposé).
+        UI.layout(this, (w, h) => SimilitudeUI.ciel(this.fond, w, h));
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.commentJouer,
+            retour: { label: C.textes.retour, onClick: () => SimilitudeUI.aller(this, MenuScene.KEY) },
+            contenu: (zone) => {
+                const u = (n) => UI.u(this, n);
+                const blocH = Math.max(u(C.commentJouer.blocMinU), zone.hauteur / 3);
+                this._placerBlocBoucle(zone, zone.y, blocH, u);
+                this._placerBlocFins(zone, zone.y + blocH, blocH, u);
+                this._placerBlocJokers(zone, zone.y + 2 * blocH, blocH, u,
+                    titreJokers, introJokers);
+            }
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 728 §7).
@@ -156,16 +122,17 @@ class CommentJouerScene extends Phaser.Scene {
     // --- Blocs (mise en page adaptative) -------------------------------------
 
     /** Bloc « La boucle en 3 gestes » : titre + 3 cartes empilées. */
-    _placerBlocBoucle(w, y0, blocH, u) {
+    _placerBlocBoucle(zone, y0, blocH, u) {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
-        const tailleTitre = this._placerTitreSection(this.titreBoucle, w, y0, u);
+        const tailleTitre = this._placerTitreSection(this.titreBoucle, zone, y0, u);
         // ⭐ FIX SIM-FIX-CJ (GATE John 09/08) : la largeur des cartes se
         // calcule depuis la LARGEUR RÉELLEMENT DISPONIBLE de l'écran (w),
         // plus jamais depuis u() (le plus petit côté) — sur mobile une
         // carte u(30) ne faisait que ~30 % de l'écran et le texte wrapé
         // débordait par-dessus les cartes voisines.
-        const lcarte = (w * cj.largeurCartePct) / 100;
+        const lcarte = zone.largeur;   // largeur de la zone du gabarit
+        const cx = zone.cx;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiU);
         // Largeur RÉSERVÉE à l'emoji : un emoji est rendu plus large que sa
@@ -180,15 +147,15 @@ class CommentJouerScene extends Phaser.Scene {
         for (let i = 0; i < 3; i++) {
             const y = y0 + tailleTitre + espaceCarte +
                 i * (hCarte + espaceCarte) + hCarte / 2;
-            this._dessinerCarte(this.boucle[i], w / 2, y, lcarte, hCarte);
+            this._dessinerCarte(this.boucle[i], cx, y, lcarte, hCarte);
             // Emoji à gauche DANS la carte (jamais hors conteneur).
             this.boucle[i].emoji
                 .setFontSize(Math.round(zoneEmoji) + "px")
-                .setPosition(w / 2 - lcarte / 2 + marge, y);
+                .setPosition(cx - lcarte / 2 + marge, y);
             // Libellé à droite de l'emoji, wrap DANS la largeur restante
             // du conteneur (le texte ne déborde plus sur les autres
             // éléments — GATE John 09/08).
-            const xLabel = w / 2 - lcarte / 2 + marge + largeEmoji +
+            const xLabel = cx - lcarte / 2 + marge + largeEmoji +
                 u(cj.espaceEmojiLabelU);
             this.boucle[i].label
                 .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
@@ -201,11 +168,12 @@ class CommentJouerScene extends Phaser.Scene {
     }
 
     /** Bloc « La partie se termine quand… » : titre + 3 cartes empilées. */
-    _placerBlocFins(w, y0, blocH, u) {
+    _placerBlocFins(zone, y0, blocH, u) {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
-        const tailleTitre = this._placerTitreSection(this.titreFin, w, y0, u);
-        const lcarte = (w * cj.largeurCartePct) / 100;
+        const tailleTitre = this._placerTitreSection(this.titreFin, zone, y0, u);
+        const lcarte = zone.largeur;   // largeur de la zone du gabarit
+        const cx = zone.cx;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiU);
         const largeEmoji = zoneEmoji * cj.largeurEmojiFacteur;
@@ -215,11 +183,11 @@ class CommentJouerScene extends Phaser.Scene {
         for (let i = 0; i < 3; i++) {
             const y = y0 + tailleTitre + espaceCarte +
                 i * (hCarte + espaceCarte) + hCarte / 2;
-            this._dessinerCarte(this.fins[i], w / 2, y, lcarte, hCarte);
+            this._dessinerCarte(this.fins[i], cx, y, lcarte, hCarte);
             this.fins[i].emoji
                 .setFontSize(Math.round(zoneEmoji) + "px")
-                .setPosition(w / 2 - lcarte / 2 + marge, y);
-            const xLabel = w / 2 - lcarte / 2 + marge + largeEmoji +
+                .setPosition(cx - lcarte / 2 + marge, y);
+            const xLabel = cx - lcarte / 2 + marge + largeEmoji +
                 u(cj.espaceEmojiLabelU);
             this.fins[i].label
                 .setFontSize(Math.round(u(cj.tailleLabelU)) + "px")
@@ -232,14 +200,15 @@ class CommentJouerScene extends Phaser.Scene {
     }
 
     /** Bloc « Les 4 jokers » : titre + intro + grille 2×2. */
-    _placerBlocJokers(w, y0, blocH, u, titreJokers, introJokers) {
+    _placerBlocJokers(zone, y0, blocH, u, titreJokers, introJokers) {
         const C = window.SimilitudeConfig;
         const cj = C.commentJouer;
         const espace = u(C.menu.espaceU);
-        const tailleTitre = this._placerTitreSection(titreJokers, w, y0, u);
+        const tailleTitre = this._placerTitreSection(titreJokers, zone, y0, u);
         // Intro sur TOUTE la largeur disponible (wrap configuré — jamais
         // de débordement sur les cartes), puis grille 2×2 dans le reste.
-        const lcarte = (w * cj.largeurCartePct) / 100;
+        const lcarte = zone.largeur;   // largeur de la zone du gabarit
+        const cx = zone.cx;
         const marge = u(cj.margeCarteU);
         const zoneEmoji = u(cj.tailleEmojiJokerU);
         const largeEmoji = zoneEmoji * cj.largeurEmojiFacteur;
@@ -250,19 +219,21 @@ class CommentJouerScene extends Phaser.Scene {
         // calculée APRÈS le wrap, avec la hauteur mesurée, pour ne jamais
         // remonter sur le titre de section.
         introJokers
+            .setColor("#ffffff")
+            .setStroke("#141210", Math.max(1.5, Math.round(u(cj.tailleIntroU) * 0.08)))
             .setOrigin(0.5)
             .setAlign("center")
             .setFontSize(Math.round(u(cj.tailleIntroU)) + "px")
             .setWordWrapWidth(lcarte, true);
         const yIntro = y0 + tailleTitre + espaceCarte + introJokers.height / 2;
-        introJokers.setPosition(w / 2, yIntro);
+        introJokers.setPosition(cx, yIntro);
         // Grille 2×2 : chaque carte = (largeurDispo − espace) / 2 — la
         // paire occupe exactement la largeur des cartes du haut. Centrage
         // CORRIGÉ (SIM-FIX-CJ) : l'ancien x1 = w/2 + espace/2 rapprochait
         // la carte droite de lJoker/2 → les deux cartes se chevauchaient.
         const lJoker = (lcarte - espace) / 2;
-        const x0 = w / 2 - lJoker / 2 - espace / 2;
-        const x1 = w / 2 + lJoker / 2 + espace / 2;
+        const x0 = cx - lJoker / 2 - espace / 2;
+        const x1 = cx + lJoker / 2 + espace / 2;
         // 2 rangées empilées + 1 espacement régulier, dans la hauteur qui
         // reste sous l'intro (hauteur MESURÉE de l'intro wrapée — rien
         // n'est superposé, règle John 08/08).
@@ -304,11 +275,11 @@ class CommentJouerScene extends Phaser.Scene {
      * seule taille de police : le texte, plus haut que ça, mordait sur la
      * carte du dessus (SIM-FIX-CJ2, GATE John 09/08).
      */
-    _placerTitreSection(titre, w, y0, u) {
+    _placerTitreSection(titre, zone, y0, u) {
         const cj = window.SimilitudeConfig.commentJouer;
         titre.setFontSize(Math.round(u(cj.tailleSectionU)) + "px");
         const hauteur = titre.height;
-        titre.setPosition(w / 2, y0 + hauteur / 2);
+        titre.setPosition(zone.cx, y0 + hauteur / 2);
         return hauteur;
     }
 
@@ -329,11 +300,12 @@ class CommentJouerScene extends Phaser.Scene {
         }
     }
 
-    /** Titre de section (texte blanc avec relief, police Azimut). */
+    /** Titre de section (blanc gras avec contour, lisible sur tout le dégradé). */
     _titreSection(texte) {
         const C = window.SimilitudeConfig;
         return this.add.text(0, 0, texte, {
             fontFamily: C.police.famille,
+            fontStyle: "bold",
             color: "#ffffff",
             align: "center"
         })
@@ -343,32 +315,21 @@ class CommentJouerScene extends Phaser.Scene {
             .setShadow(0, 2, "rgba(20, 18, 16, 0.3)", 2, false, true);
     }
 
-    /** Texte simple (police Azimut, blanc, contour). */
-    _texte(contenu, tailleU) {
+    /** Texte posé sur une carte crème : encre, sans contour. */
+    _texte(contenu) {
         const C = window.SimilitudeConfig;
         return this.add.text(0, 0, contenu, {
             fontFamily: C.police.famille,
-            color: "#ffffff",
+            color: Arcade.UI.tokens.encre,
             align: "left"
         })
             .setOrigin(0, 0.5)
-            .setDepth(20)
-            .setStroke("#141210", Math.max(1.5, Math.round(Arcade.UI.u(this, tailleU) * 0.08)));
+            .setDepth(20);
     }
 
-    /**
-     * Carte : ombre portée + fond arrondi (même langage visuel que les
-     * lignes du classement et les cartes Waggis). Valeurs NUMÉRIQUES pour
-     * les Graphics (renderer WebGL — QA 08/08 NC1).
-     */
+    /** Carte de la charte (Arcade.UI.carte, core/ui/ecran.js), centrée sur (x, y). */
     _dessinerCarte(carte, x, y, l, h) {
-        const C = window.SimilitudeConfig;
-        const r = h * 0.25;
-        carte.ombre.clear();
-        carte.ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-        carte.ombre.fillRoundedRect(x - l / 2, y - h / 2 + h * 0.05, l, h, r);
         carte.fond.clear();
-        carte.fond.fillStyle(0x141210, 0.85);
-        carte.fond.fillRoundedRect(x - l / 2, y - h / 2, l, h, r);
+        Arcade.UI.carte(carte.fond, x - l / 2, y - h / 2, l, h, "normal");
     }
 }

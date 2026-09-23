@@ -40,6 +40,7 @@ class MenuScene extends Phaser.Scene {
 
         const menu = Arcade.UI.menuPrincipal(this, {
             titre: C.titre,
+            accroche: C.textes.accroche,
             infos: [C.textes.meilleurScore.replace("{score}", Arcade.Score.best)],
             jouer: { label: C.textes.jouer, onClick: () => this.scene.start(GameScene.KEY) },
             illustration: (cx, cy, hauteurMax) => {

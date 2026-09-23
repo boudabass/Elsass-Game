@@ -94,88 +94,54 @@ class LevelsScene extends Phaser.Scene {
 
         // --- Fond : dégradé de ciel (spec 709 révision 08/08) --------------
         this.fond = this.add.graphics().setDepth(0);
-
-        // --- Titre (police Azimut + relief) --------------------------------
-        const titre = this.add.text(0, 0, C.textes.niveaux, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
+        UI.layout(this, (w, h) => WaggisUI.ciel(this.fond, w, h));
 
         // --- Pagination (100 % clic/tap, article 409) ----------------------
-        // ⭐ REFONTE 08/08 : flèches fines et arrondies (chevron Graphics),
-        // ÉCARTÉES du texte « Page X / Y » — plus de recouvrement (bug
-        // John). Le texte reste centré, les flèches en dehors de sa zone.
-        const pageInfo = UI.text(this, 0, 0, "", 3.5, C.couleurs.texte);
+        // Flèches fines et arrondies (chevron Graphics), ÉCARTÉES du texte
+        // « Page X / Y » — plus de recouvrement (bug John 08/08).
+        const pageInfo = this.add.text(0, 0, "", {
+            fontFamily: C.police.famille,
+            fontStyle: "bold",
+            color: Arcade.UI.tokens.encre,
+            align: "center"
+        }).setOrigin(0.5);
         this.pageInfo = pageInfo;
-        const prec = WaggisUI.fleche(this, "gauche", () => {
+        const prec = Arcade.UI.fleche(this, "gauche", () => {
             if (this.page > 0) { this.page--; this._dessinerGrille(); }
         });
-        const suiv = WaggisUI.fleche(this, "droite", () => {
+        const suiv = Arcade.UI.fleche(this, "droite", () => {
             if (this.page < this._nbPages() - 1) { this.page++; this._dessinerGrille(); }
         });
 
-        // --- Retour au menu (bouton refondu : ombre + arrondis + dégradé) --
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: "#141210",
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
-        });
+        // Refonte charte du 24/09 : en-tête, retour et mise en page par le
+        // gabarit commun des écrans (core/ui/ecran.js). Dans la zone de
+        // contenu : la pagination en bas, la grille dans toute la hauteur
+        // qui reste au-dessus (taille des tuiles recalculée à chaque
+        // rotation, FIX 08/08 John — plus de cote fixe).
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.niveaux,
+            retour: { label: C.textes.retour, onClick: () => WaggisUI.aller(this, MenuScene.KEY) },
+            contenu: (zone) => {
+                const u = (n) => UI.u(this, n);
+                const espace = u(3);
+                const yPagination = zone.y + zone.hauteur - u(4.5);
+                pageInfo.setPosition(zone.cx, yPagination)
+                        .setFontSize(Math.round(u(3.5)) + "px");
+                prec.redimensionner(u(9)).setPosition(zone.cx - u(19), yPagination);
+                suiv.redimensionner(u(9)).setPosition(zone.cx + u(19), yPagination);
 
-        // Mise en page recalculée à chaque rotation : titre en haut, grille
-        // à hauteur VARIABLE dans l'espace restant, pagination + retour
-        // EMPILÉS, ancrés EN BAS (correction John 08/08). Le texte
-        // « Page X / Y » reste centré et les flèches écartées (± 19u).
-        // ⭐ FIX 08/08 (John) : plus aucune hauteur fixe — le bloc du bas
-        // est ancré au sol (retour posé sur le sol, pagination empilée
-        // au-dessus, même espace u(4.5) qu'entre les étages du menu) et la
-        // GRILLE occupe toute la hauteur disponible entre le titre et ce
-        // bloc (taille des tuiles recalculée par _calculerGrille, plus de
-        // cote fixe u(10.5)).
-        UI.layout(this, (w, h) => {
-            WaggisUI.ciel(this.fond, w, h);
-            titre.setPosition(w / 2, h * 0.08)
-                 .setFontSize(Math.round(UI.u(this, 9)) + "px");
-
-            const u = (n) => UI.u(this, n);
-            const espace = u(4.5);          // même espace qu'entre les étages du menu
-            const ySol = h * 0.965;         // ancrage bas (pattern MenuScene)
-            const hauteurRetour = u(9);
-            const yRetour = ySol - hauteurRetour / 2;
-            // Pagination EMPILÉE au-dessus du retour : les flèches font
-            // u(9) de diamètre, leur centre est donc à u(4.5) (demi-flèche)
-            // + u(4.5) (espace) au-dessus du haut du bouton retour.
-            const yPagination = yRetour - hauteurRetour / 2 - espace - u(4.5);
-
-            pageInfo.setPosition(w / 2, yPagination)
-                    .setFontSize(Math.round(u(3.5)) + "px");
-            prec.redimensionner(u(9))
-                .setPosition(w / 2 - u(19), yPagination);
-            suiv.redimensionner(u(9))
-                .setPosition(w / 2 + u(19), yPagination);
-            retour.redimensionner(u(40), hauteurRetour)
-                  .setPosition(w / 2, yRetour);
-
-            // Bande de la grille : du dessous du titre (centre h*0.08 +
-            // demi-titre u(4.5) + espace) au-dessus de la pagination (haut
-            // des flèches − espace). La géométrie (taille des tuiles) est
-            // recalculée ici, à chaque rotation.
-            const hautGrille = h * 0.08 + u(4.5) + espace;
-            const basGrille = yPagination - u(4.5) - espace;
-            // ⭐ Nombre de lignes adaptatif : la page se réduit plutôt que
-            // les tuiles. La page courante est réajustée pour garder le
-            // même premier niveau affiché (on ne perd pas sa place en
-            // tournant le téléphone).
-            this._majLignes(basGrille - hautGrille, w, u);
-            this._grille = this._calculerGrille(w, h, hautGrille, basGrille);
-            this._majPageInfo();
-            this._dessinerGrille();
+                const hautGrille = zone.y;
+                const basGrille = yPagination - u(4.5) - espace;
+                // ⭐ Nombre de lignes adaptatif : la page se réduit plutôt
+                // que les tuiles. La page courante est réajustée pour garder
+                // le même premier niveau affiché (on ne perd pas sa place en
+                // tournant le téléphone).
+                this._majLignes(basGrille - hautGrille, zone.largeur, u);
+                this._grille = this._calculerGrille(zone, hautGrille, basGrille);
+                this._majPageInfo();
+                this._dessinerGrille();
+            }
         });
         this._majPageInfo();
 
@@ -199,8 +165,7 @@ class LevelsScene extends Phaser.Scene {
         // maintient sous la cible tactile — et seulement dans ce cas : si
         // c'est la largeur qui bride (écran étroit), retirer des lignes
         // n'agrandirait rien et ferait juste perdre des niveaux.
-        const coteW = (largeurDispo - 2 * u(L.margeGrilleU) -
-            (this.colonnes - 1) * gap) / this.colonnes;
+        const coteW = (largeurDispo - (this.colonnes - 1) * gap) / this.colonnes;
         const cible = Math.min(coteW, L.tuileMinPx);
         let lignes = L.grilleLignesMax;
         while (lignes > L.grilleLignesMin &&
@@ -250,26 +215,23 @@ class LevelsScene extends Phaser.Scene {
      * @returns {{cote:number, gap:number, x0:number, y0:number}} centre
      *          de la PREMIÈRE tuile (haut-gauche de la grille)
      */
-    _calculerGrille(w, h, hautGrille, basGrille) {
+    _calculerGrille(zone, hautGrille, basGrille) {
         const UI = Arcade.UI;
-        const C = window.WaggisConfig;
         const cols = this.colonnes;
         const lignes = this.lignes;
         const gap = UI.u(this, 1.5);
         // Tuile la plus grande qui tient dans la hauteur de la bande…
         const coteH = (basGrille - hautGrille - (lignes - 1) * gap) / lignes;
-        // …et dans la largeur de l'écran, MARGES LATÉRALES DÉDUITES : sans
-        // elles, la grille collait exactement aux deux bords de l'écran en
-        // mobile portrait (412 px de grille sur 412 px d'écran).
-        const marge = UI.u(this, C.listes.margeGrilleU);
-        const coteW = (w - 2 * marge - (cols - 1) * gap) / cols;
+        // …et dans la largeur de la zone de contenu (ses marges sont déjà
+        // celles du gabarit d'écran : la grille ne colle plus aux bords).
+        const coteW = (zone.largeur - (cols - 1) * gap) / cols;
         const cote = Math.max(1, Math.min(coteH, coteW));
         const grilleW = cols * cote + (cols - 1) * gap;
         const grilleH = lignes * cote + (lignes - 1) * gap;
         return {
             cote: cote,
             gap: gap,
-            x0: w / 2 - grilleW / 2 + cote / 2,
+            x0: zone.cx - grilleW / 2 + cote / 2,
             y0: (hautGrille + basGrille) / 2 - grilleH / 2 + cote / 2
         };
     }
@@ -283,7 +245,6 @@ class LevelsScene extends Phaser.Scene {
      */
     _dessinerGrille() {
         this._tuiles.forEach((t) => {
-            t.ombre.destroy();
             t.fond.destroy();
             t.numero.destroy();
             t.score.destroy();
@@ -331,46 +292,21 @@ class LevelsScene extends Phaser.Scene {
         const UI = Arcade.UI;
         const etat = this._etatNiveau(niveau);
 
-        const hex = (s) => Phaser.Display.Color.HexStringToColor(s).color;
-        const r = cote * 0.18;
+        const T = Arcade.UI.tokens;
 
-        // Ombre portée (sous la tuile, décalée vers le bas).
-        const ombre = this.add.graphics();
-        ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-        ombre.fillRoundedRect(x - cote / 2, y - cote / 2 + cote * 0.06, cote, cote, r);
-
-        // Corps de la tuile selon l'état.
+        // Carte de la charte (core/ui/ecran.js) : niveau en cours = carte
+        // ROUGE (la prochaine action), complété = bord OR, verrouillé = fond
+        // « ligne ».
         const fond = this.add.graphics();
-        let couleurNumero = "#ffffff";
-        if (etat === "verrouille") {
-            // Fond clair + overlay sombre semi-transparent (spec 709).
-            fond.fillStyle(hex(C.couleurs.fondCarte), 1);
-            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-            fond.fillStyle(C.couleurs.ombrePortee, 0.45);
-            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-        } else if (etat === "encours") {
-            // Niveau à jouer : accent rouge Waggis + bordure claire.
-            fond.fillStyle(hex(C.couleurs.bouton), 1);
-            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), 0xffffff, 0.9);
-            fond.strokeRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-        } else {
-            // Complété : fond clair + BORDURE/GLOW verte (plus l'aplat vert).
-            fond.fillStyle(hex(C.couleurs.fondCarte), 1);
-            fond.fillRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-            const liseret = hex(C.couleurs.liseretActif);
-            fond.lineStyle(Math.max(2, Math.round(UI.u(this, 0.7))), liseret, 1);
-            fond.strokeRoundedRect(x - cote / 2, y - cote / 2, cote, cote, r);
-            // Glow : second trait plus épais, très translucide.
-            fond.lineStyle(Math.max(4, Math.round(UI.u(this, 1.6))), liseret, 0.25);
-            fond.strokeRoundedRect(x - cote / 2 - UI.u(this, 0.4),
-                y - cote / 2 - UI.u(this, 0.4), cote + UI.u(this, 0.8), cote + UI.u(this, 0.8), r);
-            couleurNumero = "#141210";
-        }
+        Arcade.UI.carte(fond, x - cote / 2, y - cote / 2, cote, cote,
+            { verrouille: "verrou", encours: "primaire", complete: "reussi" }[etat]);
+        const couleurNumero = etat === "encours" ? "#ffffff"
+            : (etat === "verrouille" ? C.couleurs.texteDiscret : T.encre);
 
         const numero = this.add
             .text(x, y - cote * 0.12, String(niveau), {
                 fontFamily: C.police.famille,
+                fontStyle: "bold",
                 fontSize: Math.round(UI.u(this, 5)) + "px",
                 color: couleurNumero,
                 align: "center"
@@ -381,7 +317,7 @@ class LevelsScene extends Phaser.Scene {
             .text(x, y + cote * 0.18, "", {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 2.8)) + "px",
-                color: etat === "complete" ? hex(C.couleurs.liseretActif) : "#ffffff",
+                color: etat === "encours" ? "#ffffff" : C.couleurs.texteDiscret,
                 align: "center"
             })
             .setOrigin(0.5);
@@ -401,8 +337,9 @@ class LevelsScene extends Phaser.Scene {
             // centre (l'ancienne position y + cote*0.08). Taille ajustée
             // (cote*0.32) pour tenir dans l'emplacement, sous le numéro.
             const cadenas = this.add.graphics();
-            WaggisUI.cadenas(cadenas, x, y + cote * 0.18, cote * 0.32, 0xffffff);
-            this._tuiles.push({ ombre, fond, numero, score, cadenas, zone });
+            WaggisUI.cadenas(cadenas, x, y + cote * 0.18, cote * 0.32,
+                Arcade.UI.couleur(C.couleurs.texteDiscret).valeur);
+            this._tuiles.push({ fond, numero, score, cadenas, zone });
             return;
         } else {
             const s = this.bestScores[String(niveau)];
@@ -417,7 +354,7 @@ class LevelsScene extends Phaser.Scene {
             fond.setAlpha(1);
             this.jouerNiveau(niveau);
         });
-        this._tuiles.push({ ombre, fond, numero, score, zone });
+        this._tuiles.push({ fond, numero, score, zone });
     }
 
     /**

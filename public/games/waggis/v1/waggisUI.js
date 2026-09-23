@@ -12,12 +12,12 @@
  * comme le menu. Règle : AUCUN bouton n'est redessiné à la main
  * (mode d'emploi du composant : article Odoo 458).
  *
+ * ⭐ 24/09/2026 : WaggisUI.fleche est devenue Arcade.UI.fleche
+ * (core/ui/classement.js), partagée avec Similitude.
+ *
  * Restent ici :
  *  - WaggisUI.ciel(g, w, h) : dégradé de ciel (même rendu que
  *    MenuScene._dessinerCiel — cielHaut en haut → cielBas en bas) ;
- *  - WaggisUI.fleche(scene, sens, onClick) : bouton rond de pagination
- *    avec chevron FIN et ARRONDI (Graphics, lineCap/lineJoin round) —
- *    remplace les boutons carrés ◀▶ de l'ancien menu ;
  *  - WaggisUI.cadenas(g, x, y, taille, couleur) : icône cadenas FINE
  *    dessinée (anse + corps + trou) — remplace l'emoji 🔒 et le gris uni ;
  *  - WaggisUI.aller(scene, sceneKey, data) : transition animée fade
@@ -27,15 +27,10 @@
  * les chaînes CSS pour les Graphics — tout fillStyle / lineStyle /
  * strokeStyle reçoit une valeur NUMÉRIQUE (0xRRGGBB) ou un Phaser.Color
  * converti. Les alphas passent par le 2ᵉ argument de fillStyle (ex.
- * fillStyle(0x141210, 0.25)). Voir config.js couleurs.ombrePortee.
+ * fillStyle(0x141210, 0.25)). Utilitaire : Arcade.UI.couleur (core/ui.js).
  */
 (function () {
     "use strict";
-
-    /** Convertit une chaîne hexadécimale en couleur numérique Phaser. */
-    function hex(s) {
-        return Phaser.Display.Color.HexStringToColor(s).color;
-    }
 
     window.WaggisUI = {
         /**
@@ -57,102 +52,6 @@
                 g.fillStyle(Phaser.Display.Color.GetColor(r, v, b), 1);
                 g.fillRect(0, (h * i) / bandes, w, h / bandes + 1);
             }
-        },
-
-        /**
-         * Bouton rond de pagination (spec 709 révision 08/08 : « flèches de
-         * pagination ◀▶ redessinées, fines et arrondies ») : fond blanc,
-         * liseré rouge Waggis, ombre portée, chevron FIN dessiné en Graphics
-         * (lineCap/lineJoin round), feedback au clic. Remplace les boutons
-         * carrés ◀▶ de l'ancien menu.
-         * @param {string} sens "gauche" ou "droite"
-         */
-        fleche: function (scene, sens, onClick) {
-            var C = window.WaggisConfig;
-            var UI = Arcade.UI;
-            var ombre = scene.add.graphics().setDepth(49);
-            var corps = scene.add.graphics().setDepth(50);
-            var chevron = scene.add.graphics().setDepth(51);
-            var zone = scene.add.rectangle(0, 0, 10, 10, 0x000000, 0)
-                .setInteractive({ useHandCursor: true })
-                .setDepth(52);
-
-            // Même feedback que core/ui/button.js (25/08) : appui à 0,96 et
-            // tween précédent tué avant d'en lancer un autre. La flèche reste
-            // hors core/ (surface propre à Waggis) mais elle ne doit pas
-            // s'enfoncer autrement que les boutons posés juste à côté.
-            zone.on("pointerdown", function () {
-                [ombre, corps, chevron, zone].forEach(function (c) {
-                    scene.tweens.killTweensOf(c);
-                    scene.tweens.add({ targets: c, scale: 0.96, duration: 70, ease: "Linear" });
-                });
-            });
-            var relacher = function () {
-                [ombre, corps, chevron, zone].forEach(function (c) {
-                    scene.tweens.killTweensOf(c);
-                    scene.tweens.add({ targets: c, scale: 1, duration: 170, ease: "Back.Out" });
-                });
-            };
-            zone.on("pointerout", relacher);
-            zone.on("pointerup", function () {
-                relacher();
-                if (typeof onClick === "function") onClick();
-            });
-
-            var x = 0, y = 0, diametre = 10;
-            var rouge = hex(C.couleurs.bouton);
-            var dessiner = function () {
-                var r = diametre / 2;
-                // Dessin centré sur (0,0) local + objet posé au centre :
-                // le scale de l'appui garde le centre (aucun déplacement).
-                ombre.clear();
-                ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-                ombre.fillCircle(0, diametre * 0.06, r);
-                ombre.setPosition(x, y);
-                corps.clear();
-                corps.fillStyle(hex(C.couleurs.iconeFond), 1);
-                corps.fillCircle(0, 0, r);
-                corps.lineStyle(Math.max(2, Math.round(UI.u(scene, 0.5))), rouge, 1);
-                corps.strokeCircle(0, 0, r - 1);
-                corps.setPosition(x, y);
-                // Chevron fin et arrondi (lineCap/lineJoin round), sombre sur
-                // le fond blanc (lisible, accent rouge réservé au liseré).
-                chevron.clear();
-                var ep = Math.max(2, Math.round(diametre * 0.09));
-                chevron.lineStyle(ep, 0x141210, 1, 1, 1);
-                chevron.beginPath();
-                if (sens === "gauche") {
-                    chevron.moveTo(r * 0.32, -r * 0.35);
-                    chevron.lineTo(-r * 0.16, 0);
-                    chevron.lineTo(r * 0.32, r * 0.35);
-                } else {
-                    chevron.moveTo(-r * 0.32, -r * 0.35);
-                    chevron.lineTo(r * 0.16, 0);
-                    chevron.lineTo(-r * 0.32, r * 0.35);
-                }
-                chevron.strokePath();
-                chevron.setPosition(x, y);
-                // Zone tactile : au moins ~9,5 % du petit côté (cible
-                // confortable, même sur mobile).
-                var z = Math.max(diametre, UI.u(scene, 9.5));
-                zone.setPosition(x, y).setSize(z, z);
-                if (zone.input && zone.input.hitArea) {
-                    zone.input.hitArea.setSize(z, z);
-                }
-            };
-
-            return {
-                setPosition: function (nx, ny) { x = nx; y = ny; dessiner(); return this; },
-                redimensionner: function (d) { diametre = d; dessiner(); return this; },
-                setDepth: function (d) {
-                    ombre.setDepth(d); corps.setDepth(d + 1);
-                    chevron.setDepth(d + 2); zone.setDepth(d + 3);
-                    return this;
-                },
-                destroy: function () {
-                    ombre.destroy(); corps.destroy(); chevron.destroy(); zone.destroy();
-                }
-            };
         },
 
         /**

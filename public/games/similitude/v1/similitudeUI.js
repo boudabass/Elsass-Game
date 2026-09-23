@@ -11,8 +11,6 @@
  *    Similitude) ;
  *  - SimilitudeUI.aller(scene, sceneKey, data) : transition animée fade
  *    entre écrans (au lieu du switch instantané) ;
- *  - SimilitudeUI.chargerPolice(scene) : injection du @font-face Azimut
- *    (police de marque, auto-hébergée) + attente courte.
  *
  * RÈGLE COULEURS (QA 08/08, NC1 — Waggis) : le renderer WebGL ne convertit
  * PAS les chaînes CSS pour les Graphics — tout fillStyle / lineStyle reçoit
@@ -56,32 +54,6 @@
             scene.cameras.main.once("camerafadeoutcomplete", function () {
                 scene.scene.start(sceneKey, data || {});
             });
-        },
-
-        /**
-         * Injecte le @font-face d'Azimut (une seule fois par page) et
-         * attend son chargement, avec une limite de temps : hors ligne ou
-         * police indisponible, l'écran se dessine quand même avec la pile
-         * de repli (pattern MenuScene Waggis).
-         */
-        chargerPolice: function (scene) {
-            var C = window.SimilitudeConfig;
-            try {
-                if (!document.fonts || window.__similitudePoliceInjected) return;
-                window.__similitudePoliceInjected = true;
-                var style = document.createElement("style");
-                style.textContent =
-                    "@font-face{font-family:'Azimut';src:url('" + C.police.url +
-                    "') format('woff2');font-weight:400;font-style:normal;" +
-                    "font-display:swap;}";
-                document.head.appendChild(style);
-                return Promise.race([
-                    document.fonts.load('16px "Azimut"'),
-                    new Promise(function (res) { setTimeout(res, 1200); })
-                ]);
-            } catch (e) {
-                // Repli silencieux sur la police système.
-            }
         }
     };
 })();
