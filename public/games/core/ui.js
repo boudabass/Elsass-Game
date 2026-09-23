@@ -23,6 +23,22 @@
             return (Math.min(w, h) * n) / 100;
         },
 
+        /**
+         * Convertit une couleur CSS ("#E31B23", "rgba(20,18,16,0.28)") en
+         * { valeur: 0xRRGGBB, alpha: 0..1 } pour Graphics.fillStyle /
+         * lineStyle. ⚠️ Ces deux méthodes n'acceptent QUE des nombres : une
+         * chaîne passée telle quelle est lue comme 0 par le rendu WebGL,
+         * donc NOIR OPAQUE (ombres des boutons noires jusqu'au 23/09/2026).
+         * Rangé ici, dans le fichier que TOUS les jeux chargent : le bouton
+         * partagé en dépend (le 23/09, placé dans tokens.js, il a planté
+         * Schieweschlawe, qui ne charge pas tokens.js).
+         */
+        couleur: function (css) {
+            if (typeof css === "number") return { valeur: css, alpha: 1 };
+            var c = Phaser.Display.Color.ValueToColor(css);
+            return { valeur: c.color, alpha: c.alpha / 255 };
+        },
+
         /** Largeur / hauteur courantes de l'écran de jeu. */
         size: function (scene) {
             return { w: scene.scale.width, h: scene.scale.height };

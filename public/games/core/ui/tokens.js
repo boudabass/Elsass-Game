@@ -33,18 +33,4 @@
         ombre: "rgba(20, 18, 16, 0.28)", // ombre standard des boutons (= noir + alpha)
         ombreDouce: "rgba(20, 18, 16, 0.14)" // ombre des cartes claires (tuiles crème du menu)
     };
-
-    /**
-     * Convertit une couleur CSS ("#E31B23", "rgba(20,18,16,0.28)") en
-     * { valeur: 0xRRGGBB, alpha: 0..1 } pour Graphics.fillStyle /
-     * lineStyle. ⚠️ Ces deux méthodes n'acceptent QUE des nombres : une
-     * chaîne passée telle quelle est lue comme 0 par le rendu WebGL, donc
-     * NOIR OPAQUE — c'est ce qui rendait les ombres « rgba » des boutons
-     * noires et pleines jusqu'au 23/09/2026.
-     */
-    Arcade.UI.couleur = function (css) {
-        if (typeof css === "number") return { valeur: css, alpha: 1 };
-        var c = Phaser.Display.Color.ValueToColor(css);
-        return { valeur: c.color, alpha: c.alpha / 255 };
-    };
 })();
