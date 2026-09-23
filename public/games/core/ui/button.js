@@ -26,6 +26,15 @@
  *                                // voile clair du dessus)
  *       contourAlpha: 0,         // OPTIONNEL : liseré blanc léger (tuile
  *                                // translucide du menu)
+ *       contourCouleur: "#E9E2D6", // OPTIONNEL : couleur du liseré (blanc
+ *                                // par défaut) — ex. bord « ligne » des
+ *                                // cartes crème, comme les cartes de l'app
+ *       plat: true,              // OPTIONNEL : sans le voile clair du haut
+ *                                // (rendu « à plat » de la charte, 23/09)
+ *       gras: true,              // OPTIONNEL : libellé en gras (Montserrat 700)
+ *       enLigneSiLarge: true,    // OPTIONNEL : icône à gauche + libellé à
+ *                                // droite quand le bouton est ≥ 2,4× plus
+ *                                // large que haut (tuiles du menu)
  *       ombre: "rgba(20,18,16,0.28)",
  *       police: "system-ui, …",
  *       textColor: "#ffffff",
@@ -169,6 +178,14 @@
         // (1 / 0) : aucun changement pour les boutons déjà en place.
         var alphaCorps = (typeof o.alphaCorps === "number") ? o.alphaCorps : 1;
         var contourAlpha = (typeof o.contourAlpha === "number") ? o.contourAlpha : 0;
+        // Rendu charte (23/09, refonte des menus) : à plat (sans voile
+        // brillant), liseré de couleur, libellé gras. Tous optionnels :
+        // sans eux, le rendu historique est inchangé.
+        var contourCouleur = o.contourCouleur
+            ? Arcade.UI.couleur(o.contourCouleur).valeur
+            : 0xffffff;
+        var plat = !!o.plat;
+        var styleTexte = o.gras ? "bold" : "normal";
         var couleur = o.couleur || "#141210";
         // NOIR par défaut (boutons secondaires — Niveaux, Personnages,
         // Boutique, Classement ; décision John 08/08 : couleur PAR BOUTON).
@@ -222,6 +239,7 @@
         var txt = scene.add
             .text(0, 0, o.label || "", {
                 fontFamily: police,
+                fontStyle: styleTexte,
                 color: o.textColor || "#ffffff",
                 align: "center"
             })
@@ -242,6 +260,7 @@
             haut = scene.add
                 .text(0, 0, o.ligneHaut, {
                     fontFamily: police,
+                    fontStyle: styleTexte,
                     color: o.couleurLigneHaut || o.textColor || "#ffffff",
                     align: "center"
                 })
@@ -345,21 +364,26 @@
             // Dessin centré sur (0,0) local + objet posé au centre : le
             // scale de l'appui garde le centre (aucun déplacement).
             // Ombre portée décalée vers le bas (+7 % hauteur).
+            // Ombre convertie en nombre + alpha (Arcade.UI.couleur) : une
+            // chaîne "rgba(...)" passée telle quelle à fillStyle donnait une
+            // ombre NOIRE OPAQUE (bug corrigé le 23/09). Bouton plat : ombre
+            // plus courte (+4 %), comme une carte posée.
+            var teinteOmbre = Arcade.UI.couleur(ombre);
             ombreG.clear();
-            ombreG.fillStyle(ombre, 1);
-            ombreG.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * 0.07,
+            ombreG.fillStyle(teinteOmbre.valeur, teinteOmbre.alpha);
+            ombreG.fillRoundedRect(-largeur / 2, -hauteur / 2 + hauteur * (plat ? 0.04 : 0.07),
                 largeur, hauteur, r);
             ombreG.setPosition(x, y);
             // Corps du bouton (couleur du jeu).
             corps.clear();
-            corps.fillStyle(Phaser.Display.Color.HexStringToColor(couleur).color, alphaCorps);
+            corps.fillStyle(Arcade.UI.couleur(couleur).valeur, alphaCorps);
             corps.fillRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
             // Liseré clair optionnel (tuile translucide du menu) : le voile
             // du dessous suffit à distinguer un bouton opaque, mais une
             // tuile translucide a besoin d'un contour pour rester lisible
             // sur un fond qui peut être clair par endroits.
             if (contourAlpha > 0) {
-                corps.lineStyle(Math.max(1, hauteur * 0.015), 0xffffff, contourAlpha);
+                corps.lineStyle(Math.max(1, hauteur * 0.015), contourCouleur, contourAlpha);
                 corps.strokeRoundedRect(-largeur / 2, -hauteur / 2, largeur, hauteur, r);
             }
             // Dégradé léger : voile clair sur la moitié haute (spec 709).
@@ -370,14 +394,43 @@
             // translucides (alphaCorps < 0.9) : le voile blanc par-dessus un
             // fond déjà translucide ferait un bloc trop clair, pas l'effet
             // "verre dépoli" recherché.
-            if (alphaCorps >= 0.9) {
+            if (alphaCorps >= 0.9 && !plat) {
                 corps.fillStyle(0xffffff, 0.16);
                 corps.fillRoundedRect(-largeur / 2, -hauteur / 2,
                     largeur, hauteur * 0.52, { tl: r, tr: r, bl: 0, br: 0 });
             }
             corps.setPosition(x, y);
 
-            var coteIcone = hauteur * 0.45;  // même proportion partout
+            // Disposition EN LIGNE (option enLigneSiLarge, 23/09) : sur une
+            // tuile nettement plus large que haute, icône À GAUCHE et
+            // libellé À DROITE, comme les cartes de l'app — le libellé peut
+            // alors être bien plus grand qu'en dessous de l'icône (0,30 ×
+            // hauteur au lieu de 0,23). Décidé à CHAQUE dessin : la même
+            // tuile repasse en empilé si la rotation la rend étroite.
+            var enLigne = !!(icone && o.enLigneSiLarge && largeur >= hauteur * 2.4);
+            var coteIcone = hauteur * (enLigne ? 0.42 : 0.45);
+            var iconeX = x;
+            var iconeY = y - hauteur * 0.16;
+            if (enLigne) {
+                // Un emoji est rendu ~1,2× plus large que sa police.
+                var largeurIcone = estEmoji ? coteIcone * 1.2 : coteIcone;
+                var ecartIcone = hauteur * 0.14;
+                var fs = hauteur * 0.30;
+                var dispo = largeur * 0.9 - largeurIcone - ecartIcone;
+                txt.setOrigin(0, 0.5).setFontSize(Math.round(fs) + "px");
+                while (txt.width > dispo && fs > Math.max(6, hauteur * 0.15)) {
+                    fs -= 1;
+                    txt.setFontSize(Math.round(fs) + "px");
+                }
+                var largeurGroupe = largeurIcone + ecartIcone + txt.width;
+                var gauche = x - largeurGroupe / 2;
+                iconeX = gauche + largeurIcone / 2;
+                iconeY = y;
+                txt.setPosition(gauche + largeurIcone + ecartIcone, y);
+            } else {
+                txt.setOrigin(0.5);
+            }
+
             if (cleTexture) {
                 // Image cadrée sur son contenu OPAQUE (bbox mesuré une
                 // fois par texture) : MÊME TAILLE RENDUE pour toutes les
@@ -388,25 +441,27 @@
                     icone.setOrigin(bbox.fx + bbox.fw / 2,
                             bbox.fy + bbox.fh / 2)
                         .setScale(echelle)
-                        .setPosition(x, y - hauteur * 0.16);
+                        .setPosition(iconeX, iconeY);
                     icone.setData("_baseScale", echelle);
                 } else {
                     icone.setOrigin(0.5, 0.5)
                         .setDisplaySize(coteIcone, coteIcone)
-                        .setPosition(x, y - hauteur * 0.16);
+                        .setPosition(iconeX, iconeY);
                     icone.setData("_baseScale", icone.scaleX);
                 }
             } else if (estEmoji) {
                 icone.setFontSize(Math.round(coteIcone) + "px")
-                    .setPosition(x, y - hauteur * 0.16);
+                    .setPosition(iconeX, iconeY);
             } else if (repliG) {
                 repliG.clear();
                 o.repliDessin(repliG, coteIcone / 2);
-                repliG.setPosition(x, y - hauteur * 0.16);
+                repliG.setPosition(iconeX, iconeY);
             }
 
-            if (icone) {
-                // Libellé BLANC EN DESSOUS, À L'INTÉRIEUR du bouton.
+            if (enLigne) {
+                // Libellé déjà dimensionné et placé ci-dessus.
+            } else if (icone) {
+                // Libellé EN DESSOUS de l'icône, À L'INTÉRIEUR du bouton.
                 txt.setFontSize(Math.round(hauteur * 0.23) + "px");
                 txt.setPosition(x, y + hauteur * 0.28);
             } else if (haut) {
@@ -428,7 +483,7 @@
             // par les côtés. Le composant rétrécit maintenant lui-même son
             // texte jusqu'à ce qu'il tienne : AUCUN bouton de l'arcade ne
             // peut plus déborder, quelles que soient ses proportions.
-            tenirDansLaLargeur(txt, largeur);
+            if (!enLigne) tenirDansLaLargeur(txt, largeur);
             if (haut) tenirDansLaLargeur(haut, largeur);
 
             zone.setPosition(x, y).setSize(largeur, hauteur);

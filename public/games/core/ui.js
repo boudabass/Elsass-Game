@@ -197,9 +197,10 @@
          * rayon 0.3×h + ombre portée + voile clair + icône en haut +
          * libellé en dessous + feedback clic rétricissement 10 % centré,
          * Back.Out) est celui de la spec 709 révision 08/08, partagé
-         * avec le menu principal. Seuls l'ASSET (icône), le TEXTE et les
-         * COULEURS changent : le jeu transmet ses textes et son style via
-         * Arcade.boot → options.iconesPlateforme (config.js → main.js).
+         * avec le menu principal. Seuls l'ASSET (icône) et le TEXTE
+         * changent : le jeu transmet ses textes via Arcade.boot →
+         * options.iconesPlateforme (config.js → main.js) ; le style est
+         * celui du socle (variante « accent », refonte charte 23/09).
          * L'icône est l'asset atelier copié dans assets/ui/ du jeu
          * (flèche brune / écran désert), cadrée sur son contenu OPAQUE
          * (bbox mesuré une fois par texture) pour que les deux icônes
@@ -215,53 +216,31 @@
             var profondeur = 1000;   // au-dessus de tout (UI, HUD, menu)
 
             // Options du jeu (config.js → main.js → Arcade.boot({
-            // iconesPlateforme })) : libellés + style du bouton.
+            // iconesPlateforme })) : les libellés uniquement.
             var opts = (Arcade.bootOptions && Arcade.bootOptions.iconesPlateforme) || {};
-            var style = opts.style || {};
             var texteRetour = opts.retour || "Quitter";
             var textePleinEcran = opts.pleinEcran || "Plein écran";
 
-            // STYLE DU BOUTON — reprend EXACTEMENT le bouton Réglages
-            // (pattern _creerBoutonSecondaire, MenuScene — spec 709
-            // révision 08/08). Défauts du socle, surchargeables par le
-            // jeu (Waggis passe police.famille + couleurs.ombreBouton).
-            // ⭐ FIX 08/08/2026 (couleurs des boutons, décision John 08/08
-            // — couleur PAR BOUTON) : Retour et Plein écran sont ROUGES —
-            // couleur passée EXPLICITEMENT (jamais le défaut noir du
-            // composant) : style.couleur du jeu (C.couleurs.bouton, rouge)
-            // ou défaut socle rouge ci-dessous.
-            var couleur = style.couleur || Arcade.UI.tokens.rouge;
-            var ombre = style.ombre || Arcade.UI.tokens.ombre;
-            var police = style.police ||
-                "system-ui, -apple-system, Segoe UI, sans-serif";
-
-            // Options communes du composant (core/ui/button.js) : hauteur
-            // u(10.5) comme les boutons secondaires du menu, largeur
-            // adaptée au libellé (min u(15), marge u(4)). ⭐ FIX 08/08/2026
-            // (signalement John — responsive mobile) : les tailles sont
-            // passées EN u() (hauteurU / largeurMinU / margeLibelleU) et le
-            // composant les recalcule LUI-MÊME à chaque rotation /
-            // redimensionnement (Arcade.UI.layout) — comme Réglages / Jouer
-            // / secondaires, pilotés par le layout de leur scène. Avant :
-            // px convertis UNE SEULE FOIS à la création → Retour / Plein
-            // écran restaient figés sur mobile (rotation, plein écran).
-            // Pas de marqueur _clicPlateforme : il n'est plus posé (plus
-            // d'icônes dans GameScene Waggis — décision John 08/08 :
-            // Retour / Plein écran visibles QUE sur le menu principal).
+            // STYLE DU BOUTON — refonte charte du 23/09/2026 : variante
+            // « accent » du bouton de menu (Arcade.UI.boutonMenu, noir à
+            // plat, Montserrat gras), la même que Réglages. Le style n'est
+            // plus choisi par chaque jeu (ancien options.style : couleur,
+            // ombre, police) : c'est ce qui donnait un Quitter rouge
+            // brillant dans un jeu et autre chose dans le suivant.
+            // Tailles en u() (hauteurU / largeurMinU / margeLibelleU) :
+            // le composant les recalcule LUI-MÊME à chaque rotation /
+            // redimensionnement (Arcade.UI.layout, FIX 08/08/2026).
             var optionsBouton = {
-                couleur: couleur,
-                ombre: ombre,
-                police: police,
+                variante: "accent",
                 hauteurU: 10.5,
                 autoLargeur: true,
                 largeurMinU: 15,
                 margeLibelleU: 4,
-                profondeur: profondeur,
-                stroke: "#141210"
+                profondeur: profondeur
             };
 
             // --- Quitter (haut-gauche) : flèche retour vers /games --------
-            var quitter = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+            var quitter = Arcade.UI.boutonMenu(scene, Object.assign({}, optionsBouton, {
                 icone: "icone_retour",
                 repliDessin: function (g, r) {
                     g.lineStyle(r * 0.22, 0xffffff, 1);
@@ -320,7 +299,7 @@
                         g.lineBetween(rc, rc - L, rc - L, rc - L);
                     }
                 };
-                pleinEcran = Arcade.UI.bouton(scene, Object.assign({}, optionsBouton, {
+                pleinEcran = Arcade.UI.boutonMenu(scene, Object.assign({}, optionsBouton, {
                     icone: "icone_plein_ecran",
                     repliDessin: function (g, r) {
                         dessinerCoins(g, r, !!document.fullscreenElement);

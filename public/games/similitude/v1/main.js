@@ -17,20 +17,13 @@
         // (spec 473 §8 — les substituts sont du pixel art).
         pixelArt: true,
 
-        // Contrat de plateforme (chantier B, art. 704) : les boutons
-        // persistants Quitter (haut-gauche) / Plein écran (haut-droite)
-        // reprennent le style du bouton Réglages (spec 728 §7 : police
-        // Azimut + ombre portée — mêmes réglages que Waggis). Les textes
-        // vivent dans config.js, le style vient aussi de la config — le
-        // socle (core/ui.js, Arcade.UI.iconesPlateforme) fait le reste.
+        // Contrat de plateforme (art. 704) : Quitter (haut-gauche) / Plein
+        // écran (haut-droite) sur le menu principal. Le jeu ne transmet que
+        // ses TEXTES (config.js) : le style est celui du socle, identique
+        // dans tous les jeux (variante « accent », refonte charte 23/09).
         iconesPlateforme: {
             retour: C.textes.retour,
-            pleinEcran: C.textes.pleinEcran,
-            style: {
-                couleur: C.couleurs.bouton,
-                ombre: C.couleurs.ombreBouton,
-                police: C.police.famille
-            }
+            pleinEcran: C.textes.pleinEcran
         },
 
         // Chargement : les 6 items alsaciens, chemins listés UNE SEULE FOIS

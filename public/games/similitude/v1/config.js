@@ -310,22 +310,11 @@ window.SimilitudeConfig = {
     // espacements verticaux sont UNIFORMES (menuEspaceU partout), tout est
     // empilé, jamais superposé (règle John 08/08).
     menu: {
-        // Bouton « Jouer » pleine largeur : 80 % de la LARGEUR d'écran
-        // (pattern Waggis) — référence de largeur de toute la page.
-        largeurJouerPct: 80,
-        hauteurJouerU: 11.5,
-        hauteurSecondaireU: 10.5,
-        largeurReglagesU: 15,     // Réglages : taille compacte découplée
+        // Mise en page du menu : Arcade.UI.menuPrincipal (core/ui/
+        // menuPrincipal.js, refonte charte 23/09). Restent ici le contenu
+        // propre à Similitude, et espaceU, repris par les autres écrans.
         espaceU: 4.5,             // espacement vertical UNIFORME entre étages
-        // HUD haut : record et porte-monnaie.
-        hudRecordY: 0.055,        // centre du bandeau record (fraction hauteur)
-        // Titre + accroche + illustration : ligne commune en paysage
-        // (centreLigneY = fraction de la hauteur), empilés en portrait
-        // (départ sous le HUD).
-        titrePaysageY: 0.26,
-        tailleTitreU: 13.5,
-        tailleAccrocheU: 4,
-        illustrationU: 21,        // hauteur du bloc d'illustration (emojis)
+        illustrationU: 32,        // hauteur max du bloc d'illustration (emojis)
         // Emojis des 6 saveurs alsaciennes — l'« illustration » du menu
         // (pas de sprite dédié : les textures d'items manquent encore,
         // SIM-6 QA) : une ligne de 3 + une ligne de 3, comme une grille.

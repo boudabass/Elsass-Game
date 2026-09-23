@@ -3,6 +3,16 @@
  * un bouton « Jouer » pleine largeur, une rangée d'icônes secondaires et
  * Réglages en icône discrète.
  *
+ * ⭐ REFONTE CHARTE 23/09/2026 (décision John) : en-tête, boutons et mise
+ * en page portrait/paysage sont désormais construits par
+ * Arcade.UI.menuPrincipal (core/ui/menuPrincipal.js), comme dans tous les
+ * jeux — carte noire à surtitre or, Azimut + Montserrat, « Jouer » rouge,
+ * tuiles crème. Le score passe dans une pastille de l'en-tête. La scène
+ * garde son décor (ciel, toits) et le Waggis en illustration. Le récit
+ * ci-dessous (08/08) reste valable pour les actions et leur ordre ; ce qui
+ * y concerne le style (titre à contour rouge, pillule HUD, police chargée
+ * ici) est remplacé.
+ *
  * ⭐ REFONTE 08/08/2026 (spec 709 — « ⚠️ RÉVISION 08/08/2026 », validée
  * John le 08/08) : le menu « 7 boutons empilés » fait place à une vraie
  * page d'accueil de jeu mobile. Ce qui change :
@@ -64,70 +74,26 @@ class MenuScene extends Phaser.Scene {
         // barre GameShell, visibles sur toutes les scènes.
         Arcade.UI.iconesPlateforme(this);
 
-        // Police ronde Azimut (marque, auto-hébergée — spec 709 révision
-        // 08/08 : « police ronde/friendly type jeu mobile »). Injection du
-        // @font-face puis attente COURTE : si la police n'arrive pas (hors
-        // ligne), le menu se dessine en police de repli sans bloquer.
-        await this._chargerPolice(C);
-
         // --- Fond : dégradé de ciel + silhouette de toits alsaciens --------
-        // (spec 709 révision 08/08 : « dégradé de ciel au lieu de l'aplat
-        // bleu uni ; léger décor possible — silhouette de toits alsaciens ».)
         this.fond = this.add.graphics().setDepth(0);
         this.toits = this.add.graphics().setDepth(1);
-
-        // --- HUD (bandeau haut) -------------------------------------------
-        // Score en HUD, pas au centre (spec 709 révision 08/08). Le record
-        // est chargé en fin de create (Arcade.Score.load) — pillule
-        // redimensionnée à ce moment.
-        this.hudPillule = this.add.graphics().setDepth(10);
-        this.record = this.add.text(0, 0, "", {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(11)
-            .setStroke("#141210", 3)
-            .setShadow(0, 2, "rgba(20, 18, 16, 0.35)", 2, false, true);
-
-        // --- Titre + accroche ----------------------------------------------
-        // Titre avec RELIEF : contour rouge Waggis + ombre portée douce
-        // (spec 709 révision 08/08 : « Titre Waggis avec un peu de relief »).
-        this.titre = this.add.text(0, 0, C.titre, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setShadow(0, 4, "rgba(20, 18, 16, 0.3)", 4, false, true);
-
-        this.accroche = this.add.text(0, 0, C.textes.accroche, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 2)
-            .setShadow(0, 2, "rgba(20, 18, 16, 0.3)", 2, false, true);
+        UI.layout(this, (w, h) => {
+            this._dessinerCiel(w, h);
+            this._dessinerToits(w, h);
+        });
 
         // --- Illustration du Waggis (placeholder p8city rouge) --------------
-        // « Un seul bouton principal Jouer, pleine largeur, avec
-        // l'illustration du Waggis en fond/centre ». Ombre de sol sous le
-        // personnage pour le poser sur le décor.
+        // Ombre de sol sous le personnage pour le poser sur le décor.
         this.solOmbre = this.add.graphics().setDepth(3);
         this.waggis = this.add.image(0, 0, "pieton_rouge_1").setDepth(4);
 
-        // --- Bloc d'actions du menu (Jouer + grille + Réglages) -----------
-        // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : le
-        // composant porte lui-même les couleurs du design system The
-        // Elsassisch (plus de couleur/ombre en dur ici) et adapte la grille
-        // au nombre de tuiles secondaires (4 -> 2×2, comme avant, mêmes
-        // valeurs). Ligne 1 = Niveaux · Personnages, ligne 2 = Boutique ·
-        // Classement (ordre inchangé, GATE menu 08/08).
-        Arcade.UI.menuActions(this, {
+        // --- Menu (en-tête + Jouer + grille 2×2 + Réglages) ----------------
+        // Ordre des tuiles inchangé (GATE menu 08/08) : Niveaux ·
+        // Personnages, puis Boutique · Classement.
+        const menu = Arcade.UI.menuPrincipal(this, {
+            titre: C.titre,
+            accroche: C.textes.accroche,
+            infos: [C.textes.meilleurScore.replace("{score}", Arcade.Score.best)],
             jouer: { label: C.textes.jouer, onClick: () => this.jouer() },
             secondaires: [
                 { icone: "🗺️", label: C.textes.niveaux, onClick: () => this.aller(LevelsScene.KEY) },
@@ -136,120 +102,24 @@ class MenuScene extends Phaser.Scene {
                 { icone: "🏆", label: C.textes.classement, onClick: () => this.aller(ClassementScene.KEY) }
             ],
             reglages: { label: C.textes.reglages, onClick: () => this.aller(SettingsScene.KEY) },
-            police: C.police.famille
-        });
-
-        // --- Mise en page (recalculée à chaque rotation) --------------------
-        // La fonction est gardée pour être rejouée après le chargement du
-        // meilleur score (la pillule HUD s'ajuste à la largeur du texte).
-        this._miseEnPage = (w, h) => {
-            const u = (n) => UI.u(this, n);
-
-            // Dégradé de ciel + toits (fond).
-            this._dessinerCiel(w, h);
-            this._dessinerToits(w, h);
-
-            // HUD : record en haut au centre, dans une pillule translucide.
-            const recordY = h * 0.055;
-            this.record
-                .setFontSize(Math.round(u(4)) + "px")
-                .setStroke("#141210", Math.max(2, Math.round(u(0.5))))
-                .setPosition(w / 2, recordY);
-            const pillW = this.record.width + u(6);
-            const pillH = u(5.5);
-            this.hudPillule.clear();
-            this.hudPillule.fillStyle("rgba(255, 255, 255, 0.35)", 1);
-            this.hudPillule.fillRoundedRect(
-                w / 2 - pillW / 2, recordY - pillH / 2, pillW, pillH, pillH / 2
-            );
-
-            // Titre (avec relief) + accroche + personnage — layout
-            // ADAPTATIF selon l'orientation (correction John 08/08) :
-            //  - PAYSAGE (largeur > hauteur) : texte À GAUCHE, personnage
-            //    collé au bord droit, les deux sur la MÊME LIGNE
-            //    (comportement actuel, conservé) ;
-            //  - PORTRAIT (hauteur > largeur) : EMPILÉS — titre, accroche,
-            //    puis personnage, centrés horizontalement — le texte et le
-            //    perso ne se superposent JAMAIS (règle John : tout est
-            //    empilé, jamais superposé).
-            const estPaysage = w > h;
-            const tailleTitre = u(13.5);
-            const hWaggis = u(21);
-
-            if (estPaysage) {
-                // PAYSAGE : le groupe de texte est aligné à gauche, le
-                // personnage est collé au bord droit — les deux sur la
-                // MÊME LIGNE, pour laisser le plus de place au texte.
-                const centreLigne = h * 0.26;
-                const margeGauche = u(5);
-                this.titre
-                    .setFontSize(Math.round(tailleTitre) + "px")
-                    .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
-                    .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
-                        "rgba(20, 18, 16, 0.3)", 4, false, true)
-                    .setOrigin(0, 0.5)
-                    .setPosition(margeGauche, centreLigne - u(6));
-                this.accroche
-                    .setFontSize(Math.round(u(4)) + "px")
-                    .setOrigin(0, 0.5)
-                    .setPosition(margeGauche, centreLigne + u(7.5));
-
-                // Illustration du Waggis À DROITE, collée au bord droit,
-                // sur la même ligne que le titre + accroche ; ombre de sol
-                // sous ses pieds.
-                const waggisY = centreLigne;
-                const waggisX = w - u(2) - hWaggis / 2;
-                this.waggis
+            illustration: (cx, cy, hauteurMax) => {
+                const hWaggis = Math.min(UI.u(this, 21), hauteurMax * 0.75);
+                const visible = hWaggis >= UI.u(this, 8);
+                this.waggis.setVisible(visible)
                     .setScale(hWaggis / this.waggis.height)
-                    .setPosition(waggisX, waggisY);
-                this._dessinerSolOmbre(waggisX, waggisY + hWaggis / 2, hWaggis * 0.9);
-            } else {
-                // PORTRAIT : EMPILEMENT centré, sous le HUD (départ
-                // h*0.14), espace u(5) entre chaque étage — le texte
-                // (titre puis accroche) et le personnage occupent des
-                // lignes distinctes, plus aucune superposition possible.
-                const tailleAccroche = u(4);
-                const espace = u(5);
-                const hautBloc = h * 0.14;
-                const yTitre = hautBloc + tailleTitre / 2;
-                const yAccroche = yTitre + tailleTitre / 2 + espace + tailleAccroche / 2;
-                const yWaggis = yAccroche + tailleAccroche / 2 + espace + hWaggis / 2;
-
-                this.titre
-                    .setFontSize(Math.round(tailleTitre) + "px")
-                    .setStroke(C.couleurs.bouton, Math.max(3, Math.round(tailleTitre * 0.07)))
-                    .setShadow(0, Math.max(3, Math.round(tailleTitre * 0.05)),
-                        "rgba(20, 18, 16, 0.3)", 4, false, true)
-                    .setOrigin(0.5)
-                    .setPosition(w / 2, yTitre);
-                this.accroche
-                    .setFontSize(Math.round(tailleAccroche) + "px")
-                    .setOrigin(0.5)
-                    .setPosition(w / 2, yAccroche);
-
-                // Personnage centré, sous l'accroche ; ombre de sol sous
-                // ses pieds (même règle qu'en paysage).
-                this.waggis
-                    .setScale(hWaggis / this.waggis.height)
-                    .setPosition(w / 2, yWaggis);
-                this._dessinerSolOmbre(w / 2, yWaggis + hWaggis / 2, hWaggis * 0.9);
+                    .setPosition(cx, cy - hWaggis * 0.1);
+                this.solOmbre.setVisible(visible);
+                this._dessinerSolOmbre(cx, cy + hWaggis * 0.4, hWaggis * 0.9);
             }
-
-            // Jouer + grille + Réglages : géré par Arcade.UI.menuActions
-            // (core/ui/menuActions.js), abonné à son propre Arcade.UI.layout
-            // — plus rien à positionner ici pour ce bloc.
-        };
-
-        UI.layout(this, this._miseEnPage);
+        });
 
         // Transition d'arrivée : fondu depuis le noir.
         this.cameras.main.fadeIn(220, 0, 0, 0);
 
         // Meilleur score : local d'abord, puis confirmation par le serveur.
-        // (spec 709 révision 08/08 : « 🏆 Meilleur score : X » en HUD.)
         await Arcade.Score.load();
-        this.record.setText(C.textes.meilleurScore.replace("{score}", Arcade.Score.best));
-        this._miseEnPage(this.scale.width, this.scale.height);
+        if (!this.scene.isActive()) return;   // menu déjà quitté entre-temps
+        menu.setInfo(0, C.textes.meilleurScore.replace("{score}", Arcade.Score.best));
     }
 
     /**
@@ -283,40 +153,6 @@ class MenuScene extends Phaser.Scene {
             this.scene.start(sceneKey, data || {});
         });
     }
-
-    // --- Police ronde (Azimut, marque auto-hébergée) ------------------------
-
-    /**
-     * Injecte le @font-face d'Azimut (une seule fois par page) et attend
-     * son chargement, avec une limite de temps : hors ligne ou police
-     * indisponible, le menu se dessine quand même avec la pile de repli.
-     */
-    async _chargerPolice(C) {
-        try {
-            if (!document.fonts || window.__waggisPoliceInjected) return;
-            window.__waggisPoliceInjected = true;
-            const style = document.createElement("style");
-            style.textContent =
-                "@font-face{font-family:'Azimut';src:url('" + C.police.url +
-                "') format('woff2');font-weight:400;font-style:normal;" +
-                "font-display:swap;}";
-            document.head.appendChild(style);
-            await Promise.race([
-                document.fonts.load('16px "Azimut"'),
-                new Promise(function (res) { setTimeout(res, 1200); })
-            ]);
-        } catch (e) {
-            // Repli silencieux sur la police système.
-        }
-    }
-
-    // --- Boutons -------------------------------------------------------------
-    // ⭐ Menu réutilisable (core/ui/menuActions.js, décision John) : Jouer,
-    // la grille de tuiles secondaires et Réglages sont construits ET
-    // positionnés par Arcade.UI.menuActions (create()) — couleurs du design
-    // system résolues par Arcade.UI.boutonMenu (core/ui/menuBouton.js),
-    // rendu par core/ui/button.js. Plus aucune couleur, ombre, ni mise en
-    // page de bouton de menu codée dans cette scène.
 
     // --- Décor de fond --------------------------------------------------------
 
@@ -356,10 +192,12 @@ class MenuScene extends Phaser.Scene {
         g.clear();
         const ySol = h * 0.965;
         // Bande de sol (herbe).
-        g.fillStyle(C.couleurs.solMenu, 1);
+        // Couleurs converties (Arcade.UI.couleur) : une chaîne "#…" passée
+        // telle quelle à fillStyle s'affiche en NOIR (bug corrigé le 23/09).
+        g.fillStyle(Arcade.UI.couleur(C.couleurs.solMenu).valeur, 1);
         g.fillRect(0, ySol, w, h - ySol);
         // Maisons à pignons (toits alsaciens), hauteurs variées.
-        g.fillStyle(C.couleurs.toits, 0.85);
+        g.fillStyle(Arcade.UI.couleur(C.couleurs.toits).valeur, 0.85);
         const n = 10;
         const l = w / n;
         const hauteurMax = h * 0.05;
@@ -381,7 +219,7 @@ class MenuScene extends Phaser.Scene {
     _dessinerSolOmbre(x, y, largeur) {
         const g = this.solOmbre;
         g.clear();
-        g.fillStyle("rgba(20, 18, 16, 0.25)", 1);
+        g.fillStyle(Arcade.UI.couleur(Arcade.UI.tokens.noir).valeur, 0.25);
         g.fillEllipse(x, y, largeur, largeur * 0.28);
     }
 }

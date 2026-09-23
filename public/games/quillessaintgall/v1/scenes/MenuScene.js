@@ -8,6 +8,11 @@
  * d'aide à la visée), choisis UNE FOIS ici pour toute la partie qui suit
  * (config.paliers, cf. GameScene). Pas de mode tutoriel séparé : une
  * partie reste une partie complète, quel que soit le palier choisi.
+ *
+ * Refonte charte du 23/09/2026 : l'écran est construit par
+ * Arcade.UI.menuPrincipal (core/ui/menuPrincipal.js), comme dans tous les
+ * jeux. Les 3 paliers sont les tuiles du menu (une rangée de 3), chacune
+ * lance directement la partie.
  */
 class MenuScene extends Phaser.Scene {
     static KEY = "menu";
@@ -18,7 +23,6 @@ class MenuScene extends Phaser.Scene {
 
     create() {
         const C = window.QuillesSaintGallConfig;
-        const UI = Arcade.UI;
 
         this.cameras.main.setBackgroundColor(C.couleurs.ciel);
 
@@ -27,34 +31,56 @@ class MenuScene extends Phaser.Scene {
         // contrôles de tir).
         Arcade.UI.iconesPlateforme(this);
 
-        const titre = UI.text(this, 0, 0, C.titre, 9, C.couleurs.texte);
-        const sousTitre = UI.text(this, 0, 0, C.textes.menuSousTitre, 3.6, C.couleurs.texte);
+        // Illustration : le losange des 9 quilles vu du dessus, aux
+        // couleurs du panneau lumineux du jeu (jaune = debout, rouge = la
+        // prépondérante, ici celle du centre).
+        const losange = this.add.graphics().setDepth(4);
 
         // Un bouton par palier (config.paliers, dans l'ordre facile →
         // normal → difficile) — aucune règle de partie n'en dépend,
-        // uniquement la précision du tir (cf. GameScene).
-        const cles = Object.keys(C.paliers);
-        const boutons = cles.map((cle) => Arcade.UI.bouton(this, {
-            label: C.paliers[cle].label,
-            couleur: C.couleurs.bouton,
-            textColor: C.couleurs.texte,
-            hauteurU: 11,
-            largeurU: 50,
-            onClick: () => this.scene.start(GameScene.KEY, { palier: cle })
-        }));
+        // uniquement la précision du tir (cf. GameScene). Le meilleur
+        // score est déjà chargé au boot (main.js).
+        Arcade.UI.menuPrincipal(this, {
+            titre: C.titre,
+            accroche: C.textes.menuSousTitre,
+            infos: [C.textes.meilleurScore.replace("{score}", Arcade.Score.best)],
+            secondaires: Object.keys(C.paliers).map((cle) => ({
+                icone: C.paliers[cle].icone,
+                label: C.paliers[cle].label,
+                onClick: () => this.scene.start(GameScene.KEY, { palier: cle })
+            })),
+            illustration: (cx, cy, hauteurMax) => {
+                const taille = Math.min(Arcade.UI.u(this, 34), hauteurMax * 0.8);
+                this._dessinerLosange(losange, cx, cy, taille);
+            }
+        });
+    }
 
-        UI.layout(this, (w, h) => {
-            const u = (n) => UI.u(this, n);
-
-            titre.setFontSize(Math.round(u(9)) + "px").setPosition(w / 2, h * 0.26);
-            sousTitre.setFontSize(Math.round(u(3.6)) + "px")
-                .setPosition(w / 2, h * 0.26 + titre.displayHeight / 2 + u(5));
-
-            const espace = u(4);
-            const hautBloc = h * 0.5;
-            boutons.forEach((b, i) => {
-                b.setPosition(w / 2, hautBloc + i * (b.hauteur() + espace));
-            });
+    /**
+     * 9 quilles en losange (rangées de 1, 2, 3, 2, 1) dans un carré de côté
+     * `taille` centré sur (cx, cy). Rien sous 8 % du plus petit côté : la
+     * place manque (téléphone en paysage).
+     */
+    _dessinerLosange(g, cx, cy, taille) {
+        const C = window.QuillesSaintGallConfig;
+        const couleur = (css) => Arcade.UI.couleur(css).valeur;
+        g.clear();
+        if (taille < Arcade.UI.u(this, 8)) return;
+        // Encombrement : 2 pas + 2 rayons en largeur, 4 demi-pas (×1,15)
+        // + 2 rayons en hauteur = 2,9 pas — le losange tient dans `taille`.
+        const pas = taille / 2.9;
+        const rayon = pas * 0.3;
+        const rangees = [1, 2, 3, 2, 1];
+        rangees.forEach((n, ligne) => {
+            for (let i = 0; i < n; i++) {
+                const x = cx + (i - (n - 1) / 2) * pas;
+                const y = cy + (ligne - 2) * pas * 0.5 * 1.15;
+                const centre = ligne === 2 && i === 1;
+                g.fillStyle(couleur(centre ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace), 1);
+                g.fillCircle(x, y, rayon);
+                g.lineStyle(Math.max(1, rayon * 0.18), couleur(C.couleurs.quilleContour), 1);
+                g.strokeCircle(x, y, rayon);
+            }
         });
     }
 }

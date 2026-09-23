@@ -150,16 +150,6 @@ window.FarmConfig = {
         ombreBouton: "rgba(20, 18, 16, 0.28)"
     },
 
-    // --- Menu principal -----------------------------------------------------
-    menu: {
-        largeurJouerPct: 80,   // « Jouer » : % de la LARGEUR d'écran (pattern
-                               // Waggis/Similitude)
-        hauteurJouerU: 11.5,
-        titreY: 0.3,           // centre du titre (fraction de la hauteur)
-        tailleTitreU: 13.5,
-        tailleAccrocheU: 4
-    },
-
     // --- HUD en jeu ---------------------------------------------------------
     // 3 blocs répartis sur toute la largeur (décision John 13/08) :
     //   GAUCHE  nom de zone (tailleZoneU)

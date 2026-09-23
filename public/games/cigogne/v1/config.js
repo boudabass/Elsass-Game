@@ -15,6 +15,7 @@ window.CigogneConfig = {
     textes: {
         meilleurScore: "Meilleur score : {score}",
         nouveauRecord: "Nouveau record !",
+        jouer: "Commencer",     // bouton principal du menu
 
         // ⭐ FIX 08/08/2026 (assets icônes plateforme, décision John 08/08 —
         // art. 704 Chantier B) : libellés affichés SOUS les icônes

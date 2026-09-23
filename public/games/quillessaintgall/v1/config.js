@@ -457,18 +457,21 @@ window.QuillesSaintGallConfig = {
     paliers: {
         facile: {
             label: "Facile",
+            icone: "⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 0.7,
             zoneOrangeMultiplicateur: 1.4,
             aideVisee: { pctPiste: 1 }
         },
         normal: {
             label: "Normal",
+            icone: "⭐⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 1,
             zoneOrangeMultiplicateur: 1,
             aideVisee: { pctPiste: 0.5 }
         },
         difficile: {
             label: "Difficile",
+            icone: "⭐⭐⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 1.4,
             zoneOrangeMultiplicateur: 0.6,
             aideVisee: { tailleBoule: true }

@@ -13,22 +13,13 @@
         scenes: [MenuScene, GameScene, OverScene],
         firstScene: MenuScene.KEY,
 
-        // ⭐ FIX 08/08/2026 (style bouton Réglages, décision John 08/08 —
-        // art. 704 Chantier B) : les boutons persistants Quitter (haut-
-        // gauche) / Plein écran (haut-droite) reprennent EXACTEMENT le
-        // style du bouton Réglages (fond, coins arrondis, ombre portée,
-        // feedback au clic, dégradé — spec 709 révision 08/08). L'icône +
-        // le libellé sont À L'INTÉRIEUR du bouton (pattern
-        // _creerBoutonSecondaire). Les textes vivent dans config.js
-        // (textes.retour / textes.pleinEcran), la couleur de fond vient
-        // de la config — c'est ici que tout est transmis au socle (ombre
-        // + police = défauts du socle, même rendu que le bouton Réglages).
+        // Contrat de plateforme (art. 704) : Quitter (haut-gauche) / Plein
+        // écran (haut-droite) sur le menu principal. Le jeu ne transmet que
+        // ses TEXTES (config.js) : le style est celui du socle, identique
+        // dans tous les jeux (variante « accent », refonte charte 23/09).
         iconesPlateforme: {
             retour: C.textes.retour,
-            pleinEcran: C.textes.pleinEcran,
-            style: {
-                couleur: C.couleurs.bouton
-            }
+            pleinEcran: C.textes.pleinEcran
         },
 
         // Chargement : une seule image à télécharger, le reste est dessiné.

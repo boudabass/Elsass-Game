@@ -1,0 +1,5 @@
+Montserrat — Julieta Ulanovsky et contributeurs (github.com/JulietaUla/Montserrat).
+Licence SIL Open Font License 1.1 : https://openfontlicense.org
+Fichier : sous-ensemble « latin », police variable (graisses 400 à 800),
+tel que distribué par Google Fonts (v31). Auto-hébergé ici pour que les
+jeux Phaser (public/games/core/ui/polices.js) n'appellent aucun CDN.
