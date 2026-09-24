@@ -26,6 +26,9 @@ next-env.d.ts
 
 # ---- Contexte local Claude (contient la config réelle) ----
 CLAUDE.md
+PRODUCT.md
+DESIGN.md
+.impeccable/
 
 # ---- Atelier de tri des assets : ne doit jamais revenir dans le repo ----
 _atelier-assets/
