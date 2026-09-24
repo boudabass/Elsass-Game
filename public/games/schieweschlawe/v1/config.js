@@ -1,24 +1,11 @@
 /*
- * config.js — réglages du spike « visée proportionnelle au terrain » de
- * Schieweschlawe (PRD article 873 §4, consigne 704 du 30/08).
+ * config.js — tous les réglages de Schieweschlawe (PRD article Odoo 873).
  *
- * Prototype isolé (une scène de test) : AUCUN niveau, AUCUNE progression.
- * Valide, avant de construire les 100 niveaux :
- *   1. la VISÉE PROPORTIONNELLE au terrain (§4) : distance_du_tir =
- *      (position_disque / 100) × longueur_du_terrain. Le terrain fait
- *      TOUJOURS tout l'espace disponible au-dessus de la pierre (pas une
- *      longueur configurable plus courte) — sa taille suit l'écran ;
- *   2. les COORDONNÉES 0-100 SANS NÉGATIF sur les deux axes (distance
- *      haut-bas + latéral gauche-droite, centre à 50, miroir = 100 - pos) ;
- *   3. le TIR EN 2 ÉTAPES (§5) : placement du disque, puis jauge à aiguille
- *      mobile + zone orange FIXE (tirée au hasard au démarrage, un seul
- *      élément bouge), reclic pour arrêter (arrêt dans l'orange = conforme,
- *      sinon déviation calibrée ici) ;
- *   4. l'ÉCHELLE-HAUTEUR (le disque grossit en montant, rétrécit en
- *      retombant) ;
- *   5. le VENT 4 DIRECTIONS (vecteur 2D, setAccelerationX + setAccelerationY,
- *      5 paliers, indicateur direction + intensité dans la colonne de
- *      gauche du bas d'écran).
+ * Golf de lancer alsacien, vue du dessus : le joueur place le disque
+ * enflammé sous la pierre (visée proportionnelle au terrain, §4), arrête
+ * l'aiguille de la jauge dans la zone orange (§5), et doit faire retomber
+ * le disque dans la cible. 100 niveaux en 10 paliers de 10 (§7), 3 lancers
+ * par niveau (décision John 24/09).
  *
  * Même convention que les autres jeux : toutes les valeurs chiffrées vivent
  * ICI (rien en dur dans une scène), tous les textes joueur dans `textes`,
@@ -29,105 +16,165 @@ window.SchieweschlaweConfig = {
     key: "schieweschlawe",
     titre: "Schieweschlawe",
 
-    // --- Textes (libellés français, tous les textes joueur) ----------------
+    // --- Textes (tous les textes joueur) -----------------------------------
     textes: {
-        sousTitre: "Spike v4 — visée proportionnelle au terrain",
-        consigneLigne1: "Glisse le disque : bas = loin, gauche/droite = miroir",
-        consigneLigne2: "Puis « Tirer » → arrête l'aiguille dans l'orange",
+        // Menu (MenuScene)
+        accroche: "Lance le disque enflammé depuis la pierre et fais-le retomber dans la cible.",
+        jouer: "Jouer",
+        jouerNiveau: "Jouer · niveau {n}",
+        niveaux: "Niveaux",
+        progression: "{n} / {total} niveaux réussis",
+        retour: "Quitter",
+        pleinEcran: "Plein écran",
+
+        // Écran Niveaux (NiveauxScene)
+        retourMenu: "Menu",
+        palier: "Palier {p} / {total}",
+        niveauTuile: "Niveau {n}",
+        resultatTuile: "{lancers} · {p} %",
+        lancer1: "1 lancer",
+        lancerN: "{n} lancers",
+        aJouer: "À jouer",
+        verrouille: "🔒",
+
+        // En jeu (GameScene)
+        hudNiveau: "Niveau {n}",
+        hudLancer: "Lancer {i} / {total}",
+        consigneLigne1: "Glisse le disque : plus bas = plus loin",
+        consigneLigne2: "Puis « Tirer » et arrête l'aiguille dans l'orange",
         tirer: "Tirer",
         arreter: "Tape pour arrêter",
-        conforme: "Conforme !",
-        manque: "Manqué",
-        rejouer: "Rejouer",
-        ventPrefixe: "Vent : ",
-        directionPrefixe: "Dir. : ",
-        ecart: "Écart cible : {p}%",
-        pleinCentre: "PLEIN CENTRE !",
-        touche: "Touché !",
+        conforme: "Parfait !",
+        manque: "Dévié…",
+        vent: "Vent : {nom}",
+        ventNoms: {
+            calme: "Calme",
+            leger: "Léger",
+            moyen: "Moyen",
+            fort: "Fort",
+            tresFort: "Très fort"
+        },
+        pleinCentre: "Plein centre ! {p} %",
+        touche: "Touché ! {p} %",
         rate: "Raté",
-        horsEcran: "Hors écran",
-        enVol: "En vol…",
-        // Résultat après atterrissage : pour valider le mapping proportionnel.
-        tirResultat: "Tir à {t}% du terrain (visé {v}%)"
+        horsTerrain: "Hors du terrain",
+        lancerSuivant: "Lancer suivant",
+
+        // Fin de niveau (FinScene)
+        niveauReussi: "Niveau {n} réussi !",
+        niveauRate: "Raté !",
+        jeuTermine: "Les 100 niveaux sont réussis !",
+        infoLancers: "{lancers}",
+        infoProximite: "Proximité : {p} %",
+        infoRecord: "🏆 Nouveau record",
+        infoMeilleur: "Meilleur : {lancers} · {p} %",
+        infoRateNiveau: "Niveau {n}",
+        infoRateLancers: "Aucun des {total} lancers dans la cible",
+        niveauSuivant: "Niveau suivant",
+        reessayer: "Réessayer",
+        rejouer: "Rejouer",
+        menu: "Menu"
+    },
+
+    // --- Progression (PRD §7, décisions John 24/09) ------------------------
+    niveaux: {
+        total: 100,
+        parPalier: 10,
+        lancersParNiveau: 3     // 3 lancers ; tous ratés → on réessaie le niveau
+    },
+
+    // --- Cible : générée par niveau (Niveaux.js) ---------------------------
+    // Dans un palier, la cible s'éloigne (niveau 1 du palier = proche,
+    // niveau 10 = fond du terrain) ; d'un palier à l'autre elle rétrécit et
+    // s'écarte davantage du centre. Chaque niveau a TOUJOURS la même cible.
+    cible: {
+        rayonParPalierPct: [7, 6.4, 5.8, 5.3, 4.8, 4.3, 3.9, 3.5, 3.2, 2.9], // % plus petit côté
+        distanceMinPct: 30,     // % de la longueur du terrain (1er niveau du palier)
+        distanceMaxPct: 88,     // % de la longueur du terrain (10e niveau du palier)
+        // Décalage gauche/droite max autour du centre (50), par palier.
+        lateralEcartParPalierPct: [0, 8, 12, 16, 20, 24, 28, 30, 32, 34],
+        lateralBornesPct: [12, 88], // la cible reste loin des bords
+        pleinCentreRatio: 0.4       // « plein centre » = dans 40 % du rayon
     },
 
     // --- Lancer / visée ----------------------------------------------------
     lancer: {
-        // Pierre de lancement (fixe). L'axe distance (haut-bas) va de la
-        // pierre (position disque 0) vers le bas de l'écran (position 100).
+        // Pierre de lancement (fixe). Le terrain = tout l'espace au-dessus.
         pierreXPct: 50,             // % de largeur
-        pierreYPct: 76,             // % de hauteur (le terrain s'étend AU-DESSUS)
+        pierreYPct: 76,             // % de hauteur
         // Hauteur simulée par échelle (le disque grossit en montant).
         facteurHauteur: 0.9,        // vitesse verticale de départ = vitesse sol × facteur
         graviteHauteurPar_s: 3.0,   // gravité qui ramène l'altitude au sol (hauteurs / s²)
         grossissementMax: 0.9,      // le disque grossit de +90 % à l'apogée
         tailleDisquePct: 6,         // taille du disque au sol, % du plus petit côté
-        traineeIntervalMs: 30       // espacement des points de la traînée de feu
+        traineeIntervalMs: 30,      // espacement des points de la traînée de feu
+        delaiResultatMs: 1400,      // temps d'affichage du résultat avant la suite
+        // Plancher tactile en PIXELS (seuil d'accessibilité iOS/Android,
+        // même entorse assumée au « tout en % » que les autres jeux).
+        cibleMinPx: 44
     },
 
-    // --- Cible (sur le terrain, pour comparer avec la visée) --------------
-    cible: {
-        distancePct: 50,            // position de la cible, % de la LONGUEUR du terrain
-        lateralPct: 50,             // position latérale de la cible, % de largeur (50 = centre)
-        rayonPct: 5                 // rayon de la cible, % du plus petit côté
-    },
-
-    // --- Jauge de précision (étape 2 du tir, PRD §5) ----------------------
-    // Barre verte + un SEUL élément mobile (l'aiguille qui balaye). La zone
-    // orange (l'endroit où cliquer) est FIXE pour tout le tir — tirée au
-    // hasard une seule fois au démarrage de la jauge, elle ne bouge plus.
-    // Le joueur reclique pour arrêter l'aiguille. Arrêt dans l'orange =
-    // conforme (aucune déviation) ; sinon déviation calibrée.
+    // --- Jauge de précision (PRD §5) ----------------------------------------
+    // Un SEUL élément mobile (l'aiguille). La zone orange est FIXE pour le
+    // tir (tirée au hasard au démarrage de la jauge). Arrêt dans l'orange =
+    // tir conforme ; sinon déviation proportionnelle à l'écart.
     jauge: {
         vitesseBalayagePar_s: 1.1,  // cycles/s de l'aiguille (aller-retour)
         zoneOrangeLargeurPct: 16,   // largeur de la zone orange, % de la barre
-        delaiFeedbackMs: 600,       // pause après l'arrêt (affiche conforme/manqué)
-        // Ampleur de la déviation en cas d'arrêt raté (proposition à
-        // calibrer — valeur documentée dans le rapport 713) :
+        delaiFeedbackMs: 600,       // pause après l'arrêt (affiche conforme/dévié)
         deviationDistanceMaxPct: 15, // écart distance max (arrêt raté extrême), % longueur terrain
         deviationLateralMaxPct: 10,  // écart latéral max, % largeur d'écran
-        largeurPct: 60,             // largeur de la barre, % de la largeur réelle (règle jauge)
+        largeurPct: 60,             // largeur de la barre, % de la largeur réelle
         hauteurU: 5                 // hauteur de la barre (u())
     },
 
-    // --- Vent (vecteur 2D, 4 directions) -----------------------------------
-    // La force de vent est une ACCÉLÉRATION constante appliquée au corps
-    // Arcade pendant le vol, sur les 2 axes (généralisation du spike v1 qui
-    // n'utilisait que setAccelerationX). accel = valeur × direction × écran.
-    // Les paliers reprennent la progression des 100 niveaux (PRD §7) ; seule
-    // la DIRECTION devient variable (4 côtés de l'écran).
+    // --- Vent (vecteur 2D, fixé par niveau — décision John 24/09) ----------
+    // Accélération constante pendant le vol : accel = valeur × direction ×
+    // taille d'écran. La force suit le palier ; la direction dépend du
+    // niveau (Niveaux.js), choisie pour que la cible reste atteignable.
     vent: {
-        // Vecteur unitaire de la POUSSÉE (là où le disque dérive).
         directions: [
-            { nom: "→ droite", dx: 1,  dy: 0 },
-            { nom: "← gauche", dx: -1, dy: 0 },
-            { nom: "↑ loin",   dx: 0,  dy: -1 },
-            { nom: "↓ proche", dx: 0,  dy: 1 }
+            { dx: 1,  dy: 0 },      // pousse vers la droite
+            { dx: -1, dy: 0 },      // vers la gauche
+            { dx: 0,  dy: -1 },     // vers le fond du terrain
+            { dx: 0,  dy: 1 }       // vers la pierre
         ],
-        paliers: [
-            { nom: "Calme",     palier: 1,  valeur: 0 },
-            { nom: "Léger",     palier: 3,  valeur: 0.25 },
-            { nom: "Moyen",     palier: 5,  valeur: 0.6 },
-            { nom: "Fort",      palier: 8,  valeur: 1.15 },
-            { nom: "Très fort", palier: 10, valeur: 1.6 }
+        parPalier: [
+            { nom: "calme",    valeur: 0 },
+            { nom: "leger",    valeur: 0.15 },
+            { nom: "leger",    valeur: 0.25 },
+            { nom: "moyen",    valeur: 0.4 },
+            { nom: "moyen",    valeur: 0.6 },
+            { nom: "fort",     valeur: 0.8 },
+            { nom: "fort",     valeur: 1.0 },
+            { nom: "fort",     valeur: 1.15 },
+            { nom: "tresFort", valeur: 1.35 },
+            { nom: "tresFort", valeur: 1.6 }
         ],
-        palierInitial: 0,           // index de départ dans `paliers`
-        directionInitiale: 0,       // index de départ dans `directions`
-        // Particules d'ambiance (braises) qui dérivent en 2D dans le décor
-        // pour rendre le sens du vent lisible AVANT le tir.
+        // Visée requise gardée à distance des bords (0-100) : un niveau dont
+        // la visée tomberait au-delà est jugé non atteignable (Niveaux.js).
+        margeViseePct: 5,
+        // Écrans de référence pour ce contrôle (portrait, paysage mobile, PC).
+        ecransReference: [
+            { w: 390, h: 844 },
+            { w: 844, h: 390 },
+            { w: 1280, h: 720 }
+        ],
+        // Particules d'ambiance (braises) qui rendent le vent lisible.
         braisesNombre: 24,
-        braisesPar_u: 0.35,         // vitesse de base des braises, % du plus petit côté / s
-        braisesFacteurVent: 0.8,    // vitesse des braises = base + valeur_vent × facteur
+        braisesPar_u: 0.35,         // vitesse de base, % du plus petit côté / s
+        braisesFacteurVent: 0.8,    // vitesse = base + valeur_vent × facteur
         braiseTaillePct: 1.2        // taille d'une braise, % du plus petit côté
     },
 
     // --- Couleurs (nuit de la vallée, vue du dessus) ------------------------
+    // Interface (pastilles, boutons, cartes) : couleurs de la marque, fournies
+    // par le socle (core/ui/tokens.js). Ici : le monde du jeu.
     couleurs: {
         ciel: "#0b1030",
-        champ: "#17241a",           // fond du champ (vu du dessus)
-        grille: "#24331f",
+        champ: "#17241a",
         grilleLigne: "#2e4630",
-        lancePad: "#0e1620",        // zone de recul (sous la pierre)
+        lancePad: "#0e1620",
         pierre: "#4a3a2c",
         pierreBord: "#6b5138",
         disque: 0xff7a1a,
@@ -138,16 +185,18 @@ window.SchieweschlaweConfig = {
         braise: 0xffb45c,
         vent: "#8fd3ff",
         visee: "#8fd3ff",
-        cible: "#ff5252",
-        ciblePlein: "#ffd23f",
-        texte: "#e8eef7",
-        texteSombre: "#141210",
-        bouton: "#2E9E4F",          // bouton vert « Tirer »
-        boutonVent: "#1d3557",
-        jaugeFond: "#14212b",       // fond de la barre (sombre)
-        jaugeBarre: "#2E9E4F",      // corps vert de la barre
+        cible: "#E31B23",
+        ciblePlein: "#F2B93D",
+        marqueur: "#F2B93D",
+        jaugeFond: "#14212b",
+        jaugeBarre: "#2E9E4F",
         jaugeZoneOrange: "#ff8c1a",
         jaugeAiguille: "#ffffff",
-        ecart: "#ffd23f"
+        // Texte secondaire posé sur une carte (niveau verrouillé).
+        texteDiscret: "#7A7064"
+    },
+
+    police: {
+        famille: "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif"
     }
 };
