@@ -40,9 +40,17 @@ window.SchieweschlaweConfig = {
         // En jeu (GameScene)
         hudNiveau: "Niveau {n}",
         hudLancer: "Lancer {i} / {total}",
-        consigneLigne1: "Glisse le disque : plus bas = plus loin",
-        consigneLigne2: "Puis « Tirer » et arrête l'aiguille dans l'orange",
+        // Consignes du niveau 1 : une idée par ligne, courtes pour tenir
+        // sur un téléphone à 13 px. La 2e explique la visée en miroir (le
+        // disque se tire comme une fronde — décision John 25/09 : on garde,
+        // on explique).
+        consignes: [
+            "Glisse le disque : plus bas = plus loin",
+            "Disque à gauche → tir à droite",
+            "« Tirer », puis « Stop » dans l'orange"
+        ],
         tirer: "Tirer",
+        stop: "Stop",
         arreter: "Tape pour arrêter",
         conforme: "Parfait !",
         manque: "Dévié…",
@@ -58,17 +66,16 @@ window.SchieweschlaweConfig = {
         touche: "Touché ! {p} %",
         rate: "Raté",
         horsTerrain: "Hors du terrain",
-        lancerSuivant: "Lancer suivant",
+        relancer: "Relancer",
 
         // Fin de niveau (FinScene)
         niveauReussi: "Niveau {n} réussi !",
-        niveauRate: "Raté !",
+        niveauRate: "Niveau {n} raté",
         jeuTermine: "Les 100 niveaux sont réussis !",
         infoLancers: "{lancers}",
         infoProximite: "Proximité : {p} %",
         infoRecord: "🏆 Nouveau record",
         infoMeilleur: "Meilleur : {lancers} · {p} %",
-        infoRateNiveau: "Niveau {n}",
         infoRateLancers: "Aucun des {total} lancers dans la cible",
         niveauSuivant: "Niveau suivant",
         reessayer: "Réessayer",

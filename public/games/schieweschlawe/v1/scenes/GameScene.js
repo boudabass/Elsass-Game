@@ -11,6 +11,10 @@
  *     réussie ; raté → lancer suivant ; 3 ratés → fin de niveau ratée ;
  *   - interface à la charte : pastilles (niveau, lancer, vent, résultat),
  *     bouton « Tirer » rouge.
+ * Critique du 25/09 : bouton « Menu » (noir, haut-gauche) pour quitter un
+ * niveau à tout moment — rien n'est perdu, la save n'est écrite qu'à la
+ * réussite ; et UN SEUL bouton rouge, qui suit l'état : « Tirer » →
+ * « Stop » (jauge) → caché (vol) → « Relancer » (raté, lancers restants).
  *
  * Coordonnées de visée 0-100 SANS NÉGATIF sur les deux axes : distance
  * (0 = sous la pierre, 100 = bas de l'écran → bout du terrain) et latéral
@@ -92,7 +96,7 @@ class GameScene extends Phaser.Scene {
         this.trainee = [];
         this.traineeTimer = 0;
         this.marqueur = null;
-        this.boutonSuivant = null;
+        this.peutRelancer = false;         // raté avec des lancers restants
 
         this.ciel = this.add.graphics().setDepth(0);
         this.sol = this.add.graphics().setDepth(1);
@@ -177,26 +181,47 @@ class GameScene extends Phaser.Scene {
             T.vent.replace("{nom}", T.ventNoms[this.niv.vent.nom] || this.niv.vent.nom));
 
         // Consignes : seulement au tout premier lancer du niveau 1.
-        this.consignes = [pastille(3.2, 0.5), pastille(3.2, 0.5)];
-        if (this.niv.n === 1) {
-            this.consignes[0].setText(T.consigneLigne1);
-            this.consignes[1].setText(T.consigneLigne2);
-        }
+        this.consignes = T.consignes.map((texte) =>
+            pastille(3.4, 0.5).setText(this.niv.n === 1 ? texte : ""));
 
         this.texteJauge = pastille(3.6, 0.5);
         this.texteResultat = pastille(4.5, 0.5);
 
-        // « Tirer » : LA prochaine action (rouge). Lance la jauge, puis
-        // arrête l'aiguille au 2e appui.
-        this.boutonTirer = UI.boutonMenu(this, {
+        // Quitter le niveau à tout moment (navigation = noir, charte).
+        this.boutonMenu = UI.boutonMenu(this, {
+            variante: "accent",
+            label: T.menu,
+            marqueurClic: true,
+            onClick: () => this.scene.start(MenuScene.KEY)
+        }).setDepth(30);
+
+        // LE bouton d'action (rouge, un seul à l'écran) : son libellé et
+        // son rôle suivent l'état (_majBoutonAction).
+        this.boutonAction = UI.boutonMenu(this, {
             variante: "jouer",
             label: T.tirer,
             marqueurClic: true,
             onClick: () => {
                 if (this.etat === "placement") this._demarrerJauge();
                 else if (this.etat === "jauge") this._arreterJauge();
+                else if (this.etat === "resultat") this._lancerSuivant();
             }
         }).setDepth(30);
+    }
+
+    /** Libellé du bouton d'action selon l'état ; caché s'il n'y a rien à faire. */
+    _majBoutonAction() {
+        const T = window.SchieweschlaweConfig.textes;
+        const libelle = this.etat === "placement" ? T.tirer
+            : this.etat === "jauge" ? T.stop
+            : (this.etat === "resultat" && this.peutRelancer) ? T.relancer
+            : null;
+        if (libelle) {
+            this.boutonAction.label.setText(libelle);
+            this.boutonAction.setAlpha(1).refresh();
+        } else {
+            this.boutonAction.setAlpha(0);
+        }
     }
 
     _majHudLancer() {
@@ -341,29 +366,35 @@ class GameScene extends Phaser.Scene {
         const w3 = this.colLargeur;
         const bande = h - this.pierreY;
 
-        this.hudNiveau.placer(u(2), u(2));
-        this.hudLancer.placer(w - u(2), u(2));
+        // Haut : Menu à gauche, puis Niveau ; Lancer à droite — centrés
+        // sur la même ligne que le bouton.
+        const minPx = C.lancer.cibleMinPx;
+        const hMenu = Math.max(minPx, u(9));
+        const lMenu = Math.max(minPx * 1.6, u(18));
+        this.boutonMenu.redimensionner(lMenu, hMenu)
+            .setPosition(u(2) + lMenu / 2, u(2) + hMenu / 2);
+        const yHud = u(2) + (hMenu - this.hudNiveau.hauteur()) / 2;
+        this.hudNiveau.placer(u(2) + this.boutonMenu.largeur() + u(2), yHud);
+        this.hudLancer.placer(w - u(2), yHud);
 
         // Libellé du vent sous la rose (colonne de gauche).
         this.hudVent.placer(w3 / 2, this.pierreY + bande * 0.66);
 
-        const yConsigne = h * 0.16;
-        this.consignes[0].placer(w / 2, yConsigne);
-        this.consignes[1].placer(w / 2, yConsigne + this.consignes[0].hauteur() + u(1.2));
+        let yConsigne = h * 0.16;
+        this.consignes.forEach((c) => {
+            c.placer(w / 2, yConsigne);
+            yConsigne += c.hauteur() + u(1.2);
+        });
 
         // Libellé de la jauge, juste au-dessus de la barre.
         this.texteJauge.placer(w / 2,
             this._hautPierre() - u(C.jauge.hauteurU) - u(2) - u(8));
         this.texteResultat.placer(w / 2, h * 0.36);
 
-        const minPx = C.lancer.cibleMinPx;
-        this.boutonTirer.redimensionner(w3 * 0.7,
+        this.boutonAction.redimensionner(w3 * 0.8,
             Math.max(minPx, Math.min(u(10), bande * 0.6)))
             .setPosition(w - w3 / 2, this.pierreY + bande / 2);
-        if (this.boutonSuivant) {
-            this.boutonSuivant.redimensionner(Math.min(w * 0.6, u(44)), Math.max(minPx, u(10)))
-                .setPosition(w / 2, h * 0.36 + this.texteResultat.hauteur() + u(8));
-        }
+        this._majBoutonAction();
     }
 
     // --- Visée proportionnelle (PRD §4) ----------------------------------------
@@ -457,6 +488,7 @@ class GameScene extends Phaser.Scene {
         this.texteJauge.setText(C.textes.arreter);
         this.consignes.forEach((c) => c.setVisible(false));
         this._dessinerVisee();
+        this._majBoutonAction();
     }
 
     _avancerJauge(dt) {
@@ -482,6 +514,7 @@ class GameScene extends Phaser.Scene {
         this.texteJauge.setText(
             this.jaugeDeviation === 0 ? C.textes.conforme : C.textes.manque);
         this._dessinerJaugeBarre();
+        this._majBoutonAction();
     }
 
     _dessinerJaugeBarre() {
@@ -734,16 +767,16 @@ class GameScene extends Phaser.Scene {
             });
             return;
         }
-        this.boutonSuivant = UI.boutonMenu(this, {
-            variante: "jouer",
-            label: T.lancerSuivant,
-            onClick: () => this._lancerSuivant()
-        }).setDepth(30);
-        this._positionnerInterface();
+        // Le bouton d'action reste à sa place (bas-droite) et devient
+        // « Relancer » : rien ne se pose sur le terrain, la cible et le
+        // point d'impact restent visibles pour corriger le tir.
+        this.peutRelancer = true;
+        this._majBoutonAction();
     }
 
     _lancerSuivant() {
-        if (this.etat !== "resultat") return;
+        if (this.etat !== "resultat" || !this.peutRelancer) return;
+        this.peutRelancer = false;
         this.lancerNum += 1;
         this._majHudLancer();
         this.etat = "placement";
@@ -751,7 +784,6 @@ class GameScene extends Phaser.Scene {
         this.trainee.forEach((t) => t.obj.destroy());
         this.trainee = [];
         if (this.marqueur) { this.marqueur.destroy(); this.marqueur = null; }
-        if (this.boutonSuivant) { this.boutonSuivant.destroy(); this.boutonSuivant = null; }
         this.texteResultat.setText("");
 
         // Le disque reprend la DERNIÈRE visée : le joueur corrige son tir
@@ -759,5 +791,6 @@ class GameScene extends Phaser.Scene {
         this._majVisee();
         this._poserDisqueVisuel();
         this._dessinerVisee();
+        this._majBoutonAction();
     }
 }

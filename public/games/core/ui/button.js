@@ -153,7 +153,9 @@
         if (!texte || !largeur) return;
         var dispo = largeur * 0.9;
         var fs = parseFloat(texte.style.fontSize);
-        var plancher = Math.max(6, fs * 0.4);
+        // Jamais sous le plancher de lisibilité de l'arcade (13 px), sauf
+        // si le libellé a été demandé plus petit que ça au départ.
+        var plancher = Math.min(fs, Math.max(Arcade.UI.policeMinPx, fs * 0.4));
         while (texte.width > dispo && fs > plancher) {
             fs -= 1;
             texte.setFontSize(Math.round(fs) + "px");
@@ -329,7 +331,8 @@
         // (plus petit côté de l'écran au moment de l'appel).
         var appliquerU = function () {
             if (hauteurU !== null) {
-                hauteur = Arcade.UI.u(scene, hauteurU);
+                // Cible tactile : jamais sous 44 px (petits téléphones).
+                hauteur = Math.max(Arcade.UI.cibleMinPx, Arcade.UI.u(scene, hauteurU));
             }
             if (largeurU !== null) {
                 largeur = Arcade.UI.u(scene, largeurU);
@@ -353,7 +356,7 @@
             // AVANT le dessin du fond, comme l'ancien code.
             if (autoLargeur) {
                 if (icone) {
-                    txt.setFontSize(Math.round(hauteur * 0.23) + "px");
+                    txt.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, hauteur * 0.23)) + "px");
                 } else {
                     txt.setFontSize(Math.round(hauteur * 0.4) + "px");
                 }
@@ -418,7 +421,7 @@
                 var fs = hauteur * 0.30;
                 var dispo = largeur * 0.9 - largeurIcone - ecartIcone;
                 txt.setOrigin(0, 0.5).setFontSize(Math.round(fs) + "px");
-                while (txt.width > dispo && fs > Math.max(6, hauteur * 0.15)) {
+                while (txt.width > dispo && fs > Math.max(Arcade.UI.policeMinPx, hauteur * 0.15)) {
                     fs -= 1;
                     txt.setFontSize(Math.round(fs) + "px");
                 }
@@ -462,7 +465,7 @@
                 // Libellé déjà dimensionné et placé ci-dessus.
             } else if (icone) {
                 // Libellé EN DESSOUS de l'icône, À L'INTÉRIEUR du bouton.
-                txt.setFontSize(Math.round(hauteur * 0.23) + "px");
+                txt.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, hauteur * 0.23)) + "px");
                 txt.setPosition(x, y + hauteur * 0.28);
             } else if (haut) {
                 // Bouton TEXTE À 2 LIGNES : ligne haute (ex. le prix)
@@ -507,7 +510,8 @@
                 hauteurU = null;
                 largeurMinU = null;
                 margeLibelleU = null;
-                largeur = nw; hauteur = nh;
+                // Cible tactile : jamais sous 44 px, même calculée en px.
+                largeur = nw; hauteur = Math.max(Arcade.UI.cibleMinPx, nh);
                 dessiner();
                 return this;
             },
