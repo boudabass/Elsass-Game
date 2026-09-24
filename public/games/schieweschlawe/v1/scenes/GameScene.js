@@ -297,15 +297,25 @@ class GameScene extends Phaser.Scene {
         const C = window.SchieweschlaweConfig;
         const UI = Arcade.UI;
         const c = (s) => Phaser.Display.Color.HexStringToColor(s).color;
-        const x = this.pierreX, y = this.pierreY;
-        const baseW = UI.u(this, 11);
-        const baseH = UI.u(this, 4.5);
+        // En longueur (dans l'axe du tir), centrée sur la limite terrain /
+        // bande de lancement : moitié posée, moitié au-dessus du vide.
+        const larg = UI.u(this, C.lancer.pierreLargeurU);
+        const long = UI.u(this, C.lancer.pierreLongueurU);
+        const x0 = this.pierreX - larg / 2;
+        const y0 = this.pierreY - long / 2;
 
         this.pierreG.clear();
         this.pierreG.fillStyle(c(C.couleurs.pierre), 1);
-        this.pierreG.fillRoundedRect(x - baseW / 2, y - baseH, baseW, baseH, baseH * 0.3);
+        this.pierreG.fillRoundedRect(x0, y0, larg, long, larg * 0.3);
+        // Pan incliné vers la vallée (côté terrain), plus clair.
         this.pierreG.fillStyle(c(C.couleurs.pierreBord), 1);
-        this.pierreG.fillTriangle(x - baseW / 2, y, x + baseW / 2, y, x - baseW / 2, y - baseH);
+        this.pierreG.fillTriangle(x0, y0, x0 + larg, y0, x0, y0 + long);
+    }
+
+    /** Haut de la pierre (la jauge et son libellé se placent au-dessus). */
+    _hautPierre() {
+        const C = window.SchieweschlaweConfig;
+        return this.pierreY - Arcade.UI.u(this, C.lancer.pierreLongueurU) / 2;
     }
 
     _dessinerCible() {
@@ -343,7 +353,7 @@ class GameScene extends Phaser.Scene {
 
         // Libellé de la jauge, juste au-dessus de la barre.
         this.texteJauge.placer(w / 2,
-            this.pierreY - u(C.jauge.hauteurU) - u(2) - u(8));
+            this._hautPierre() - u(C.jauge.hauteurU) - u(2) - u(8));
         this.texteResultat.placer(w / 2, h * 0.36);
 
         const minPx = C.lancer.cibleMinPx;
@@ -486,7 +496,7 @@ class GameScene extends Phaser.Scene {
         const largeur = (C.jauge.largeurPct / 100) * w;
         const hauteur = UI.u(this, C.jauge.hauteurU);
         const x = (w - largeur) / 2;
-        const y = this.pierreY - hauteur - UI.u(this, 2);   // juste au-dessus de la pierre
+        const y = this._hautPierre() - hauteur - UI.u(this, 2);   // juste au-dessus de la pierre
 
         this.jaugeG.fillStyle(c(C.couleurs.jaugeFond), 1);
         this.jaugeG.fillRoundedRect(x, y, largeur, hauteur, hauteur * 0.3);

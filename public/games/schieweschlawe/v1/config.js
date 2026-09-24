@@ -101,7 +101,12 @@ window.SchieweschlaweConfig = {
     lancer: {
         // Pierre de lancement (fixe). Le terrain = tout l'espace au-dessus.
         pierreXPct: 50,             // % de largeur
-        pierreYPct: 76,             // % de hauteur
+        pierreYPct: 76,             // % de hauteur (limite terrain / bande de lancement)
+        // La pierre est posée EN LONGUEUR, dans l'axe du tir (décision John
+        // 24/09), à cheval sur la limite : moitié sur la bande de lancement,
+        // moitié au-dessus du vide (le terrain).
+        pierreLongueurU: 11,        // dans l'axe du tir (vertical), u()
+        pierreLargeurU: 4.5,        // en travers, u()
         // Hauteur simulée par échelle (le disque grossit en montant).
         facteurHauteur: 0.9,        // vitesse verticale de départ = vitesse sol × facteur
         graviteHauteurPar_s: 3.0,   // gravité qui ramène l'altitude au sol (hauteurs / s²)
@@ -119,7 +124,7 @@ window.SchieweschlaweConfig = {
     // tir (tirée au hasard au démarrage de la jauge). Arrêt dans l'orange =
     // tir conforme ; sinon déviation proportionnelle à l'écart.
     jauge: {
-        vitesseBalayagePar_s: 1.1,  // cycles/s de l'aiguille (aller-retour)
+        vitesseBalayagePar_s: 0.77, // cycles/s de l'aiguille (aller-retour) — 1.1 → 0.77 (−30 %, John 24/09)
         zoneOrangeLargeurPct: 16,   // largeur de la zone orange, % de la barre
         delaiFeedbackMs: 600,       // pause après l'arrêt (affiche conforme/dévié)
         deviationDistanceMaxPct: 15, // écart distance max (arrêt raté extrême), % longueur terrain
