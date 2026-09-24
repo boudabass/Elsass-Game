@@ -130,7 +130,9 @@ window.QuillesSaintGallConfig = {
         menuSousTitre: "Choisis ta difficulté",
         menu: "Menu",
         consigneLigne1: "Place la boule, oriente avec ◄ ►",
-        consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
+        // Espaces insécables ( ) dans les guillemets : « » ne se
+        // retrouve jamais seul en début de ligne quand la colonne est étroite.
+        consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
         force: "Force",
         tirer: "Tirer",
         arreter: "Tape pour arrêter",
@@ -457,18 +459,21 @@ window.QuillesSaintGallConfig = {
     paliers: {
         facile: {
             label: "Facile",
+            icone: "⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 0.7,
             zoneOrangeMultiplicateur: 1.4,
             aideVisee: { pctPiste: 1 }
         },
         normal: {
             label: "Normal",
+            icone: "⭐⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 1,
             zoneOrangeMultiplicateur: 1,
             aideVisee: { pctPiste: 0.5 }
         },
         difficile: {
             label: "Difficile",
+            icone: "⭐⭐⭐",          // tuile du menu (MenuScene)
             vitesseBalayageMultiplicateur: 1.4,
             zoneOrangeMultiplicateur: 0.6,
             aideVisee: { tailleBoule: true }
@@ -563,7 +568,7 @@ window.QuillesSaintGallConfig = {
         piste: "#7a5233",           // brun (bois/asphalte) — demande John : piste visible
         pisteBord: "#4a3220",
         recul: "#0e1420",
-        texte: "#e8eef7",
+        texte: "#FBF8F3",           // crème de la charte (24/09)
         texteSombre: "#141210",
         // Panneau lumineux du vrai jeu (demande John 31/08) : les 9 quilles
         // sont TOUTES identiques physiquement, seul l'affichage varie.
@@ -583,13 +588,13 @@ window.QuillesSaintGallConfig = {
         ombreBoule: 0x000000,
         trajectoire: "#8fd3ff",
         cercle: "#8fd3ff",
-        bouton: "#2E9E4F",
-        boutonRotation: "#1d3557",
         force: "#e08f2b",
         jaugeFond: "#14212b",
         jaugeBarre: "#2E9E4F",
         jaugeZoneOrange: "#ff8c1a",
         jaugeAiguille: "#ffffff",
-        resultat: "#ffd23f"
+        resultat: "#F2B93D"         // or de la charte (24/09)
+        // Boutons Tirer / rotation / force : variantes de la charte
+        // (core/ui/menuBouton.js) depuis le 24/09.
     }
 };

@@ -116,16 +116,17 @@ class GameScene extends Phaser.Scene {
         }
 
         // --- HUD Phaser (spec §8) ----------------------------------------
-        // Score (gauche), ⏱ chrono (centre), ⚡ énergie (droite) — textes
-        // Arcade.UI, tailles en % du plus petit côté, PAS d'overlay DOM.
-        // Couche HUD (SIM-FIX-DEPTH) : au-dessus de la grille en toutes
-        // circonstances — y compris les items apparus en cours de partie.
-        this.hudScore = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
-            .setDepth(C.profondeurs.hud);
-        this.hudChrono = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
-            .setDepth(C.profondeurs.hud);
-        this.hudEnergie = UI.text(this, 0, 0, "", C.hudTailleTextePct, C.couleurs.texteClair)
-            .setDepth(C.profondeurs.hud);
+        // Score (gauche), ⏱ chrono (centre), ⚡ énergie (droite) — pastilles
+        // de la charte (core/ui/hud.js, 24/09), tailles en % du plus petit
+        // côté, PAS d'overlay DOM. Couche HUD (SIM-FIX-DEPTH) : au-dessus de
+        // la grille en toutes circonstances — y compris les items apparus en
+        // cours de partie.
+        const pastille = (ancre) => UI.pastilleHud(this, {
+            tailleU: C.hudTailleTextePct, ancre: ancre, profondeur: C.profondeurs.hud
+        });
+        this.hudScore = pastille(0);
+        this.hudChrono = pastille(0.5);
+        this.hudEnergie = pastille(1);
         this._majHUD();   // valeurs de départ : 0 pt, 120 s, 25 ⚡ (spec §4)
 
         // Chrono : 1 décompte par seconde (spec §4 — 120 s, non plafonné).
@@ -194,16 +195,11 @@ class GameScene extends Phaser.Scene {
 
         // HUD : une ligne en haut de l'écran — Score à gauche, ⏱ au centre,
         // ⚡ à droite (spec §8). Tailles en % du plus petit côté.
-        const tailleTexte = UI.u(this, C.hudTailleTextePct) + "px";
-        const yHud = UI.u(this, C.hudMargePct) + UI.u(this, C.hudTailleTextePct) / 2;
-
-        this.hudScore.setFontSize(tailleTexte);
-        this.hudChrono.setFontSize(tailleTexte);
-        this.hudEnergie.setFontSize(tailleTexte);
-
-        this.hudScore.setOrigin(0, 0.5).setPosition(UI.u(this, C.hudMargePct), yHud);
-        this.hudChrono.setOrigin(0.5, 0.5).setPosition(w / 2, yHud);
-        this.hudEnergie.setOrigin(1, 0.5).setPosition(w - UI.u(this, C.hudMargePct), yHud);
+        // (Les pastilles relisent u() à chaque placer : taille à jour.)
+        const yHud = UI.u(this, C.hudMargePct);
+        this.hudScore.placer(UI.u(this, C.hudMargePct), yHud);
+        this.hudChrono.placer(w / 2, yHud);
+        this.hudEnergie.placer(w - UI.u(this, C.hudMargePct), yHud);
 
         // Barre de jokers (spec 728 §3) : en bas de l'écran, centrée.
         if (this.barreJokers) {
@@ -247,18 +243,18 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Applique (ou retire) l'état d'alerte d'un texte du HUD : couleur
+     * Applique (ou retire) l'état d'alerte d'une pastille du HUD : fond
      * rouge + pulsation (scale yoyo répété). Le tween est conservé dans
      * this[cle] pour pouvoir être arrêté proprement à la sortie d'alerte.
      */
-    _setAlerte(cle, texte, enAlerte) {
+    _setAlerte(cle, pastille, enAlerte) {
         const C = window.SimilitudeConfig;
         const tween = this[cle];
 
         if (enAlerte && !tween) {
-            texte.setColor(C.couleurs.alerte);
+            pastille.setAlerte(true);   // fond rouge de la charte
             this[cle] = this.tweens.add({
-                targets: texte,
+                targets: pastille.cibles(),
                 scaleX: 1 + C.amplitudePulseAlertePct / 100,
                 scaleY: 1 + C.amplitudePulseAlertePct / 100,
                 duration: C.dureePulseAlerteMs,
@@ -269,8 +265,8 @@ class GameScene extends Phaser.Scene {
         } else if (!enAlerte && tween) {
             tween.stop();
             this[cle] = null;
-            texte.setColor(C.couleurs.texteClair);
-            texte.setScale(1);
+            pastille.setAlerte(false);
+            pastille.cibles().forEach((o) => o.setScale(1));
         }
     }
 
@@ -515,53 +511,49 @@ class GameScene extends Phaser.Scene {
         res.alignements.forEach((a) => {
             const l = a.horizontal ? a.ligne : a.ligne + (a.longueur - 1) / 2;
             const c = a.horizontal ? a.colonne + (a.longueur - 1) / 2 : a.colonne;
-            const pts = C.bareme.points(a.longueur) * facteur;
-            const en = C.bareme.energie(a.longueur) * facteur;
-            const tm = C.bareme.temps(a.longueur) * facteur;
-
-            const x = this.x0 + c * cote + cote / 2;
-            const y = this.y0 + l * cote + cote / 2;
-            const txt = this.add.text(x, y, `+${pts} pts · +${en} ⚡ · +${tm} s`, {
-                fontFamily: "system-ui, sans-serif",
-                fontSize: `${Math.round(tailleTexte)}px`,
-                color: C.couleurs.texteClair,
-                stroke: C.couleurs.texteContour,
-                strokeThickness: Math.max(1, Math.round(tailleTexte * 0.12))
-            }).setOrigin(0.5)
-              .setDepth(C.profondeurs.textesFlottants);
-
-            this.tweens.add({
-                targets: txt,
-                y: y - cote,
-                alpha: 0,
-                duration: C.dureeTexteGainMs,
-                ease: "Sine.easeOut",
-                onComplete: () => txt.destroy()
-            });
+            const texte = C.textes.gainAlignement
+                .replace("{pts}", C.bareme.points(a.longueur) * facteur)
+                .replace("{e}", C.bareme.energie(a.longueur) * facteur)
+                .replace("{s}", C.bareme.temps(a.longueur) * facteur);
+            this._texteFlottant(
+                this.x0 + c * cote + cote / 2, this.y0 + l * cote + cote / 2,
+                texte, tailleTexte, C.couleurs.texteClair, cote);
         });
 
         // Bannière « Combo ×2 » au-dessus de la grille (spec §5, §8).
         if (res.combo) {
-            const x = this.x0 + cote * C.grilleTaille / 2;
-            const y = this.y0 - cote;
-            const txt = this.add.text(x, y, "Combo ×2 !", {
-                fontFamily: "system-ui, sans-serif",
-                fontSize: `${Math.round(tailleTexte * 1.8)}px`,
-                color: C.couleurs.combo,
-                stroke: C.couleurs.texteContour,
-                strokeThickness: Math.max(1, Math.round(tailleTexte * 0.2))
-            }).setOrigin(0.5)
-              .setDepth(C.profondeurs.textesFlottants);
-
-            this.tweens.add({
-                targets: txt,
-                y: y - cote,
-                alpha: 0,
-                duration: C.dureeTexteGainMs,
-                ease: "Sine.easeOut",
-                onComplete: () => txt.destroy()
-            });
+            this._texteFlottant(
+                this.x0 + cote * C.grilleTaille / 2, this.y0 - cote,
+                C.textes.combo, tailleTexte * 1.8, C.couleurs.combo, cote);
         }
+    }
+
+    /**
+     * Texte flottant (gains, combo, jokers) : monte de `montee` px en
+     * s'effaçant. Montserrat extra-gras à contour noir (charte, 24/09) —
+     * avant, police système, et 4 copies de ce bloc dans la scène.
+     */
+    _texteFlottant(x, y, texte, taille, couleur, montee) {
+        const C = window.SimilitudeConfig;
+        const T = Arcade.UI.tokens;
+        const txt = this.add.text(x, y, texte, {
+            fontFamily: Arcade.UI.polices.texte,
+            fontStyle: "800",
+            fontSize: `${Math.round(taille)}px`,
+            color: couleur,
+            stroke: T.noir,
+            strokeThickness: Math.max(2, Math.round(taille * 0.16))
+        }).setOrigin(0.5)
+          .setDepth(C.profondeurs.textesFlottants);
+
+        this.tweens.add({
+            targets: txt,
+            y: y - montee,
+            alpha: 0,
+            duration: C.dureeTexteGainMs,
+            ease: "Sine.easeOut",
+            onComplete: () => txt.destroy()
+        });
     }
 
     // =====================================================================
@@ -589,10 +581,12 @@ class GameScene extends Phaser.Scene {
         // la LOGIQUE (Grille.js).
         this.barreJokers = Arcade.UI.barreIcones(this, {
             items: C.jokers.map((j) => ({ cle: j.cle, icone: j.emoji })),
-            couleurFond: C.couleurs.caseFond,
-            couleurBordure: C.couleurs.caseBordure,
-            couleurActif: B.eclatCouleur,
-            couleurBadge: C.couleurs.texteClair,
+            // Charte (24/09) : cases noires comme les pastilles du HUD,
+            // joker armé en ROUGE (la sélection, comme les cartes).
+            couleurFond: Arcade.UI.tokens.noir,
+            couleurBordure: Arcade.UI.tokens.encre,
+            couleurActif: Arcade.UI.tokens.rouge,
+            couleurBadge: Arcade.UI.tokens.creme,
             grisAlpha: B.grisAlpha,
             police: C.police.famille,
             profondeur: C.profondeurs.hud,
@@ -640,14 +634,14 @@ class GameScene extends Phaser.Scene {
         this._majHUD();
 
         if (cle === "sablier") {
-            this._texteFlottantCentre("+" + C.effetsJokers.sablierSecondes + " s ⏳", C.couleurs.texteClair);
+            this._texteFlottantCentre(C.textes.effetSablier.replace("{s}", C.effetsJokers.sablierSecondes), C.couleurs.texteClair);
         } else if (cle === "foudre") {
-            this._texteFlottantCentre("+" + C.effetsJokers.foudreEnergie + " ⚡", C.couleurs.texteClair);
+            this._texteFlottantCentre(C.textes.effetFoudre.replace("{e}", C.effetsJokers.foudreEnergie), C.couleurs.texteClair);
         } else if (cle === "melange") {
             // Les alignements formés par le mélange sont résolus mais
             // rapportent 0 (règle d'or, spec 728 §3) : les items sautent,
             // rien n'est gagné.
-            this._texteFlottantCentre("🌀 Mélange !", C.couleurs.combo);
+            this._texteFlottantCentre(C.textes.effetMelange, C.couleurs.combo);
             this._disparaitrePositions(r.retires);
         }
     }
@@ -679,23 +673,10 @@ class GameScene extends Phaser.Scene {
         if (!ic) return;
         const taille = UI.u(this, C.tailleTexteGainPct);
 
-        const txt = this.add.text(ic.fond.x, ic.fond.y - ic.fond.displayHeight / 2 - UI.u(this, 3), "+1 " + (j ? j.emoji : cle), {
-            fontFamily: "system-ui, sans-serif",
-            fontSize: `${Math.round(taille)}px`,
-            color: C.couleurs.combo,
-            stroke: C.couleurs.texteContour,
-            strokeThickness: Math.max(1, Math.round(taille * 0.12))
-        }).setOrigin(0.5)
-          .setDepth(C.profondeurs.textesFlottants);
-
-        this.tweens.add({
-            targets: txt,
-            y: txt.y - UI.u(this, 4),
-            alpha: 0,
-            duration: C.dureeTexteGainMs,
-            ease: "Sine.easeOut",
-            onComplete: () => txt.destroy()
-        });
+        this._texteFlottant(
+            ic.fond.x, ic.fond.y - ic.fond.displayHeight / 2 - UI.u(this, 3),
+            C.textes.jokerGagne.replace("{joker}", j ? j.emoji : cle),
+            taille, C.couleurs.combo, UI.u(this, 4));
     }
 
     /** Texte flottant au centre de l'écran (retours des jokers). */
@@ -704,22 +685,7 @@ class GameScene extends Phaser.Scene {
         const UI = Arcade.UI;
         const taille = UI.u(this, C.tailleTexteGainPct) * 1.6;
 
-        const txt = this.add.text(this.largeur / 2, this.hauteur * 0.35, texte, {
-            fontFamily: "system-ui, sans-serif",
-            fontSize: `${Math.round(taille)}px`,
-            color: couleur,
-            stroke: C.couleurs.texteContour,
-            strokeThickness: Math.max(1, Math.round(taille * 0.12))
-        }).setOrigin(0.5)
-          .setDepth(C.profondeurs.textesFlottants);
-
-        this.tweens.add({
-            targets: txt,
-            y: txt.y - UI.u(this, 6),
-            alpha: 0,
-            duration: C.dureeTexteGainMs,
-            ease: "Sine.easeOut",
-            onComplete: () => txt.destroy()
-        });
+        this._texteFlottant(this.largeur / 2, this.hauteur * 0.35,
+            texte, taille, couleur, UI.u(this, 6));
     }
 }

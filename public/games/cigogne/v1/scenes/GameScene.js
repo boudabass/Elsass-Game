@@ -44,10 +44,14 @@ class GameScene extends Phaser.Scene {
         this.decor.creerFond();
 
         // --- Interface -------------------------------------------------------
-        this.texteScore = UI.text(this, w / 2, h * 0.12, "0", 9, C.couleurs.texte).setDepth(30);
-        this.consigne = UI.text(
-            this, w / 2, h * 0.62, "Touche l'écran\npour voler", 5, C.couleurs.texte
-        ).setDepth(30);
+        // Pastilles de la charte (core/ui/hud.js, 24/09) : lisibles sur le
+        // ciel comme sur les toits, plus de texte noir posé sur le décor.
+        this.texteScore = UI.pastilleHud(this, {
+            texte: C.textes.scoreEnJeu.replace("{score}", 0), tailleU: 7, profondeur: 30
+        });
+        this.consigne = UI.pastilleHud(this, {
+            texte: C.textes.consigne, tailleU: 4.5, profondeur: 30
+        });
 
         UI.tapAnywhere(this, () => this.battre());
 
@@ -58,8 +62,8 @@ class GameScene extends Phaser.Scene {
             this.ecart = C.ecartPar_w * lw;
             this.oiseau.setX(lw * (C.positionXPct / 100));
             this.redimensionnerOiseau();
-            this.texteScore.setPosition(lw / 2, lh * 0.12);
-            if (this.consigne) this.consigne.setPosition(lw / 2, lh * 0.62);
+            this.texteScore.placer(lw / 2, lh * 0.07);
+            if (this.consigne) this.consigne.placer(lw / 2, lh * 0.58);
         });
     }
 
@@ -250,7 +254,7 @@ class GameScene extends Phaser.Scene {
             if (!m.passee && m.reference.x < this.oiseau.x) {
                 m.passee = true;
                 this.score++;
-                this.texteScore.setText(String(this.score));
+                this.texteScore.setText(C.textes.scoreEnJeu.replace("{score}", this.score));
             }
             if (m.reference.x < -m.reference.displayWidth) {
                 m.parts.forEach((p) => p.destroy());

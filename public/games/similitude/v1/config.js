@@ -35,8 +35,6 @@ window.SimilitudeConfig = {
         classementChargement: "Chargement du classement…",
         classementVide: "Aucun score pour l'instant — joue une partie pour apparaître !",
         classementHorsLigne: "Classement indisponible hors ligne.",
-        pagePrecedente: "◀",
-        pageSuivante: "▶",
         pageInfo: "Page {page} / {total}",
 
         // Écran Comment jouer (spec 728 §7 — règles courtes et illustrées :
@@ -49,7 +47,7 @@ window.SimilitudeConfig = {
         ],
         commentTitreFin: "La partie se termine quand…",
         commentTitreJokers: "Les 4 jokers",
-        commentJokersIntro: "Gagnés en alignant 5 items ou plus, ou achetés en Boutique (SIM-8).",
+        commentJokersIntro: "Gagnés en alignant 5 items ou plus, ou achetés en Boutique.",
         // « La boucle en 3 images » (spec 728 §7) : emoji illustrant chaque
         // geste + libellé court. Les 3 causes de fin reprennent les clés
         // finChrono / finEnergie / finGrillePleine (spec 473 §6).
@@ -78,9 +76,13 @@ window.SimilitudeConfig = {
         hudScore: "Score : {score}",
         hudChrono: "⏱ {s}",
         hudEnergie: "⚡ {e}",
-
-        // Règle en une phrase (spec §1), affichée sur le menu.
-        regle: "Alignez 3 items identiques ou plus en ligne ou en colonne pour les faire disparaître !",
+        // Textes flottants en jeu (spec §5, §8 ; jokers : spec 728 §3).
+        gainAlignement: "+{pts} pts · +{e} ⚡ · +{s} s",
+        combo: "Combo ×2 !",
+        jokerGagne: "+1 {joker}",
+        effetSablier: "+{s} s ⏳",
+        effetFoudre: "+{e} ⚡",
+        effetMelange: "🌀 Mélange !",
 
         // Motifs de fin de partie (spec §6) — affichés par OverScene.
         finChrono: "Temps écoulé",
@@ -108,8 +110,7 @@ window.SimilitudeConfig = {
         possedeCourt: "×{n}",         // idem, colonne étroite de la boutique
         achete: "Acheté !",           // feedback après un achat réussi
         quantite: "× {n}",            // quantité possédée (inventaire)
-        renvoiBoutique: "🛒 Achète-le en Boutique",  // renvoi inventaire → boutique (spec 728 §6)
-        // Le même renvoi sur les 2 lignes du bouton (colonne de droite de
+        // Renvoi inventaire → boutique (spec 728 §6), sur les 2 lignes du bouton (colonne de droite de
         // l'inventaire — voir inventaire.colBoutonU).
         renvoiBoutiqueHaut: "🛒 Achète-le",
         renvoiBoutiqueBas: "en Boutique"
@@ -174,9 +175,9 @@ window.SimilitudeConfig = {
         // Énergie gagnée : +(n − 1) ⚡
         energie: function (n) { return n - 1; },
         // Temps gagné : +n s (le chrono n'est pas plafonné)
-        temps: function (n) { return n; },
-        // Combo (2 alignements ou plus dans le même coup) : total doublé
-        comboDouble: true
+        temps: function (n) { return n; }
+        // Combo (2 alignements ou plus dans le même coup) : total doublé —
+        // règle fixe de la spec §5, appliquée dans Grille.js.
     },
 
     // --- Les 6 items (spec §7 — point clos) ---------------------------------
@@ -238,7 +239,6 @@ window.SimilitudeConfig = {
         // à GAUCHE l'icône au-dessus de la quantité possédée, au MILIEU
         // le nom au-dessus de la description, à DROITE le bouton
         // d'achat (prix au-dessus du mot « Acheter »).
-        largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
         hauteurLigneMaxU: 22,   // ⭐ plafond de hauteur d'une ligne : sans lui,
                                 // 4 lignes réparties sur toute la hauteur d'un
                                 // écran mobile donnent des cartes de 157 px de
@@ -271,7 +271,6 @@ window.SimilitudeConfig = {
     // MILIEU le nom au-dessus de la description, à DROITE (seulement si la
     // quantité est à zéro) le renvoi vers la Boutique sur 2 lignes.
     inventaire: {
-        largeurLignePct: 88,    // largeur d'une ligne = % de la largeur écran
         hauteurLigneMaxU: 22,   // plafond de hauteur d'une ligne (voir boutique)
         espaceLigneU: 1.4,      // espace VERTICAL entre deux lignes
         margeLigneU: 2.5,       // marge interne d'une ligne
@@ -301,8 +300,8 @@ window.SimilitudeConfig = {
         tailleEmojiPct: 4.5,       // taille de l'emoji dans l'icône
         tailleQuantitePct: 2.6,    // taille du nombre (quantité)
         margePct: 1.5,             // espace entre icônes / bord bas
-        grisAlpha: 0.25,           // alpha d'une icône à quantité 0
-        eclatCouleur: "#fff3c4"    // fond de l'icône ARMÉE (spec §3)
+        grisAlpha: 0.25            // alpha d'une icône à quantité 0
+        // Couleurs (repos / armée) : celles de la charte, voir GameScene.
     },
 
     // --- Menu principal (spec 728 §7 — façon Waggis, SIM-7) ----------------
@@ -310,22 +309,11 @@ window.SimilitudeConfig = {
     // espacements verticaux sont UNIFORMES (menuEspaceU partout), tout est
     // empilé, jamais superposé (règle John 08/08).
     menu: {
-        // Bouton « Jouer » pleine largeur : 80 % de la LARGEUR d'écran
-        // (pattern Waggis) — référence de largeur de toute la page.
-        largeurJouerPct: 80,
-        hauteurJouerU: 11.5,
-        hauteurSecondaireU: 10.5,
-        largeurReglagesU: 15,     // Réglages : taille compacte découplée
+        // Mise en page du menu : Arcade.UI.menuPrincipal (core/ui/
+        // menuPrincipal.js, refonte charte 23/09). Restent ici le contenu
+        // propre à Similitude, et espaceU, repris par les autres écrans.
         espaceU: 4.5,             // espacement vertical UNIFORME entre étages
-        // HUD haut : record et porte-monnaie.
-        hudRecordY: 0.055,        // centre du bandeau record (fraction hauteur)
-        // Titre + accroche + illustration : ligne commune en paysage
-        // (centreLigneY = fraction de la hauteur), empilés en portrait
-        // (départ sous le HUD).
-        titrePaysageY: 0.26,
-        tailleTitreU: 13.5,
-        tailleAccrocheU: 4,
-        illustrationU: 21,        // hauteur du bloc d'illustration (emojis)
+        illustrationU: 32,        // hauteur max du bloc d'illustration (emojis)
         // Emojis des 6 saveurs alsaciennes — l'« illustration » du menu
         // (pas de sprite dédié : les textures d'items manquent encore,
         // SIM-6 QA) : une ligne de 3 + une ligne de 3, comme une grille.
@@ -344,12 +332,11 @@ window.SimilitudeConfig = {
     // étaient dimensionnés depuis le PLUS PETIT côté (u(30)) au lieu de la
     // LARGEUR RÉELLEMENT DISPONIBLE (w) — le wrap serrait le texte dans
     // ~30 % de l'écran et il débordait par-dessus les cartes voisines.
-    // Fix : la largeur des cartes = % de la LARGEUR d'écran (même pattern
-    // que largeurJouerPct du menu), le texte est posé DANS sa carte avec
-    // un wrap dans la largeur restante, espacements verticaux réguliers,
-    // jamais superposé (règle John 08/08).
+    // Fix : la largeur des cartes suit la largeur RÉELLE disponible (depuis
+    // le 24/09 : la zone de contenu du gabarit core/ui/ecran.js), le texte
+    // est posé DANS sa carte avec un wrap dans la largeur restante,
+    // espacements verticaux réguliers, jamais superposé (règle John 08/08).
     commentJouer: {
-        largeurCartePct: 88,    // largeur des cartes = % de la largeur d'écran
         margeCarteU: 3,         // marge interne gauche/droite d'une carte
         espaceCartesU: 1.2,     // espacement VERTICAL entre cartes empilées
         tailleSectionU: 3.2,    // titres de section (boucle / fins / jokers)
@@ -366,13 +353,6 @@ window.SimilitudeConfig = {
         largeurEmojiFacteur: 1.25,
         margeTexteU: 0.8,       // marge de sécurité texte / bord de carte
         policeMinU: 1.6,        // plancher de l'ajustement anti-débordement
-        // Structure de l'écran (mêmes pattern que Classement / Inventaire).
-        titreY: 0.06,           // centre du titre (fraction de la hauteur)
-        titreTailleU: 8.5,      // ⚠ doublon volontaire : police du titre
-        retourHauteurU: 9,      // hauteur du bouton Retour
-        retourLargeurU: 40,     // largeur du bouton Retour
-        solY: 0.965,            // ancrage du Retour (fraction de la hauteur)
-        bandeHautY: 0.12,       // haut de la bande de contenu
         blocMinU: 6             // hauteur minimale d'un des 3 blocs
     },
 
@@ -383,33 +363,25 @@ window.SimilitudeConfig = {
         caseBordure: "#3d6b52",
         surbrillance: "#fff3c4",   // teinte de l'item sélectionné (spec §3)
         combo: "#F2B93D",          // bannière « Combo ×2 » (spec §5, §8)
-        texteContour: "#000000",   // contour du texte flottant des gains
-        texte: "#141210",
         texteClair: "#f5f0e6",
-        alerte: "#E31B23",        // rouge des états d'alerte du HUD (spec §8)
-        bouton: "#E31B23",        // ROUGE charte (Réglages, Retour, Plein écran)
-        boutonJouer: "#2E9E4F",   // VERT charte (Jouer — spec 728 §7)
-        boutonSecondaire: "#141210",  // NOIR charte (grille 2×2, spec 728 §7)
+        // Texte secondaire posé sur une carte crème (descriptions, quantités
+        // à zéro) — encre adoucie, refonte charte 24/09.
+        texteDiscret: "#7A7064",
+        // Boutons, cartes, pastilles du HUD (et leur rouge d'alerte) :
+        // couleurs de la marque, fournies par le socle (core/ui/tokens.js,
+        // core/ui/ecran.js, core/ui/hud.js) depuis la refonte du 24/09.
         // ⭐ Menu façon Waggis (spec 728 §7 — SIM-7) : dégradé de fond vert
-        // charte (cielHaut en haut → cielBas en bas), ombre portée des
-        // boutons, silhouette de toits alsaciens + bande de sol. Valeurs
-        // NUMÉRIQUES obligatoires pour les Graphics (renderer WebGL — QA
-        // 08/08, NC1) : ombrePortee s'utilise avec un alpha.
+        // (cielHaut en haut → cielBas en bas).
         cielHaut: "#3D7A4F",
-        cielBas: "#BFDCC6",
-        toits: "#2E5B3A",
-        solMenu: "#2E9E4F",
-        ombreBouton: "rgba(20, 18, 16, 0.28)",
-        ombrePortee: 0x141210
+        cielBas: "#BFDCC6"
     },
 
-    // --- Police (spec 728 §7 — police Azimut, marque auto-hébergée) --------
-    // Même choix que Waggis (spec 709 révision 08/08) : Azimut, police de
-    // marque The Elsassisch, auto-hébergée public/fonts/azimut/ (pas de CDN).
-    // Le @font-face est injecté par MenuScene ; repli silencieux sur les
-    // polices système si la police n'arrive pas (hors ligne).
+    // --- Police ------------------------------------------------------------
     police: {
-        famille: "'Azimut', 'Baloo 2', 'Nunito', system-ui, sans-serif",
-        url: "/fonts/azimut/Azimut-Regular.woff2"
+        // 24/09/2026 (refonte charte) : Montserrat, la police de TEXTE de
+        // la marque — Azimut est réservée aux titres, dessinés par le socle
+        // (core/ui/menuPrincipal.js, core/ui/ecran.js). Les deux sont
+        // chargées par le socle (core/ui/polices.js) : plus d'url ici.
+        famille: "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif"
     }
 };

@@ -15,6 +15,10 @@
  *  - la préférence est appliquée dès le BOOT (main.js, après le
  *    chargement de la save) : un son coupé le reste au lancement du jeu.
  *
+ * ⭐ REFONTE CHARTE 24/09/2026 : en-tête, bouton retour et mise en page
+ * passent par le gabarit commun core/ui/ecran.js (comme tous les écrans
+ * secondaires de l'arcade) ; le bouton son est une tuile crème.
+ *
  * ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08, validée John) :
  *  - fond : dégradé de ciel (WaggisUI.ciel) au lieu de l'aplat ;
  *  - boutons du composant partagé Arcade.UI.bouton (coins arrondis + ombre
@@ -47,47 +51,27 @@ class SettingsScene extends Phaser.Scene {
 
         // Fond : dégradé de ciel (spec 709 révision 08/08).
         this.fond = this.add.graphics().setDepth(0);
-
-        // Titre (police Azimut + relief).
-        const titre = this.add.text(0, 0, C.textes.reglages, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
+        UI.layout(this, (w, h) => WaggisUI.ciel(this.fond, w, h));
 
         // Bouton bascule du son : le libellé porte l'état courant
         // (« Son : Activé » / « Son : Désactivé »), le clic bascule.
-        // ⭐ REFONTE 08/08 : bouton refondu (ombre + arrondis + dégradé).
-        const sonBtn = Arcade.UI.bouton(this, {
+        const sonBtn = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "",
-            couleur: C.couleurs.bouton,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
             onClick: () => this.basculerSon(sonBtn)
         });
         this._majBoutonSon(sonBtn);
 
-        // Retour au menu (comportement standard des écrans du menu).
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: "#141210",
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
-        });
-
-        UI.layout(this, (w, h) => {
-            WaggisUI.ciel(this.fond, w, h);
-            titre.setPosition(w / 2, h * 0.2)
-                 .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            sonBtn.redimensionner(UI.u(this, 44), UI.u(this, 10))
-                  .setPosition(w / 2, h * 0.42);
-            retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
-                  .setPosition(w / 2, h * 0.6);
+        // Refonte charte du 24/09 : en-tête, retour et mise en page par le
+        // gabarit commun des écrans (core/ui/ecran.js).
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.reglages,
+            retour: { label: C.textes.retour, onClick: () => WaggisUI.aller(this, MenuScene.KEY) },
+            contenu: (zone) => {
+                sonBtn.redimensionner(Math.min(zone.largeur, UI.u(this, 60)), UI.u(this, 12))
+                    .setPosition(zone.cx, zone.y + UI.u(this, 6));
+            }
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 709).
@@ -99,6 +83,7 @@ class SettingsScene extends Phaser.Scene {
         if (!btn) return;
         const C = window.WaggisConfig;
         btn.label.setText(WaggisSound.lire() ? C.textes.sonOn : C.textes.sonOff);
+        btn.refresh();   // re-mesure le libellé (taille ajustée au bouton)
     }
 
     /**

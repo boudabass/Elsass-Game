@@ -44,9 +44,12 @@
  * étages du menu principal. Règle UI John : tout est empilé, jamais
  * superposé.
  *
- * Scène propre à Waggis (article 709 : pas dans core/ tant qu'un 2e jeu
- * n'en a pas besoin), mobile-first (Arcade.UI.u), mise en page recalculée
- * à chaque rotation (Arcade.UI.layout).
+ * ⭐ REFONTE CHARTE 24/09/2026 : tout l'écran (chargement, pagination,
+ * tableau, en-tête, retour) est désormais la brique partagée
+ * Arcade.UI.ecranClassement (core/ui/classement.js) — Similitude avait
+ * une copie de cette scène, les deux jeux utilisent maintenant la même.
+ * Les règles décrites ci-dessus (hauteur variable, pagination adaptative)
+ * y sont conservées.
  */
 class ClassementScene extends Phaser.Scene {
     static KEY = "classement";
@@ -55,288 +58,31 @@ class ClassementScene extends Phaser.Scene {
         super(ClassementScene.KEY);
     }
 
-    async create() {
+    create() {
         const C = window.WaggisConfig;
-        const UI = Arcade.UI;
-        this.C = C;
         this.enTransition = false;
-
-        // ⭐ Décision John 08/08 (art. 704 Chantier B) : les boutons Retour
-        // et Plein écran ne sont affichés QUE sur le menu principal — plus
-        // d'icônes plateforme sur les autres scènes.
 
         // Fond : dégradé de ciel (spec 709 révision 08/08).
         this.fond = this.add.graphics().setDepth(0);
+        Arcade.UI.layout(this, (w, h) => WaggisUI.ciel(this.fond, w, h));
 
-        // Titre de l'écran (spec 709 : « Classement »), police Azimut.
-        const titre = this.add.text(0, 0, C.textes.classement, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
-
-        // Ligne d'état : chargement, hors ligne, liste vide, ou page X/Y.
-        const etat = UI.text(this, 0, 0, C.textes.classementChargement, 3.5, C.couleurs.texte);
-        this.etat = etat;
-
-        // Pagination (même pattern que LevelsScene : ◀ / ▶, 100 % clic/tap).
-        // ⭐ REFONTE 08/08 : flèches fines et arrondies, écartées du texte.
-        const prec = WaggisUI.fleche(this, "gauche", () => {
-            if (this.page > 0) { this.page--; this._dessinerListe(); }
-        });
-        const suiv = WaggisUI.fleche(this, "droite", () => {
-            if (this.page < this._nbPages() - 1) { this.page++; this._dessinerListe(); }
-        });
-        this.prec = prec;
-        this.suiv = suiv;
-
-        // Retour au menu (bouton refondu).
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: "#141210",
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => WaggisUI.aller(this, MenuScene.KEY)
-        });
-
-        // Entrées par page : 10 au maximum, MOINS si la hauteur disponible
-        // ne permet pas des lignes lisibles (recalculé à chaque rotation —
-        // voir _parPagePourHauteur). En mobile paysage, 10 lignes tombaient
-        // à 22 px de haut ; mieux vaut en afficher 5 qui se lisent.
-        this.parPage = C.listes.entreesParPageMax;
-        this.page = 0;
-        this.entrees = null;     // null = chargement en cours ; [] = chargé mais vide
-        this._lignes = [];       // objets de rendu de la page courante
-
-        UI.layout(this, (w, h) => {
-            WaggisUI.ciel(this.fond, w, h);
-            titre.setPosition(w / 2, h * 0.07)
-                 .setFontSize(Math.round(UI.u(this, 9)) + "px");
-
-            // ⭐ FIX 08/08 (corrections John — même règle que l'écran
-            // Niveaux, commit 6e6b5a1) : plus aucune hauteur fixe — le
-            // bloc du bas est ancré au sol (retour posé sur le sol,
-            // pagination empilée au-dessus, même espace u(4.5) qu'entre
-            // les étages du menu principal) et le TABLEAU occupe toute la
-            // hauteur disponible entre le titre et ce bloc (hauteur de
-            // ligne recalculée par _calculerTable à chaque rotation, plus
-            // de plafond u(6) qui laissait un vide en bas).
-            const u = (n) => UI.u(this, n);
-            const espace = u(4.5);          // même espace qu'entre les étages du menu
-            const ySol = h * 0.965;         // ancrage bas (pattern MenuScene)
-            const hauteurRetour = u(9);
-            const yRetour = ySol - hauteurRetour / 2;
-            // Pagination EMPILÉE au-dessus du retour : les flèches font
-            // u(9) de diamètre, leur centre est donc à u(4.5) (demi-flèche)
-            // + u(4.5) (espace) au-dessus du haut du bouton retour.
-            const yPagination = yRetour - hauteurRetour / 2 - espace - u(4.5);
-
-            etat.setPosition(w / 2, yPagination)
-                .setFontSize(Math.round(u(3.5)) + "px");
-            prec.redimensionner(u(9))
-                .setPosition(w / 2 - u(19), yPagination);
-            suiv.redimensionner(u(9))
-                .setPosition(w / 2 + u(19), yPagination);
-            retour.redimensionner(u(40), hauteurRetour)
-                  .setPosition(w / 2, yRetour);
-
-            // Bande du tableau : du dessous du titre (centre h*0.07 +
-            // demi-titre u(4.5) + espace) au-dessus de la pagination (haut
-            // des flèches − espace). La géométrie (hauteur de ligne) est
-            // recalculée ici, à chaque rotation — le tableau suit la
-            // hauteur disponible.
-            const hautTable = h * 0.07 + u(4.5) + espace;
-            const basTable = yPagination - u(4.5) - espace;
-            // ⭐ Pagination adaptative : le nombre d'entrées par page suit
-            // la hauteur réellement disponible. Recalculé à chaque
-            // rotation ; la page courante est réajustée pour que la
-            // première entrée affichée reste la même (on ne perd pas sa
-            // place en tournant le téléphone).
-            this._majParPage(basTable - hautTable, u);
-            this._table = this._calculerTable(w, h, hautTable, basTable);
-            this._majEtat();
-            this._dessinerListe();
+        Arcade.UI.ecranClassement(this, {
+            surtitre: C.titre,
+            titre: C.textes.classement,
+            retour: { label: C.textes.retour, onClick: () => WaggisUI.aller(this, MenuScene.KEY) },
+            textes: {
+                chargement: C.textes.classementChargement,
+                horsLigne: C.textes.classementHorsLigne,
+                vide: C.textes.classementVide,
+                pageInfo: C.textes.pageInfo
+            },
+            parPageMax: C.listes.entreesParPageMax,
+            parPageMin: C.listes.entreesParPageMin,
+            policeMinPx: C.listes.policeMinPx,
+            largeurMaxU: C.listes.largeurMaxU
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 709).
         this.cameras.main.fadeIn(220, 0, 0, 0);
-
-        // Chargement du classement général (cloud) : l'endpoint
-        // d'agrégation du socle (Arcade.Platform.score.leaderboard, GET
-        // /api/scores?gameId=X — TOP 100 par joueur, vérifié existant
-        // 07/08). Renvoie [] hors ligne ou en erreur (géré ci-dessous).
-        this.entrees = await Arcade.Platform.score.leaderboard();
-        this._majEtat();
-        this._dessinerListe();
-    }
-
-    /**
-     * Recalcule le nombre d'entrées par page selon la hauteur disponible
-     * (config.listes) : au mieux entreesParPageMax, au moins
-     * entreesParPageMin, sans jamais descendre sous hauteurLigneMinU de
-     * hauteur de ligne. La page courante est réajustée pour garder la
-     * première entrée visible — tourner l'écran ne fait pas perdre sa place.
-     */
-    _majParPage(hauteurDispo, u) {
-        const L = this.C.listes;
-        const avant = this.parPage;
-        const premiere = avant * this.page;   // index de la 1re entrée affichée
-        // La police d'une ligne vaut min(u(3.2), hauteurLigne × 0,45). On
-        // retire des entrées tant que c'est la HAUTEUR qui la bride sous
-        // le seuil de lisibilité — et seulement dans ce cas : sur un petit
-        // écran où la police plafonne déjà à u(3.2), retirer des entrées
-        // n'agrandirait rien et ferait juste perdre du contenu.
-        const cible = Math.min(u(3.2), L.policeMinPx);
-        let n = L.entreesParPageMax;
-        while (n > L.entreesParPageMin &&
-               (hauteurDispo / n) * 0.45 < cible) {
-            n -= 1;
-        }
-        this.parPage = n;
-        if (this.parPage !== avant) {
-            this.page = Math.floor(premiere / this.parPage);
-            this.page = Math.max(0, Math.min(this.page, this._nbPages() - 1));
-        }
-    }
-
-    /** Nombre de pages (au moins 1 — la liste est vide au pire). */
-    _nbPages() {
-        return Math.max(1, Math.ceil((this.entrees || []).length / this.parPage));
-    }
-
-    /** Message de la ligne d'état selon la situation (chargement / hors
-     * ligne / liste vide / page X de Y). */
-    _majEtat() {
-        if (!this.etat) return;
-        const C = this.C;
-        if (this.entrees === null) {
-            this.etat.setText(C.textes.classementChargement);
-        } else if (!Arcade.Platform.online) {
-            this.etat.setText(C.textes.classementHorsLigne);
-        } else if (this.entrees.length === 0) {
-            this.etat.setText(C.textes.classementVide);
-        } else {
-            this.etat.setText(
-                C.textes.pageInfo
-                    .replace("{page}", String(this.page + 1))
-                    .replace("{total}", String(this._nbPages()))
-            );
-        }
-    }
-
-    /** Nom affiché, tronqué si trop long (place limitée sur mobile). */
-    _nomAffiche(nom) {
-        var n = String(nom || "?");
-        return n.length > 16 ? n.slice(0, 15) + "…" : n;
-    }
-
-    /**
-     * ⭐ FIX 08/08 (correction John — même règle que l'écran Niveaux,
-     * commit 6e6b5a1) : géométrie du tableau à hauteur VARIABLE. La
-     * hauteur d'une ligne est recalculée pour que le tableau (10 entrées
-     * par page, spec 709) occupe TOUTE la hauteur disponible entre le
-     * titre et le bloc du bas (pagination + retour) — plus de hauteur
-     * fixe ni de plafond u(6). Les lignes partent du haut de la bande
-     * (pattern liste), chacune d'entre elles garde la même hauteur.
-     * @returns {{hauteurLigne:number, x:number, largeur:number, y0:number}}
-     *          centre de la PREMIÈRE ligne (haut du tableau)
-     */
-    _calculerTable(w, h, hautTable, basTable) {
-        const UI = Arcade.UI;
-        const C = window.WaggisConfig;
-        const hauteurLigne = Math.max(1, (basTable - hautTable) / this.parPage);
-        return {
-            hauteurLigne: hauteurLigne,
-            x: w / 2,
-            // Largeur = % de la LARGEUR RÉELLE (jamais u(), qui mesure le
-            // plus petit côté : le tableau ne faisait que ~22 % de l'écran
-            // en paysage), plafonnée sur les très grands écrans.
-            largeur: Math.min((w * C.listes.largeurClassementPct) / 100,
-                UI.u(this, C.listes.largeurMaxU)),
-            y0: hautTable + hauteurLigne / 2
-        };
-    }
-
-    /**
-     * (Re)dessine les lignes de la page courante — ⭐ REFONTE 08/08 : ombre
-     * portée + coins arrondis (même langage que les cartes Niveaux/
-     * Personnages). Détruit les lignes de la page précédente — objets
-     * Phaser non réutilisés (pattern LevelsScene). ⭐ FIX 08/08 (John) :
-     * la géométrie (hauteur de ligne, position) vient de _calculerTable,
-     * rejouée à chaque rotation — le tableau suit la hauteur disponible.
-     */
-    _dessinerListe() {
-        this._lignes.forEach((l) => {
-            l.ombre.destroy();
-            l.fond.destroy();
-            l.rang.destroy();
-            l.nom.destroy();
-            l.score.destroy();
-        });
-        this._lignes = [];
-        this._majEtat();
-
-        const C = this.C;
-        const UI = Arcade.UI;
-        const entrees = this.entrees || [];   // null (chargement) = page vide
-        const t = this._table;                // géométrie recalculée à chaque rotation
-        if (!t) return;
-
-        const debut = this.page * this.parPage;
-        const fin = Math.min(debut + this.parPage, entrees.length);
-
-        const hauteurLigne = t.hauteurLigne;
-        const largeur = t.largeur;
-        const r = hauteurLigne * 0.22;
-
-        for (let i = debut; i < fin; i++) {
-            const e = entrees[i];
-            const rel = i - debut;
-            const y = t.y0 + hauteurLigne * rel;
-            const x = t.x;
-
-            // Ombre portée sous la ligne.
-            const ombre = this.add.graphics();
-            ombre.fillStyle(C.couleurs.ombrePortee, 0.25);
-            ombre.fillRoundedRect(x - largeur / 2, y - hauteurLigne / 2 + hauteurLigne * 0.05,
-                largeur, hauteurLigne, r);
-
-            const fond = this.add.graphics();
-            fond.fillStyle(0x141210, 0.85);
-            fond.fillRoundedRect(x - largeur / 2, y - hauteurLigne / 2,
-                largeur, hauteurLigne, r);
-
-            const taille = Math.round(UI.u(this, 3.2)) + "px";
-            const rang = this.add
-                .text(x - largeur / 2 + UI.u(this, 4), y, String(i + 1) + ".", {
-                    fontFamily: C.police.famille,
-                    fontSize: taille,
-                    color: "#F2B93D",
-                    align: "left"
-                })
-                .setOrigin(0, 0.5);
-            const nom = this.add
-                .text(x, y, this._nomAffiche(e.user_name), {
-                    fontFamily: C.police.famille,
-                    fontSize: taille,
-                    color: "#ffffff",
-                    align: "center"
-                })
-                .setOrigin(0.5);
-            const score = this.add
-                .text(x + largeur / 2 - UI.u(this, 4), y, String(e.score), {
-                    fontFamily: C.police.famille,
-                    fontSize: taille,
-                    color: "#ffffff",
-                    align: "right"
-                })
-                .setOrigin(1, 0.5);
-
-            this._lignes.push({ ombre, fond, rang, nom, score });
-        }
     }
 }

@@ -21,23 +21,24 @@
             var barW = Math.min(w * 0.6, 420);
             var barH = Math.max(h * 0.012, 8);
 
-            // Fond + libellé
-            this.add.rectangle(0, 0, w, h, 0x0f172a).setOrigin(0);
+            // Fond + libellé : mêmes couleurs de marque que l'écran HTML
+            // #boot-loader qui le précède (noir, texte or) — pas de saut
+            // de couleur entre les deux écrans de démarrage.
+            this.add.rectangle(0, 0, w, h, 0x141210).setOrigin(0);   // elsass.black
             var label = this.add
                 .text(w / 2, h / 2 - barH * 4, "Chargement…", {
                     fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
                     fontSize: Math.round(Math.min(w, h) * 0.04) + "px",
-                    color: "#e2e8f0"
+                    color: "#F2B93D"                                   // elsass.gold
                 })
                 .setOrigin(0.5);
 
             // Rail + barre
             this.add
-                .rectangle(w / 2, h / 2, barW, barH, 0x1e293b)
-                .setOrigin(0.5)
-                .setStrokeStyle(1, 0x334155);
+                .rectangle(w / 2, h / 2, barW, barH, 0x26221d)        // elsass.ink
+                .setOrigin(0.5);
             var bar = this.add
-                .rectangle(w / 2 - barW / 2, h / 2, 0, barH, 0x4f46e5)
+                .rectangle(w / 2 - barW / 2, h / 2, 0, barH, 0xE31B23) // elsass.red
                 .setOrigin(0, 0.5);
 
             this.load.on("progress", function (value) {
@@ -53,6 +54,13 @@
 
         async create() {
             var opts = Arcade.bootOptions;
+
+            // Polices de marque (core/ui/polices.js) chargées AVANT la
+            // première scène : un texte Phaser dessiné avant l'arrivée de
+            // la police resterait en police système.
+            if (Arcade.UI && typeof Arcade.UI.chargerPolices === "function") {
+                await Arcade.UI.chargerPolices();
+            }
 
             // Le canvas est prêt : on retire le loader HTML de la page.
             Arcade.Platform.hideHtmlLoader();

@@ -23,16 +23,13 @@
         scenes: [MenuScene, GameScene],
         firstScene: MenuScene.KEY,
 
-        // Contrat de plateforme (art. 704) : Retour / Plein écran sur le
-        // menu principal. Textes et style depuis la config.
+        // Contrat de plateforme (art. 704) : Quitter (haut-gauche) / Plein
+        // écran (haut-droite) sur le menu principal. Le jeu ne transmet que
+        // ses TEXTES (config.js) : le style est celui du socle, identique
+        // dans tous les jeux (variante « accent », refonte charte 23/09).
         iconesPlateforme: {
             retour: C.textes.retour,
-            pleinEcran: C.textes.pleinEcran,
-            style: {
-                couleur: C.couleurs.bouton,
-                ombre: C.couleurs.ombreBouton,
-                police: C.police.famille
-            }
+            pleinEcran: C.textes.pleinEcran
         },
 
         // Chargement : zones.json (lu par zones.js). Les cartes Tiled de la

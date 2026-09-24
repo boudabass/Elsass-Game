@@ -192,14 +192,14 @@ class GameScene extends Phaser.Scene {
         this._poserPerso(this.perso.x, this.bandeJoueur.y);
 
         // --- Score en cours (haut au centre, non interactif) ---------------
-        this.texteScore = UI.text(this, 0, 0, "", 4, C.couleurs.texte);
-        this.texteScore.setDepth(40);
+        // Pastilles de la charte (core/ui/hud.js, 24/09) : lisibles sur
+        // toutes les bandes (route, herbe, eau), plus de texte noir nu.
+        this.texteScore = UI.pastilleHud(this, { tailleU: 4, profondeur: 40 });
         this._afficherScore();
 
         // D2-3 : niveau en cours (haut à gauche). Le niveau joué vient de
         // la save (data.currentLevel) — il n'est plus dérivé du score.
-        this.texteNiveau = UI.text(this, 0, 0, "", 3.5, C.couleurs.texte);
-        this.texteNiveau.setDepth(40);
+        this.texteNiveau = UI.pastilleHud(this, { tailleU: 3.5, ancre: 0, profondeur: 40 });
         this._afficherNiveau();
 
         // --- Contrôles (FIX 06/08 — Décision 1, article 704) --------------
@@ -242,15 +242,11 @@ class GameScene extends Phaser.Scene {
                 Math.min(w - this.lanes.hauteur / 2, this.perso.x)
             );
             this._poserPerso(x, this.bandeJoueur.y);
-            this.texteScore.setPosition(w / 2, h * 0.06);
-            // ⭐ Chantier B : le niveau passe SOUS l'icône Quitter (en
-            // haut-gauche) — avant il était à w*0.08, h*0.06 et
-            // chevauchait l'icône en portrait (mobile-first). ⭐ FIX
-            // 08/08/2026 (style bouton Réglages) : le bouton Quitter est
-            // maintenant un VRAI bouton au style Réglages (hauteur u(10.5),
-            // calé à la marge u(2) → bas du bouton ≈ u(12.5)) — le niveau
-            // reste à u(15), sous le bouton, jamais superposé (règle John).
-            this.texteNiveau.setOrigin(0, 0.5).setPosition(UI.u(this, 1), UI.u(this, 15));
+            // Score au centre, niveau à gauche, sur la même ligne : depuis
+            // le 08/08 plus aucune icône plateforme en jeu (décision John),
+            // le coin haut-gauche est libre.
+            this.texteScore.placer(w / 2, UI.u(this, 2));
+            this.texteNiveau.placer(UI.u(this, 2), UI.u(this, 2));
         });
     }
 

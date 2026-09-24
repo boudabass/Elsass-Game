@@ -40,58 +40,34 @@ class SettingsScene extends Phaser.Scene {
         super(SettingsScene.KEY);
     }
 
-    async create() {
+    create() {
         const C = window.SimilitudeConfig;
         const UI = Arcade.UI;
         this.enTransition = false;
 
-        // Police Azimut : déjà injectée par MenuScene (première scène du
-        // jeu) — la pile de repli s'applique si elle n'a pas pu charger.
-
         // Fond : dégradé (spec 728 §7).
         this.fond = this.add.graphics().setDepth(0);
-
-        // Titre (police Azimut + relief, pattern Waggis).
-        const titre = this.add.text(0, 0, C.textes.reglages, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5)
-            .setDepth(20)
-            .setStroke("#141210", 3)
-            .setShadow(0, 3, "rgba(20, 18, 16, 0.3)", 3, false, true);
+        UI.layout(this, (w, h) => SimilitudeUI.ciel(this.fond, w, h));
 
         // Bouton bascule du son : le libellé porte l'état courant
         // (« Son : Activé » / « Son : Désactivé »), le clic bascule.
-        // Composant partagé Arcade.UI.bouton (le libellé est exposé via
-        // bouton.label pour la bascule — core/ui/button.js).
-        const sonBtn = Arcade.UI.bouton(this, {
+        const sonBtn = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "",
-            couleur: C.couleurs.bouton,   // ROUGE charte (Réglages)
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
             onClick: () => this.basculerSon(sonBtn)
         });
         this._majBoutonSon(sonBtn);
 
-        // Retour au menu (comportement standard des écrans du menu).
-        const retour = Arcade.UI.bouton(this, {
-            label: C.textes.retour,
-            couleur: C.couleurs.boutonSecondaire,  // NOIR charte
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
-            onClick: () => this.aller(MenuScene.KEY)
-        });
-
-        UI.layout(this, (w, h) => {
-            SimilitudeUI.ciel(this.fond, w, h);
-            titre.setPosition(w / 2, h * 0.2)
-                 .setFontSize(Math.round(UI.u(this, 9)) + "px");
-            sonBtn.redimensionner(UI.u(this, 44), UI.u(this, 10))
-                  .setPosition(w / 2, h * 0.42);
-            retour.redimensionner(UI.u(this, 40), UI.u(this, 9))
-                  .setPosition(w / 2, h * 0.6);
+        // Refonte charte du 24/09 : en-tête, retour et mise en page par le
+        // gabarit commun des écrans (core/ui/ecran.js).
+        Arcade.UI.ecran(this, {
+            surtitre: C.titre,
+            titre: C.textes.reglages,
+            retour: { label: C.textes.retour, onClick: () => this.aller(MenuScene.KEY) },
+            contenu: (zone) => {
+                sonBtn.redimensionner(Math.min(zone.largeur, UI.u(this, 60)), UI.u(this, 12))
+                    .setPosition(zone.cx, zone.y + UI.u(this, 6));
+            }
         });
 
         // Transition d'arrivée : fondu depuis le noir (spec 728 §7).
@@ -103,6 +79,7 @@ class SettingsScene extends Phaser.Scene {
         if (!btn || !btn.label) return;
         const C = window.SimilitudeConfig;
         btn.label.setText(SimilitudeSound.lire() ? C.textes.sonOn : C.textes.sonOff);
+        btn.refresh();   // re-mesure le libellé (taille ajustée au bouton)
     }
 
     /**

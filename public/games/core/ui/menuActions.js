@@ -35,6 +35,18 @@
  *
  * Recalculé à chaque rotation / redimensionnement (Arcade.UI.layout) — le
  * jeu n'a plus à gérer ce recalcul pour cette partie du menu.
+ *
+ * Placement (23/09/2026, refonte charte) : par défaut le bloc se place
+ * seul (centré, largeur largeurJouerPct % de l'écran, ancré en bas). Avec
+ * `autoLayout: false`, c'est l'appelant qui le place — c'est ce que fait
+ * Arcade.UI.menuPrincipal (core/ui/menuPrincipal.js) pour le ranger dans
+ * sa colonne :
+ *   bloc.hauteur()                    -> hauteur totale du bloc, en px
+ *   bloc.positionner(cx, largeur, bas) -> centre x, largeur de colonne,
+ *                                        bord BAS du bloc (px)
+ *   bloc.haut()                       -> bord HAUT du bloc après placement
+ * Réglages est calé sur le bord droit de la colonne (plus sur le bord de
+ * l'écran) : il reste aligné avec la grille quelle que soit sa largeur.
  */
 (function () {
     "use strict";
@@ -76,6 +88,7 @@
         var tuiles = secondaires.map(function (sec) {
             return Arcade.UI.boutonMenu(scene, {
                 variante: "secondaire",
+                enLigneSiLarge: true,
                 icone: sec.icone,
                 label: sec.label,
                 police: police,
@@ -92,13 +105,30 @@
         }) : null;
 
         // --- Mise en page (empilement ancré en bas) ----------------------
-        var miseEnPage = function (w, h) {
-            var u = function (v) { return UI.u(scene, v); };
+        var u = function (v) { return UI.u(scene, v); };
+
+        var hauteurTotale = function () {
             var espace = u(espaceU);
-            var largeurJouer = w * (largeurJouerPct / 100);
+            var hauteurSec = u(hauteurSecondaireU);
+            var total = 0;
+            var blocs = 0;
+            if (boutonJouer) { total += u(hauteurJouerU); blocs++; }
+            if (lignes > 0) {
+                total += lignes * hauteurSec + (lignes - 1) * espace;
+                blocs++;
+            }
+            if (boutonReglages) { total += hauteurSec; blocs++; }
+            return total + Math.max(0, blocs - 1) * espace;
+        };
+
+        var hautCourant = 0;
+
+        var positionner = function (cx, largeurColonne, bas) {
+            var espace = u(espaceU);
+            var largeurJouer = largeurColonne;
             var hauteurJouer = u(hauteurJouerU);
             var hauteurSec = u(hauteurSecondaireU);
-            var ySol = h * ancrageBasPct;
+            var ySol = bas;
 
             var hauteurGrille = lignes > 0
                 ? lignes * hauteurSec + (lignes - 1) * espace
@@ -113,13 +143,17 @@
                 basGrille = ySol;
             }
 
-            var hautGrille = basGrille - hauteurGrille;
+            var hautGrille = lignes > 0 ? basGrille - hauteurGrille : basGrille + espace;
             var basJouer = hautGrille - espace;
             var yJouer = basJouer - hauteurJouer / 2;
 
             if (boutonJouer) {
                 boutonJouer.redimensionner(largeurJouer, hauteurJouer)
-                    .setPosition(w / 2, yJouer);
+                    .setPosition(cx, yJouer);
+                hautCourant = yJouer - hauteurJouer / 2;
+            } else {
+                hautCourant = lignes > 0 ? hautGrille
+                    : (yReglages !== null ? yReglages - hauteurSec / 2 : bas);
             }
 
             // Grille : chaque LIGNE reprend la largeur de référence
@@ -133,26 +167,32 @@
                 var largeurSec = (largeurJouer - (itemsCetteLigne - 1) * espace) / itemsCetteLigne;
                 var pasX = largeurSec + espace;
                 var pasY = hauteurSec + espace;
-                var x = w / 2 - ((itemsCetteLigne - 1) / 2) * pasX + indexDansLigne * pasX;
+                var x = cx - ((itemsCetteLigne - 1) / 2) * pasX + indexDansLigne * pasX;
                 var y = hautGrille + hauteurSec / 2 + ligne * pasY;
                 tuiles[i].redimensionner(largeurSec, hauteurSec).setPosition(x, y);
             }
 
             if (boutonReglages) {
+                // Calé sur le bord droit de la colonne (aligné sur la grille).
                 var largeurReglages = u(largeurReglagesU);
-                // Position horizontale identique à celle déjà validée dans
-                // Waggis/Similitude (marge fixe u(8.5) depuis le bord droit).
                 boutonReglages.redimensionner(largeurReglages, hauteurSec)
-                    .setPosition(w - u(8.5), yReglages);
+                    .setPosition(cx + largeurJouer / 2 - largeurReglages / 2, yReglages);
             }
         };
 
-        Arcade.UI.layout(scene, miseEnPage);
+        if (o.autoLayout !== false) {
+            Arcade.UI.layout(scene, function (w, h) {
+                positionner(w / 2, w * (largeurJouerPct / 100), h * ancrageBasPct);
+            });
+        }
 
         return {
             boutonJouer: boutonJouer,
             secondaires: tuiles,
-            boutonReglages: boutonReglages
+            boutonReglages: boutonReglages,
+            hauteur: hauteurTotale,
+            positionner: positionner,
+            haut: function () { return hautCourant; }
         };
     };
 })();

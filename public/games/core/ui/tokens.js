@@ -29,7 +29,8 @@
         creme: "#FBF8F3",  // elsass.cream
         encre: "#26221D",  // elsass.ink
         ligne: "#E9E2D6",  // elsass.line
-        succes: "#2E9E4F", // vert "Jouer/Commencer" — standard de fait, hors palette Tailwind
-        ombre: "rgba(20, 18, 16, 0.28)" // ombre standard des boutons (= noir + alpha)
+        succes: "#2E9E4F", // vert historique — plus utilisé par les menus (23/09 : « Jouer » = rouge, comme l'app)
+        ombre: "rgba(20, 18, 16, 0.28)", // ombre standard des boutons (= noir + alpha)
+        ombreDouce: "rgba(20, 18, 16, 0.14)" // ombre des cartes claires (tuiles crème du menu)
     };
 })();
