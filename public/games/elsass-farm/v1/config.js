@@ -141,13 +141,10 @@ window.FarmConfig = {
 
     // --- Couleurs -----------------------------------------------------------
     couleurs: {
-        fond: "#3d7a4f",
-        texte: "#f5f0e6",
-        contour: "#141210",
-        boutonJouer: "#2E9E4F",          // VERT charte (Jouer, Dormir)
-        bouton: "#E31B23",               // ROUGE charte (Retour, Plein écran)
-        boutonSecondaire: "#141210",     // NOIR charte (barre d'outils)
-        ombreBouton: "rgba(20, 18, 16, 0.28)"
+        fond: "#3d7a4f"
+        // HUD, popups, barre d'outils, zoom : couleurs de la marque,
+        // fournies par le socle (core/ui/tokens.js, core/ui/hud.js,
+        // core/ui/menuBouton.js) depuis la refonte charte du 24/09.
     },
 
     // --- HUD en jeu ---------------------------------------------------------
@@ -196,8 +193,8 @@ window.FarmConfig = {
         // icônes restaient à 25 % d'opacité en permanence — une barre qui
         // paraissait désactivée alors qu'elle est pleinement cliquable.
         // À remettre à 0.25 le jour où un outil aura un stock.
-        grisAlpha: 1,
-        eclatCouleur: "#fff3c4"   // fond de l'icône ARMÉE
+        grisAlpha: 1
+        // Couleurs (repos / armé) : celles de la charte, voir GameScene.
     },
 
     // --- Boutons zoom +/− ---------------------------------------------------
@@ -210,6 +207,6 @@ window.FarmConfig = {
 
     // --- Police -------------------------------------------------------------
     police: {
-        famille: "system-ui, -apple-system, Segoe UI, sans-serif"
+        famille: "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif"
     }
 };

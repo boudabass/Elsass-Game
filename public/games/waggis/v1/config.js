@@ -88,7 +88,6 @@ window.WaggisConfig = {
         boutique: "Boutique",
         reglages: "Réglages",
         classement: "Classement",
-        quitter: "Quitter",
 
         // « Retour » ramène au menu depuis les écrans du menu (Niveaux,
         // Personnages, Boutique, Réglages, Classement).
@@ -126,6 +125,7 @@ window.WaggisConfig = {
         pasAssezPiecesCourt: "Trop cher",
         dejaDebloqueCourt: "Débloqué",
         gratuit: "Gratuit",
+        prixPieces: "{prix} pièces",   // prix d’un personnage (Boutique)
         // ⭐ REFONTE 08/08/2026 (spec 709 — révision 08/08) : le texte des
         // personnages verrouillés passe de « À débloquer dans la Boutique »
         // (répété à l'identique) à « 🔒 Débloque-le en Boutique » — l'icône
@@ -413,7 +413,6 @@ window.WaggisConfig = {
     // --- Couleurs -----------------------------------------------------------
     couleurs: {
         ciel: "#87ceeb",
-        texte: "#141210",
         // Texte secondaire posé sur une carte crème (prix, « Trop cher »,
         // « Déjà débloqué ») — encre adoucie, refonte charte 24/09.
         texteDiscret: "#7A7064",

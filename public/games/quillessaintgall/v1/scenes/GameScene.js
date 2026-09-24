@@ -693,10 +693,11 @@ class GameScene extends Phaser.Scene {
 
     _creerBouton() {
         const C = window.QuillesSaintGallConfig;
-        this.boutonTirer = Arcade.UI.bouton(this, {
+        // Charte (24/09) : « Tirer » = LA prochaine action (rouge) ; les
+        // réglages de tir (rotation, force) en tuiles crème secondaires.
+        this.boutonTirer = Arcade.UI.boutonMenu(this, {
+            variante: "jouer",
             label: C.textes.tirer,
-            couleur: C.couleurs.bouton,
-            textColor: C.couleurs.texte,
             marqueurClic: true,
             onClick: () => {
                 if (this.etat === "placement") this._demarrerJauge();
@@ -707,17 +708,15 @@ class GameScene extends Phaser.Scene {
 
     _creerBoutonsRotation() {
         const C = window.QuillesSaintGallConfig;
-        this.boutonRotGauche = Arcade.UI.bouton(this, {
+        this.boutonRotGauche = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "◄",
-            couleur: C.couleurs.boutonRotation,
-            textColor: C.couleurs.texte,
             marqueurClic: true,
             onClick: () => this.visee.pivoter(-1)
         });
-        this.boutonRotDroite = Arcade.UI.bouton(this, {
+        this.boutonRotDroite = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "►",
-            couleur: C.couleurs.boutonRotation,
-            textColor: C.couleurs.texte,
             marqueurClic: true,
             onClick: () => this.visee.pivoter(1)
         });
@@ -729,17 +728,15 @@ class GameScene extends Phaser.Scene {
 
     _creerBoutonsForce() {
         const C = window.QuillesSaintGallConfig;
-        this.boutonForceMoins = Arcade.UI.bouton(this, {
+        this.boutonForceMoins = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "-",
-            couleur: C.couleurs.force,
-            textColor: C.couleurs.texte,
             marqueurClic: true,
             onClick: () => this._ajusterForce(-1)
         });
-        this.boutonForcePlus = Arcade.UI.bouton(this, {
+        this.boutonForcePlus = Arcade.UI.boutonMenu(this, {
+            variante: "secondaire",
             label: "+",
-            couleur: C.couleurs.force,
-            textColor: C.couleurs.texte,
             marqueurClic: true,
             onClick: () => this._ajusterForce(1)
         });
@@ -759,6 +756,15 @@ class GameScene extends Phaser.Scene {
         this.texteForce = Arcade.UI.text(this, 0, 0, C.textes.force, 2.8, C.couleurs.texte).setDepth(21);
         this.texteResultat = Arcade.UI.text(this, 0, 0, "", 4.5, C.couleurs.resultat)
             .setDepth(21).setVisible(false);
+
+        // Polices de la charte (24/09) : titre en Azimut, le reste en
+        // Montserrat — Arcade.UI.text crée en police système.
+        const P = Arcade.UI.polices;
+        this.texteTitre.setFontFamily(P.titre);
+        [this.texteSousTitre, this.consigne1, this.consigne2, this.texteCompteur,
+            this.texteForce].forEach((t) => t.setFontFamily(P.texte));
+        [this.texteJauge, this.texteResultat].forEach((t) =>
+            t.setFontFamily(P.texte).setFontStyle("bold"));
     }
 
     // --- Mise en page (appelée au resize) --------------------------------------

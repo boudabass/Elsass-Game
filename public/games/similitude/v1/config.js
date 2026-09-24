@@ -76,9 +76,13 @@ window.SimilitudeConfig = {
         hudScore: "Score : {score}",
         hudChrono: "⏱ {s}",
         hudEnergie: "⚡ {e}",
-
-        // Règle en une phrase (spec §1), affichée sur le menu.
-        regle: "Alignez 3 items identiques ou plus en ligne ou en colonne pour les faire disparaître !",
+        // Textes flottants en jeu (spec §5, §8 ; jokers : spec 728 §3).
+        gainAlignement: "+{pts} pts · +{e} ⚡ · +{s} s",
+        combo: "Combo ×2 !",
+        jokerGagne: "+1 {joker}",
+        effetSablier: "+{s} s ⏳",
+        effetFoudre: "+{e} ⚡",
+        effetMelange: "🌀 Mélange !",
 
         // Motifs de fin de partie (spec §6) — affichés par OverScene.
         finChrono: "Temps écoulé",
@@ -106,8 +110,7 @@ window.SimilitudeConfig = {
         possedeCourt: "×{n}",         // idem, colonne étroite de la boutique
         achete: "Acheté !",           // feedback après un achat réussi
         quantite: "× {n}",            // quantité possédée (inventaire)
-        renvoiBoutique: "🛒 Achète-le en Boutique",  // renvoi inventaire → boutique (spec 728 §6)
-        // Le même renvoi sur les 2 lignes du bouton (colonne de droite de
+        // Renvoi inventaire → boutique (spec 728 §6), sur les 2 lignes du bouton (colonne de droite de
         // l'inventaire — voir inventaire.colBoutonU).
         renvoiBoutiqueHaut: "🛒 Achète-le",
         renvoiBoutiqueBas: "en Boutique"
@@ -172,9 +175,9 @@ window.SimilitudeConfig = {
         // Énergie gagnée : +(n − 1) ⚡
         energie: function (n) { return n - 1; },
         // Temps gagné : +n s (le chrono n'est pas plafonné)
-        temps: function (n) { return n; },
-        // Combo (2 alignements ou plus dans le même coup) : total doublé
-        comboDouble: true
+        temps: function (n) { return n; }
+        // Combo (2 alignements ou plus dans le même coup) : total doublé —
+        // règle fixe de la spec §5, appliquée dans Grille.js.
     },
 
     // --- Les 6 items (spec §7 — point clos) ---------------------------------
@@ -297,8 +300,8 @@ window.SimilitudeConfig = {
         tailleEmojiPct: 4.5,       // taille de l'emoji dans l'icône
         tailleQuantitePct: 2.6,    // taille du nombre (quantité)
         margePct: 1.5,             // espace entre icônes / bord bas
-        grisAlpha: 0.25,           // alpha d'une icône à quantité 0
-        eclatCouleur: "#fff3c4"    // fond de l'icône ARMÉE (spec §3)
+        grisAlpha: 0.25            // alpha d'une icône à quantité 0
+        // Couleurs (repos / armée) : celles de la charte, voir GameScene.
     },
 
     // --- Menu principal (spec 728 §7 — façon Waggis, SIM-7) ----------------
@@ -360,21 +363,17 @@ window.SimilitudeConfig = {
         caseBordure: "#3d6b52",
         surbrillance: "#fff3c4",   // teinte de l'item sélectionné (spec §3)
         combo: "#F2B93D",          // bannière « Combo ×2 » (spec §5, §8)
-        texteContour: "#000000",   // contour du texte flottant des gains
-        texte: "#141210",
         texteClair: "#f5f0e6",
         // Texte secondaire posé sur une carte crème (descriptions, quantités
         // à zéro) — encre adoucie, refonte charte 24/09.
         texteDiscret: "#7A7064",
-        alerte: "#E31B23",        // rouge des états d'alerte du HUD (spec §8)
-        // Boutons et cartes : couleurs de la marque, fournies par le socle
-        // (core/ui/tokens.js, core/ui/ecran.js) depuis la refonte du 24/09.
+        // Boutons, cartes, pastilles du HUD (et leur rouge d'alerte) :
+        // couleurs de la marque, fournies par le socle (core/ui/tokens.js,
+        // core/ui/ecran.js, core/ui/hud.js) depuis la refonte du 24/09.
         // ⭐ Menu façon Waggis (spec 728 §7 — SIM-7) : dégradé de fond vert
         // (cielHaut en haut → cielBas en bas).
         cielHaut: "#3D7A4F",
-        cielBas: "#BFDCC6",
-        toits: "#2E5B3A",
-        solMenu: "#2E9E4F"
+        cielBas: "#BFDCC6"
     },
 
     // --- Police ------------------------------------------------------------

@@ -17,6 +17,9 @@ window.CigogneConfig = {
         nouveauRecord: "Nouveau record !",
         jouer: "Commencer",     // bouton principal du menu
         accroche: "Un tap, un coup d'aile : file entre les toits d'Alsace !",
+        // En jeu (GameScene) : consigne avant le 1er tap, score en cours.
+        consigne: "Touche l'écran\npour voler",
+        scoreEnJeu: "{score}",
         // Écran de fin (OverScene)
         perdu: "Perdu !",
         score: "Score : {score}",
@@ -70,9 +73,9 @@ window.CigogneConfig = {
         toit: 0xb5533c,      // tuiles
         toitBord: 0x7a3a28,  // avant-toit
         herbe: 0x6aa84f,
-        terre: 0x8b6b4a,
-        texte: "#141210"
-        // Boutons, encadré du record : couleurs de la marque, fournies par
-        // le socle (core/ui/tokens.js) depuis la refonte charte du 24/09.
+        terre: 0x8b6b4a
+        // Boutons, encadré du record, HUD en jeu : couleurs de la marque,
+        // fournies par le socle (core/ui/tokens.js, core/ui/hud.js) depuis
+        // la refonte charte du 24/09.
     }
 };

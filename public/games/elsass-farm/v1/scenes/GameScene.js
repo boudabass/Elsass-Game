@@ -730,24 +730,18 @@ class GameScene extends Phaser.Scene {
         const C = this.C;
         const fond = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.55)
             .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.popup);
-        const titre = this.add.text(0, 0, C.textes.ouAller, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
-            .setStroke(C.couleurs.contour, 3);
+        const titre = this._titrePopup(C.textes.ouAller);
 
         // Espace écran (fix 3e QA) : le popup est rendu par la caméra UI.
         // Fix 5e QA : filtre par objet (cameraFilter), sans container.
         this._hud(fond);
         this._hud(titre);
 
+        // Charte (24/09) : partir = LA prochaine action (rouge), rester =
+        // carte crème — mêmes variantes que les menus.
         const boutons = p.choix.map((ch) => this._creerBoutonHUD({
             label: ch.label,
-            couleur: ch.cible ? C.couleurs.boutonJouer : C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
+            variante: ch.cible ? "jouer" : "secondaire",
             onClick: () => {
                 this._fermerPopup();
                 if (ch.cible) {
@@ -775,6 +769,20 @@ class GameScene extends Phaser.Scene {
 
         this.popup = { fond: fond, titre: titre, boutons: boutons };
         this._fondrePopup(this.popup, 0, 1, 150);
+    }
+
+    /**
+     * Titre d'un popup (portail, sommeil) : Azimut crème, comme les titres
+     * des menus (charte, 24/09) — avant, police du jeu à contour noir. La
+     * taille est posée par la mise en page du popup.
+     */
+    _titrePopup(texte) {
+        return this.add.text(0, 0, texte, {
+            fontFamily: Arcade.UI.polices.titre,
+            color: Arcade.UI.tokens.creme,
+            align: "center"
+        })
+            .setOrigin(0.5).setScrollFactor(0).setDepth(this.C.profondeurs.popup + 1);
     }
 
     /**
@@ -828,13 +836,7 @@ class GameScene extends Phaser.Scene {
         const C = this.C;
         const fond = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.55)
             .setOrigin(0).setScrollFactor(0).setDepth(C.profondeurs.popup);
-        const titre = this.add.text(0, 0, C.textes.dormir, {
-            fontFamily: C.police.famille,
-            color: "#ffffff",
-            align: "center"
-        })
-            .setOrigin(0.5).setScrollFactor(0).setDepth(C.profondeurs.popup + 1)
-            .setStroke(C.couleurs.contour, 3);
+        const titre = this._titrePopup(C.textes.dormir);
 
         // Espace écran (fix 3e QA) : le popup est rendu par la caméra UI.
         // Fix 5e QA : filtre par objet (cameraFilter), sans container.
@@ -843,9 +845,7 @@ class GameScene extends Phaser.Scene {
 
         const oui = this._creerBoutonHUD({
             label: C.textes.dormirOui,
-            couleur: C.couleurs.boutonJouer,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
+            variante: "jouer",
             onClick: () => {
                 this._fermerPopup();
                 this._dormir();
@@ -853,9 +853,7 @@ class GameScene extends Phaser.Scene {
         });
         const non = this._creerBoutonHUD({
             label: C.textes.dormirNon,
-            couleur: C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
+            variante: "secondaire",
             onClick: () => this._fermerPopup()
         });
 
@@ -918,45 +916,29 @@ class GameScene extends Phaser.Scene {
         // Nom de zone (décision John 11/08) : affiché en haut à gauche quand
         // le joueur change de zone. Espace écran (fix 5e QA : _hud par
         // objet, sans container). Texte depuis config.textes.zones.
-        this.hudZone = this.add.text(0, 0,
-            C.textes.zones[this.zoneId] || this.zoneId, {
-                fontFamily: C.police.famille,
-                color: C.couleurs.texte,
-                align: "left"
-            })
-            .setOrigin(0, 0)
-            .setScrollFactor(0)
-            .setDepth(C.profondeurs.hud)
-            .setStroke(C.couleurs.contour, 3);
-        this._hud(this.hudZone);
+        // Les 3 blocs sont des pastilles de la charte (core/ui/hud.js,
+        // 24/09) : fond noir, Montserrat crème — avant, texte crème à gros
+        // contour noir posé directement sur le décor.
+        const pastille = (texte, tailleU, ancre) => {
+            const p = Arcade.UI.pastilleHud(this, {
+                texte: texte, tailleU: tailleU, ancre: ancre,
+                profondeur: C.profondeurs.hud
+            });
+            p.objets().forEach((o) => this._hud(o.setScrollFactor(0)));
+            return p;
+        };
+        this.hudZone = pastille(
+            C.textes.zones[this.zoneId] || this.zoneId, C.hud.tailleZoneU, 0);
 
         // Horloge (haut, centré).
-        this.hudHorloge = this.add.text(0, 0, "", {
-            fontFamily: C.police.famille,
-            color: C.couleurs.texte,
-            align: "center"
-        })
-            .setOrigin(0.5, 0)
-            .setScrollFactor(0)
-            .setDepth(C.profondeurs.hud)
-            .setStroke(C.couleurs.contour, 3);
-        this._hud(this.hudHorloge);
+        this.hudHorloge = pastille("", C.hud.tailleTexteU, 0.5);
 
         // 3e bloc (décision John 13/08) : zone libre à DROITE, réservée au
         // futur indicateur or / énergie. Vide pour l'instant (config.textes.
-        // hudDroit = "") mais créée et positionnée pour réserver la place —
-        // quand l'or / l'énergie arrivera, il suffira de remplir le texte
-        // (config) et d'appeler setText : la position est déjà en place.
-        this.hudDroit = this.add.text(0, 0, C.textes.hudDroit || "", {
-            fontFamily: C.police.famille,
-            color: C.couleurs.texte,
-            align: "right"
-        })
-            .setOrigin(1, 0)
-            .setScrollFactor(0)
-            .setDepth(C.profondeurs.hud)
-            .setStroke(C.couleurs.contour, 3);
-        this._hud(this.hudDroit);
+        // hudDroit = "") — une pastille vide est masquée ; quand l'or /
+        // l'énergie arrivera, il suffira de remplir le texte (config) et
+        // d'appeler setText : la position est déjà en place.
+        this.hudDroit = pastille(C.textes.hudDroit || "", C.hud.tailleTexteU, 1);
 
         // Barre d'outils (bas, 5 slots — point 3). Le clic sur une icône ne
         // traverse pas vers la grille (stopPropagation du composant).
@@ -972,9 +954,12 @@ class GameScene extends Phaser.Scene {
                 cle: it.cle,
                 icone: it.cle === "graines" ? C.sol.graineTest : it.icone
             })),
-            couleurFond: C.couleurs.boutonSecondaire,
-            couleurBordure: "#3d6b52",
-            couleurActif: C.barreOutils.eclatCouleur,
+            // Charte (24/09) : cases noires comme les pastilles du HUD,
+            // outil armé en ROUGE (la sélection, comme les cartes).
+            couleurFond: Arcade.UI.tokens.noir,
+            couleurBordure: Arcade.UI.tokens.encre,
+            couleurActif: Arcade.UI.tokens.rouge,
+            couleurBadge: Arcade.UI.tokens.creme,
             grisAlpha: C.barreOutils.grisAlpha,
             police: C.police.famille,
             profondeur: C.profondeurs.hud,
@@ -996,17 +981,13 @@ class GameScene extends Phaser.Scene {
         // filtrés vers la caméra UI (espace écran) par _hud.
         this.zoomPlus = this._creerBoutonHUD({
             label: "+",
-            couleur: C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
+            variante: "accent",
             marqueurClic: true,
             onClick: () => this._zoom(C.zoom.pas)
         });
         this.zoomMoins = this._creerBoutonHUD({
             label: "−",
-            couleur: C.couleurs.boutonSecondaire,
-            ombre: C.couleurs.ombreBouton,
-            police: C.police.famille,
+            variante: "accent",
             marqueurClic: true,
             onClick: () => this._zoom(-C.zoom.pas)
         });
@@ -1015,47 +996,7 @@ class GameScene extends Phaser.Scene {
         Arcade.UI.layout(this, (w, h) => {
             const u = (n) => Arcade.UI.u(this, n);
 
-            // 3 blocs répartis sur toute la largeur (décision John 13/08) :
-            //   GAUCHE  nom de zone (origine 0 → ancré à gauche)
-            //   CENTRE  horloge (origine 0.5 → ancrée au centre, x = w/2)
-            //   DROITE  zone libre or/énergie (origine 1 → ancrée à droite)
-            // Origines ré-affirmées ici : un setStroke / setFontSize / setText
-            // ne doit pas casser l'ancrage, et ça documente l'intention.
-            // w/h proviennent de scene.scale.width/height (réels — Arcade.UI.
-            // layout passe bien la taille courante, pas 0).
-            const marge = u(C.hud.margeU);
-            this.hudZone
-                .setFontSize(Math.round(u(C.hud.tailleZoneU)) + "px")
-                .setOrigin(0, 0)
-                .setPosition(marge, marge);
-            this.hudHorloge
-                .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
-                .setOrigin(0.5, 0);
-            this.hudDroit
-                .setFontSize(Math.round(u(C.hud.tailleTexteU)) + "px")
-                .setOrigin(1, 0)
-                .setPosition(w - marge, marge);
-
-            // Les 3 blocs tiennent-ils VRAIMENT sur une ligne ? Largeurs
-            // mesurées (.width, texte réellement rendu), pas estimées : le
-            // nom de zone et l'horloge dépendent de la langue et du contenu
-            // ({saison} va de « Été » à « Printemps »). Si le compte n'y est
-            // pas, l'horloge descend sous le nom de zone au lieu de le
-            // chevaucher ; le bloc droit reste en haut à droite, la ligne du
-            // haut lui étant alors laissée avec le nom de zone.
-            const ecart = u(C.hud.ecartMinU);
-            const finZone = marge + this.hudZone.width;
-            const debutDroit = w - marge - this.hudDroit.width;
-            const demiHorloge = this.hudHorloge.width / 2;
-            const tientSurUneLigne =
-                (w / 2 - demiHorloge >= finZone + ecart) &&
-                (w / 2 + demiHorloge <= debutDroit - ecart);
-            this.hudHorloge.setPosition(
-                w / 2,
-                tientSurUneLigne
-                    ? marge
-                    : marge + this.hudZone.height + u(C.hud.interligneU)
-            );
+            this._placerHautHUD();
 
             // Plancher tactile 44 px (cibleMinPx) : sous 412 px de petit
             // côté, 10 u tombait à 36-41 px. L'emoji et la quantité suivent
@@ -1083,7 +1024,50 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Crée un bouton core (Arcade.UI.bouton) puis filtre les objets Phaser
+     * Place les 3 blocs du haut du HUD. Appelée à chaque rotation ET à
+     * chaque changement de texte de l'horloge : la décision « une ligne /
+     * deux lignes » dépend de sa largeur réelle. (Avant le 24/09, elle
+     * n'était prise qu'au layout, quand l'horloge était encore vide :
+     * le repli du 25/08 ne se déclenchait donc jamais au 1er affichage.)
+     */
+    _placerHautHUD() {
+        const C = this.C;
+        const w = this.scale.width;
+        const u = (n) => Arcade.UI.u(this, n);
+        // 3 blocs répartis sur toute la largeur (décision John 13/08) :
+        //   GAUCHE  nom de zone (ancre 0 → bord gauche en x)
+        //   CENTRE  horloge (ancre 0.5 → centrée, x = w/2)
+        //   DROITE  zone libre or/énergie (ancre 1 → bord droit en x)
+        // Les pastilles relisent u() à chaque placer (taille à jour).
+        const marge = u(C.hud.margeU);
+        this.hudZone.placer(marge, marge);
+        this.hudDroit.placer(w - marge, marge);
+
+        // Les 3 blocs tiennent-ils VRAIMENT sur une ligne ? Largeurs
+        // mesurées (texte réellement rendu, pastille comprise ; une
+        // pastille vide compte pour 0), pas estimées : le
+        // nom de zone et l'horloge dépendent de la langue et du contenu
+        // ({saison} va de « Été » à « Printemps »). Si le compte n'y est
+        // pas, l'horloge descend sous le nom de zone au lieu de le
+        // chevaucher ; le bloc droit reste en haut à droite, la ligne du
+        // haut lui étant alors laissée avec le nom de zone.
+        const ecart = u(C.hud.ecartMinU);
+        const finZone = marge + this.hudZone.largeur();
+        const debutDroit = w - marge - this.hudDroit.largeur();
+        this.hudHorloge.placer(w / 2, marge);   // mesure à la bonne taille
+        const demiHorloge = this.hudHorloge.largeur() / 2;
+        const tientSurUneLigne =
+            (w / 2 - demiHorloge >= finZone + ecart) &&
+            (w / 2 + demiHorloge <= debutDroit - ecart);
+        if (!tientSurUneLigne) {
+            this.hudHorloge.placer(w / 2,
+                marge + this.hudZone.hauteur() + u(C.hud.interligneU));
+        }
+    }
+
+    /**
+     * Crée un bouton core (Arcade.UI.boutonMenu : variante de la charte
+     * "jouer" | "secondaire" | "accent", 24/09) puis filtre les objets Phaser
      * qu'il a ajoutés à la scène vers la caméra UI (espace écran — fix 3e
      * QA : l'UI doit rester fixe sous zoom/scroll ; fix 5e QA : _hud par
      * objet, sans container). Le composant crée ses objets via scene.add.* :
@@ -1092,7 +1076,7 @@ class GameScene extends Phaser.Scene {
     _creerBoutonHUD(options) {
         const enfants = this.sys.displayList.getChildren();
         const avant = enfants.length;
-        const bouton = Arcade.UI.bouton(this, options);
+        const bouton = Arcade.UI.boutonMenu(this, options);
         // Espace écran (fix 5e QA) : filtre par objet, sans container.
         enfants.slice(avant).forEach((o) => this._hud(o));
         return bouton;
@@ -1142,6 +1126,9 @@ class GameScene extends Phaser.Scene {
                 .replace("{saison}", FarmHorloge.saisonNom(E.horloge.t, C))
                 .replace("{heure}", String(h).padStart(2, "0"))
         );
+        // La saison change la largeur (« Été » / « Printemps ») : la
+        // décision une ligne / deux lignes est reprise.
+        this._placerHautHUD();
 
         // Teinte jour/nuit : overlay plein écran coloré par plage horaire.
         // Espace écran (fix 3e QA) : rendu par la caméra UI (fix 5e QA : _hud).

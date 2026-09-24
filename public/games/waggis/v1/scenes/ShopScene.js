@@ -177,7 +177,7 @@ class ShopScene extends Phaser.Scene {
             .setOrigin(0, 0.5);
 
         const prix = this.add
-            .text(0, hauteur * 0.18, perso.prix + " pièces", {
+            .text(0, hauteur * 0.18, C.textes.prixPieces.replace("{prix}", perso.prix), {
                 fontFamily: C.police.famille,
                 fontSize: Math.round(UI.u(this, 3.2)) + "px",
                 color: C.couleurs.texteDiscret,
