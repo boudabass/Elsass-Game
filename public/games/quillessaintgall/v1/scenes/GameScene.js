@@ -990,14 +990,20 @@ class GameScene extends Phaser.Scene {
         const xCentre = infoX + w3 / 2;
         const marge = UI.u(this, 1.5);
 
-        // --- Bouton Tirer (tout en bas). ---
-        const hauteurTirer = h * 0.11;
+        // --- Bouton Tirer (tout en bas). Jamais sous la cible tactile de
+        // l'arcade (44 px) : button.js applique déjà ce plancher tout seul
+        // depuis le 25/09, mais SANS budgeter le même plancher ICI dans
+        // l'empilement, un écran écrasé (paysage, h ~390) faisait rendre
+        // le bouton plus grand que la place réservée — chevauchement avec
+        // la rangée du dessus (bug trouvé en vérifiant la critique du
+        // 25/09, jamais vu par John). ---
+        const hauteurTirer = Math.max(UI.cibleMinPx, h * 0.11);
         const tirerY0 = h - marge - hauteurTirer;
         this.boutonTirer.redimensionner(w3 * 0.7, hauteurTirer)
             .setPosition(xCentre, tirerY0 + hauteurTirer / 2);
 
         // --- Boutons de pivot ◄ ► (au-dessus de Tirer, côte à côte). ---
-        const hauteurPivot = h * 0.09;
+        const hauteurPivot = Math.max(UI.cibleMinPx, h * 0.09);
         const pivotY0 = tirerY0 - marge - hauteurPivot;
         const yPivot = pivotY0 + hauteurPivot / 2;
         const largeurPivot = w3 / 2 - marge * 1.5;
@@ -1007,7 +1013,7 @@ class GameScene extends Phaser.Scene {
             .setPosition(infoX + w3 - marge - largeurPivot / 2, yPivot);
 
         // --- Boutons de force -/+ (au-dessus du pivot). ---
-        const hauteurForceBtn = h * 0.09;
+        const hauteurForceBtn = Math.max(UI.cibleMinPx, h * 0.09);
         const forceBtnY0 = pivotY0 - marge - hauteurForceBtn;
         const yForceBtn = forceBtnY0 + hauteurForceBtn / 2;
         const largeurForceBtn = w3 * 0.32;
