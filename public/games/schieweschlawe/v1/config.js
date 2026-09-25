@@ -49,6 +49,10 @@ window.SchieweschlaweConfig = {
             "Disque à gauche → tir à droite",
             "« Tirer », puis « Stop » dans l'orange"
         ],
+        // Niveau 11 : 1er niveau du palier 2, où le vent cesse d'être
+        // Calme (§7). Même principe que les consignes du niveau 1 — une
+        // seule fois, jusqu'au premier tir (décision John 25/09).
+        consigneVent: "Le vent dévie le disque en vol : corrige ta visée",
         tirer: "Tirer",
         stop: "Stop",
         arreter: "Tape pour arrêter",
@@ -179,6 +183,22 @@ window.SchieweschlaweConfig = {
         braiseTaillePct: 1.2        // taille d'une braise, % du plus petit côté
     },
 
+    // --- Décor « vallée de nuit » (critique du 25/09, décision John) -------
+    // Vue du dessus : pas de ciel visible, donc l'ambiance nocturne vient
+    // d'un voile qui assombrit le fond du terrain (loin de la pierre) vers
+    // le noir, et d'étincelles statiques qui scintillent sur tout le champ
+    // (rosée / lucioles au clair de lune — distinctes des braises, qui
+    // dérivent avec le vent près du feu). Purement décoratif : ne touche
+    // PAS aux dimensions du terrain jouable (règle « zone visuelle = zone
+    // fonctionnelle »).
+    nuit: {
+        voileAlphaHaut: 0.55,       // opacité du voile au fond du terrain (loin de la pierre)
+        etincellesNombre: 36,
+        etincelleTaillePct: 0.5,    // taille d'une étincelle, % du plus petit côté
+        twinkleVitesseMinPar_s: 0.3,
+        twinkleVitesseMaxPar_s: 0.9
+    },
+
     // --- Couleurs (nuit de la vallée, vue du dessus) ------------------------
     // Interface (pastilles, boutons, cartes) : couleurs de la marque, fournies
     // par le socle (core/ui/tokens.js). Ici : le monde du jeu.
@@ -195,6 +215,7 @@ window.SchieweschlaweConfig = {
         ombreDisque: 0x000000,
         trainee: 0xff9a3d,
         braise: 0xffb45c,
+        etincelle: 0xbfe3ff,
         vent: "#8fd3ff",
         visee: "#8fd3ff",
         cible: "#E31B23",

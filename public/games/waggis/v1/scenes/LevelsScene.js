@@ -127,7 +127,7 @@ class LevelsScene extends Phaser.Scene {
                 const espace = u(3);
                 const yPagination = zone.y + zone.hauteur - u(4.5);
                 pageInfo.setPosition(zone.cx, yPagination)
-                        .setFontSize(Math.round(u(3.5)) + "px");
+                        .setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, u(3.5))) + "px");
                 prec.redimensionner(u(9)).setPosition(zone.cx - u(19), yPagination);
                 suiv.redimensionner(u(9)).setPosition(zone.cx + u(19), yPagination);
 

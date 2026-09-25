@@ -1023,9 +1023,10 @@ class GameScene extends Phaser.Scene {
         this.forceBarY = forceBtnY0 - marge - this.forceBarHauteur;
         this._dessinerBarreForce();
 
-        // --- Libellé « Force » (au-dessus de la barre). ---
+        // --- Libellé « Force » (au-dessus de la barre). Jamais sous le
+        // plancher de lisibilité de l'arcade (13 px, critique du 25/09). ---
         this.texteForce.setPosition(xCentre, this.forceBarY - UI.u(this, 3))
-            .setFontSize(Math.round(UI.u(this, 2.8)) + "px");
+            .setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.8))) + "px");
 
         // --- Titre + sous-titre (tout en HAUT de la colonne — demande
         // John, 31/08, dernière passe : « pour libérer de l'espace en haut
@@ -1046,7 +1047,10 @@ class GameScene extends Phaser.Scene {
             .setPosition(xCentre, curY + this.texteTitre.displayHeight / 2);
         curY += this.texteTitre.displayHeight + UI.u(this, 0.8);
 
-        this.texteSousTitre.setFontSize(Math.round(UI.u(this, 1.9)) + "px")
+        // Jamais sous le plancher de lisibilité de l'arcade (13 px, critique
+        // du 25/09) : sous-titre, compteur et consignes tombaient sous ce
+        // seuil sur les petits téléphones (colonne à 1/3 d'écran).
+        this.texteSousTitre.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 1.9))) + "px")
             .setWordWrapWidth(w3 * 0.9, true)
             .setPosition(xCentre, curY + this.texteSousTitre.displayHeight / 2);
         curY += this.texteSousTitre.displayHeight + UI.u(this, 2.5);
@@ -1054,7 +1058,7 @@ class GameScene extends Phaser.Scene {
         // --- Jet / Score (sous le sous-titre, taille normale — demande
         // John : ne pas étirer pour remplir l'espace, laisser le vide
         // entre ce texte et le libellé « Force »). ---
-        this.texteCompteur.setFontSize(Math.round(UI.u(this, 3.2)) + "px")
+        this.texteCompteur.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 3.2))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.texteCompteur.displayHeight / 2);
         curY += this.texteCompteur.displayHeight + UI.u(this, 2.5);
@@ -1064,12 +1068,12 @@ class GameScene extends Phaser.Scene {
         // piste et s'y chevauchaient, elles doivent être dans la colonne
         // de droite, comme le reste du texte). Empilage par hauteur
         // mesurée, même principe que titre/sous-titre/compteur ci-dessus.
-        this.consigne1.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+        this.consigne1.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.6))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.consigne1.displayHeight / 2);
         curY += this.consigne1.displayHeight + UI.u(this, 1);
 
-        this.consigne2.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+        this.consigne2.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.6))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.consigne2.displayHeight / 2);
     }
