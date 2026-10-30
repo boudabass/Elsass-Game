@@ -2,7 +2,8 @@
  * GameScene — Quilles Saint-Gall, une VRAIE partie (PRD 875 §7-9) : 17
  * jets en 6 phases, par-dessus la mécanique de tir et la physique de
  * collision du spike v1, VALIDÉES par John le 30/08/2026 (commit
- * 6fa096e) : placement dans un demi-cercle, visée par boutons ◄/►, force
+ * 6fa096e) : placement dans un demi-cercle (remplacé le 27/09 par la
+ * planche de tir, cf. Visee.js), visée par boutons ◄/►, force
  * réglable, jauge de précision à zone fixe — NON MODIFIÉES ici. La
  * collision boule/quilles et quille/quille, elle, a été refaite le
  * 31/08/2026 (demande John : « on connaît maintenant le poids des boules
@@ -801,18 +802,19 @@ class GameScene extends Phaser.Scene {
         this.pisteOffsetX = budgetPiste - this.pisteLargeur;
 
         // Zone de tir (sous la piste, dans la largeur de piste) :
-        // UNIQUEMENT le demi-cercle de placement + la boule, rien d'autre
-        // (demande John, 31/08 — les boutons de pivot/force/tirer sont
-        // tous dans la colonne d'info, cf. _positionnerColonneInfo). Le
-        // demi-cercle fait toute la largeur de la piste (diamètre =
-        // pisteLargeur), donc sa hauteur (= son rayon) est pisteLargeur/2.
-        this.cercleRayon = this.pisteLargeur / 2;
+        // UNIQUEMENT la planche de tir + la boule, rien d'autre (demande
+        // John, 31/08 — les boutons de pivot/force/tirer sont tous dans la
+        // colonne d'info, cf. _positionnerColonneInfo). Hauteur héritée de
+        // l'ancien demi-cercle de placement (rayon = pisteLargeur/2),
+        // conservée telle quelle le 27/09 quand la planche l'a remplacé :
+        // le ratio 1×3 de la piste ne change pas.
+        this.zoneTirHauteur = this.pisteLargeur / 2;
         // Limite piste/zone de tir SANS rallonge (fixe, dépend uniquement
         // de pisteLargeur) — sert de référence pour la grille de quilles
         // ET pour la mise en page des textes (_positionnerQuilles /
         // _positionnerTextes), qui ne doivent PAS s'étirer avec la
         // rallonge.
-        this.ligneLancerPiste = pisteHauteurBase - this.cercleRayon;   // = 2.5 × pisteLargeur
+        this.ligneLancerPiste = pisteHauteurBase - this.zoneTirHauteur;   // = 2.5 × pisteLargeur
 
         // --- Rallonge (ajoutée le 31/08, passe suivante, demande John :
         // "au lieu d'ajouter un espace vide [sous la piste], il faut
@@ -825,25 +827,37 @@ class GameScene extends Phaser.Scene {
         // insérée ENTRE la piste (quilles, taille fixe) et la zone de tir,
         // pour que la zone de tir reste TOUJOURS collée en BAS de l'écran
         // dès qu'il y a de la place — sans toucher à pisteLargeur, au
-        // ratio 1×3, ni à la taille/position des quilles ou du cercle.
+        // ratio 1×3, ni à la taille/position des quilles ou de la planche.
         // Nulle dès que le ratio 1×3 atteint déjà `h` de lui-même (cas
         // hauteur-limitante : pisteLargeur = h/3 ⇒ pisteHauteurBase = h).
         this.rallongeHauteur = Math.max(0, h - pisteHauteurBase);
 
         // Limite piste/zone de tir RÉELLE (avec rallonge) : c'est elle qui
-        // pilote la position du cercle de visée, de la jauge et le bas
-        // réel de la piste dessinée (_dessinerDecor) — décalée vers le bas
-        // de `rallongeHauteur` par rapport à this.ligneLancerPiste.
+        // pilote la position de la planche, de la jauge et le bas réel de
+        // la piste dessinée (_dessinerDecor) — décalée vers le bas de
+        // `rallongeHauteur` par rapport à this.ligneLancerPiste.
         this.ligneLancerY = this.ligneLancerPiste + this.rallongeHauteur;
-        this.cercleX = this.pisteOffsetX + this.pisteLargeur / 2;
-        this.cercleY = this.ligneLancerY;
 
         // Échelle réelle (demande John, 31/08) : this.pisteLargeur
         // (pixels) représente C.piste.largeurReelleCm (200cm réels) — sert
         // à convertir en pixels tout ce qui doit être proportionnel à la
         // piste (marge quilles, diagonale du losange, diamètre quille/
-        // boule), cf. _positionnerQuilles et Visee.positionnerBoule.
+        // boule, planche), cf. _positionnerQuilles et Visee.positionnerBoule.
         this.pxParCm = this.pisteLargeur / C.piste.largeurReelleCm;
+
+        // Planche de tir (27/09, demande John — article 780 : « la boule
+        // doit être déposée sur la planche avant de toucher la piste ») :
+        // largeur RÉELLE en cm, centrée dans la zone de tir, collée à la
+        // ligne de lancer, longueur en % de la zone de tir (cf.
+        // config.planche). La boule ne peut être posée QUE dessus
+        // (Visee.poser), donc jamais de jet fautif pour « boule hors
+        // planche » : la règle est garantie par construction.
+        this.planche = {
+            cx: this.pisteOffsetX + this.pisteLargeur / 2,
+            largeur: this.pxParCm * C.planche.largeurCm,
+            haut: this.ligneLancerY,
+            bas: this.ligneLancerY + this.zoneTirHauteur * C.planche.longueurPctZoneTir / 100
+        };
 
         this._positionnerQuilles();
         this.bandes.positionner();
@@ -895,9 +909,9 @@ class GameScene extends Phaser.Scene {
         // Bas réel de piste+lancement : = h dès qu'une rallonge existe
         // (31/08, passe suivante — la zone de tir colle désormais TOUJOURS
         // au bas de l'écran s'il y a de la place, plus de bande vide sous
-        // le cercle), sinon inchangé (peut être < h sur écran large/court,
+        // la planche), sinon inchangé (peut être < h sur écran large/court,
         // où la bande vide reste à GAUCHE, cf. this.pisteOffsetX).
-        const pisteBas = this.ligneLancerY + this.cercleRayon;
+        const pisteBas = this.ligneLancerY + this.zoneTirHauteur;
         this.sol.clear();
         this.sol.fillStyle(cPiste, 1);
         this.sol.fillRect(ox, 0, wp, this.ligneLancerY);
@@ -924,9 +938,9 @@ class GameScene extends Phaser.Scene {
         this.sol.lineStyle(Math.max(1, UI.u(this, 0.2)), cBord, 0.6);
         this.sol.lineBetween(infoX, 0, infoX, h);
 
-        // Zone de tir (sous la piste, UNIQUEMENT le demi-cercle + la
-        // boule — demande John 31/08 : plus aucun bouton ici, cf.
-        // this.cercleRayon/_recalculerGeometrie) : même teinte que la
+        // Zone de tir (sous la piste, UNIQUEMENT la planche + la boule —
+        // demande John 31/08 : plus aucun bouton ici, cf.
+        // this.zoneTirHauteur/_recalculerGeometrie) : même teinte que la
         // piste, continuité visuelle. S'arrête à `pisteBas`, qui vaut
         // désormais `h` dès qu'une rallonge comble l'écart (31/08, passe
         // suivante — la zone de tir colle TOUJOURS en bas de l'écran s'il
@@ -938,14 +952,24 @@ class GameScene extends Phaser.Scene {
         this.sol.fillRect(ox, this.ligneLancerY, wp, pisteBas - this.ligneLancerY);
         this.sol.fillStyle(cPiste, 0.35);
         this.sol.fillRect(ox, this.ligneLancerY, wp, pisteBas - this.ligneLancerY);
-    }
 
-    // --- Cercle de placement (zone de tir) --------------------------------------
-    // Géométrie (cercleX/cercleY/cercleRayon) calculée directement dans
-    // _recalculerGeometrie (demande John, 31/08, 2e passe : la zone de tir
-    // est maintenant dimensionnée en 2/1 pour contenir JUSTE le demi-
-    // cercle sur toute la largeur de la piste, plus de plafond lié aux
-    // boutons puisqu'ils ne sont plus dans cette zone).
+        // Planche de tir (27/09, article 780 — géométrie : this.planche,
+        // cf. _recalculerGeometrie) : fibre de verre/acier, gris clair.
+        const pl = this.planche;
+        this.sol.fillStyle(Phaser.Display.Color.HexStringToColor(C.planche.couleur).color, 1);
+        this.sol.fillRect(pl.cx - pl.largeur / 2, pl.haut, pl.largeur, pl.bas - pl.haut);
+        this.sol.lineStyle(Math.max(1, UI.u(this, 0.2)),
+            Phaser.Display.Color.HexStringToColor(C.planche.couleurBord).color, 1);
+        this.sol.strokeRect(pl.cx - pl.largeur / 2, pl.haut, pl.largeur, pl.bas - pl.haut);
+
+        // Ligne de faute blanche (article 780 : « après la planche et sur
+        // la piste », 3 cm de large) : sur la piste, juste au-dessus de la
+        // ligne de lancer, toute la largeur. Jamais sous 2 px, sinon
+        // invisible sur petit écran (3 cm ≈ 1,5 % de la largeur de piste).
+        const epFaute = Math.max(2, this.pxParCm * C.planche.ligneFauteCm);
+        this.sol.fillStyle(Phaser.Display.Color.HexStringToColor(C.planche.couleurLigneFaute).color, 1);
+        this.sol.fillRect(ox, this.ligneLancerY - epFaute, wp, epFaute);
+    }
 
     _ajusterForce(sens) {
         if (this.etat !== "placement") return;
@@ -990,14 +1014,20 @@ class GameScene extends Phaser.Scene {
         const xCentre = infoX + w3 / 2;
         const marge = UI.u(this, 1.5);
 
-        // --- Bouton Tirer (tout en bas). ---
-        const hauteurTirer = h * 0.11;
+        // --- Bouton Tirer (tout en bas). Jamais sous la cible tactile de
+        // l'arcade (44 px) : button.js applique déjà ce plancher tout seul
+        // depuis le 25/09, mais SANS budgeter le même plancher ICI dans
+        // l'empilement, un écran écrasé (paysage, h ~390) faisait rendre
+        // le bouton plus grand que la place réservée — chevauchement avec
+        // la rangée du dessus (bug trouvé en vérifiant la critique du
+        // 25/09, jamais vu par John). ---
+        const hauteurTirer = Math.max(UI.cibleMinPx, h * 0.11);
         const tirerY0 = h - marge - hauteurTirer;
         this.boutonTirer.redimensionner(w3 * 0.7, hauteurTirer)
             .setPosition(xCentre, tirerY0 + hauteurTirer / 2);
 
         // --- Boutons de pivot ◄ ► (au-dessus de Tirer, côte à côte). ---
-        const hauteurPivot = h * 0.09;
+        const hauteurPivot = Math.max(UI.cibleMinPx, h * 0.09);
         const pivotY0 = tirerY0 - marge - hauteurPivot;
         const yPivot = pivotY0 + hauteurPivot / 2;
         const largeurPivot = w3 / 2 - marge * 1.5;
@@ -1007,7 +1037,7 @@ class GameScene extends Phaser.Scene {
             .setPosition(infoX + w3 - marge - largeurPivot / 2, yPivot);
 
         // --- Boutons de force -/+ (au-dessus du pivot). ---
-        const hauteurForceBtn = h * 0.09;
+        const hauteurForceBtn = Math.max(UI.cibleMinPx, h * 0.09);
         const forceBtnY0 = pivotY0 - marge - hauteurForceBtn;
         const yForceBtn = forceBtnY0 + hauteurForceBtn / 2;
         const largeurForceBtn = w3 * 0.32;
@@ -1023,9 +1053,10 @@ class GameScene extends Phaser.Scene {
         this.forceBarY = forceBtnY0 - marge - this.forceBarHauteur;
         this._dessinerBarreForce();
 
-        // --- Libellé « Force » (au-dessus de la barre). ---
+        // --- Libellé « Force » (au-dessus de la barre). Jamais sous le
+        // plancher de lisibilité de l'arcade (13 px, critique du 25/09). ---
         this.texteForce.setPosition(xCentre, this.forceBarY - UI.u(this, 3))
-            .setFontSize(Math.round(UI.u(this, 2.8)) + "px");
+            .setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.8))) + "px");
 
         // --- Titre + sous-titre (tout en HAUT de la colonne — demande
         // John, 31/08, dernière passe : « pour libérer de l'espace en haut
@@ -1046,7 +1077,10 @@ class GameScene extends Phaser.Scene {
             .setPosition(xCentre, curY + this.texteTitre.displayHeight / 2);
         curY += this.texteTitre.displayHeight + UI.u(this, 0.8);
 
-        this.texteSousTitre.setFontSize(Math.round(UI.u(this, 1.9)) + "px")
+        // Jamais sous le plancher de lisibilité de l'arcade (13 px, critique
+        // du 25/09) : sous-titre, compteur et consignes tombaient sous ce
+        // seuil sur les petits téléphones (colonne à 1/3 d'écran).
+        this.texteSousTitre.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 1.9))) + "px")
             .setWordWrapWidth(w3 * 0.9, true)
             .setPosition(xCentre, curY + this.texteSousTitre.displayHeight / 2);
         curY += this.texteSousTitre.displayHeight + UI.u(this, 2.5);
@@ -1054,7 +1088,7 @@ class GameScene extends Phaser.Scene {
         // --- Jet / Score (sous le sous-titre, taille normale — demande
         // John : ne pas étirer pour remplir l'espace, laisser le vide
         // entre ce texte et le libellé « Force »). ---
-        this.texteCompteur.setFontSize(Math.round(UI.u(this, 3.2)) + "px")
+        this.texteCompteur.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 3.2))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.texteCompteur.displayHeight / 2);
         curY += this.texteCompteur.displayHeight + UI.u(this, 2.5);
@@ -1064,12 +1098,12 @@ class GameScene extends Phaser.Scene {
         // piste et s'y chevauchaient, elles doivent être dans la colonne
         // de droite, comme le reste du texte). Empilage par hauteur
         // mesurée, même principe que titre/sous-titre/compteur ci-dessus.
-        this.consigne1.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+        this.consigne1.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.6))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.consigne1.displayHeight / 2);
         curY += this.consigne1.displayHeight + UI.u(this, 1);
 
-        this.consigne2.setFontSize(Math.round(UI.u(this, 2.6)) + "px")
+        this.consigne2.setFontSize(Math.round(Math.max(UI.policeMinPx, UI.u(this, 2.6))) + "px")
             .setWordWrapWidth(w3 * 0.85, true)
             .setPosition(xCentre, curY + this.consigne2.displayHeight / 2);
     }
@@ -1316,12 +1350,17 @@ class GameScene extends Phaser.Scene {
 
     _pointerDown(p) {
         if (this.etat === "placement") {
-            // Le glisser ne démarre que si le clic tombe DANS le demi-cercle
-            // de placement (jamais au-dessus de la ligne de lancer) — les
+            // Le glisser démarre n'importe où dans la ZONE DE TIR (toute la
+            // largeur de la piste, sous la ligne de lancer), pas seulement
+            // sur la planche : à 30 cm réels, elle ne fait qu'une vingtaine
+            // de pixels sur téléphone, sous la cible tactile de 44 px.
+            // Visee.poser ramène ensuite la boule sur la planche. Les
             // boutons ◄/► et « Tirer » sont ailleurs, hors de cette zone.
-            const dx = p.x - this.cercleX;
-            const dy = p.y - this.cercleY;
-            if (dy >= 0 && Math.hypot(dx, dy) <= this.cercleRayon) {
+            const dansLargeur = p.x >= this.pisteOffsetX &&
+                p.x <= this.pisteOffsetX + this.pisteLargeur;
+            const dansHauteur = p.y >= this.ligneLancerY &&
+                p.y <= this.ligneLancerY + this.zoneTirHauteur;
+            if (dansLargeur && dansHauteur) {
                 this.glisse = true;
                 this.visee.poser(p);
             }

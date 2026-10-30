@@ -72,7 +72,7 @@ class NiveauxScene extends Phaser.Scene {
         const yPage = z.y + z.hauteur - u(4.5);
         this.pageInfo.setText(C.textes.palier
             .replace("{p}", this.page + 1).replace("{total}", this.nbPages))
-            .setFontSize(Math.round(u(3.5)) + "px")
+            .setFontSize(Math.round(Math.max(UI.policeMinPx, u(3.5))) + "px")
             .setPosition(z.cx, yPage);
         this.prec.redimensionner(u(9)).setPosition(z.cx - u(21), yPage);
         this.suiv.redimensionner(u(9)).setPosition(z.cx + u(21), yPage);
@@ -123,8 +123,17 @@ class NiveauxScene extends Phaser.Scene {
                 : (etat === "primaire" ? T.aJouer : T.verrouille), {
                 fontFamily: C.police.famille, color: couleur, align: "center"
             }).setOrigin(0.5);
-        NiveauxScene._tenir(titre, l * 0.88, Math.min(UI.u(this, 3.8), h * 0.3), 11);
-        NiveauxScene._tenir(detail, l * 0.88, Math.min(UI.u(this, 3), h * 0.24), 10);
+        // Jamais sous 13 px (plancher de l'arcade). Tuile trop étroite pour
+        // « 2 lancers · 87 % » à 13 px : on garde le nombre de lancers seul
+        // — un libellé court à taille lisible plutôt qu'un long illisible.
+        const P = UI.policeMinPx;
+        NiveauxScene._tenir(titre, l * 0.88, Math.max(P, Math.min(UI.u(this, 3.8), h * 0.3)), P);
+        NiveauxScene._tenir(detail, l * 0.88, Math.max(P, Math.min(UI.u(this, 3.4), h * 0.24)), P);
+        if (res && detail.width > l * 0.88) {
+            detail.setText(NiveauxScene.texteLancers(res.lancers));
+        }
+        // Le cadenas est une icône : plus grand que le texte pour se lire.
+        if (etat === "verrou") detail.setFontSize(Math.round(Math.max(P, h * 0.26)) + "px");
         this.tuiles.push(g, titre, detail);
 
         if (!ouvert) return;

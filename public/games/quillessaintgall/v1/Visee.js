@@ -1,25 +1,35 @@
 /*
- * Visee.js — placement de la boule dans le demi-cercle de tir + ligne
- * d'aide à la visée (direction choisie via les boutons ◄/►).
+ * Visee.js — placement de la boule sur la planche de tir + ligne d'aide à
+ * la visée (direction choisie via les boutons ◄/►).
  *
  * Extrait de GameScene.js le 19/09/2026 (revue qualité : GameScene.js
  * dépassait 1850 lignes) — DÉPLACEMENT DE CODE PUR, aucun changement de
  * comportement (mêmes formules, même ordre de dessin).
  *
- * Ne possède PAS la géométrie du demi-cercle (`scene.cercleX/cercleY/
- * cercleRayon`, calculée dans GameScene._recalculerGeometrie et lue ici
- * en lecture seule), ni les sprites `scene.boule`/`scene.ombreBoule`
- * (créés par GameScene._creerBouleEtOmbre, seulement déplacés/
- * redimensionnés ici), ni `scene.glisse` (câblage pointer de
- * GameScene.create()).
+ * 27/09/2026 (demande John, article 780 : « la boule doit être déposée sur
+ * la planche avant de toucher la piste ») : le demi-cercle de placement
+ * libre est remplacé par la PLANCHE DE TIR. La boule ne peut plus être
+ * posée que dessus — un peu de jeu à gauche/droite (largeur de planche −
+ * diamètre de boule) et sur toute sa longueur. La visée passe donc
+ * presque entièrement par la rotation ◄/►.
+ *
+ * Ne possède PAS la géométrie de la planche (`scene.planche`, calculée
+ * dans GameScene._recalculerGeometrie et lue ici en lecture seule), ni les
+ * sprites `scene.boule`/`scene.ombreBoule` (créés par
+ * GameScene._creerBouleEtOmbre, seulement déplacés/redimensionnés ici), ni
+ * `scene.glisse` (câblage pointer de GameScene.create()).
  */
 class Visee {
     /** @param {Phaser.Scene} scene la GameScene propriétaire */
     constructor(scene) {
         this.scene = scene;
         this.g = null;
+        // Position de la boule sur la planche, indépendante de la taille
+        // d'écran (rejouée au resize) : fracX ∈ [-1, 1] (bord gauche →
+        // bord droit du jeu latéral), fracY ∈ [0, 1] (haut → bas de la
+        // planche).
         this.fracX = 0;
-        this.fracY = 0.5;
+        this.fracY = 1;
         this.angleDeg = 0;
         this.bouleX = 0;
         this.bouleY = 0;
@@ -30,39 +40,54 @@ class Visee {
         this.g = this.scene.add.graphics().setDepth(3);
     }
 
-    /** Remet la visée à l'état par défaut (nouveau jet). */
+    /** Remet la visée à l'état par défaut (nouveau jet) : boule au bas de
+     * la planche, au centre, visée tout droit. */
     reset() {
         this.fracX = 0;
-        this.fracY = 0.5;
+        this.fracY = 1;
         this.angleDeg = 0;
     }
 
-    /** Recalcule bouleX/bouleY depuis la géométrie du cercle (resize). */
+    /**
+     * Course de la boule sur la planche, en pixels : `jeuX` = décalage
+     * latéral max de part et d'autre du centre (la boule reste ENTIÈREMENT
+     * sur la planche), `haut`/`bas` = positions extrêmes de son centre.
+     */
+    _course() {
+        const scene = this.scene;
+        const C = window.QuillesSaintGallConfig;
+        const pl = scene.planche;
+        const rayon = scene.pxParCm * (C.boule.diametreCm / 2);
+        return {
+            jeuX: Math.max(0, pl.largeur / 2 - rayon),
+            haut: pl.haut + rayon,
+            bas: Math.max(pl.haut + rayon, pl.bas - rayon)
+        };
+    }
+
+    /** Recalcule bouleX/bouleY depuis la géométrie de la planche (resize). */
     majPosition() {
         const scene = this.scene;
-        if (scene.cercleRayon === undefined) return;   // pas encore de géométrie
-        this.bouleX = scene.cercleX + this.fracX * scene.cercleRayon;
-        this.bouleY = scene.cercleY + this.fracY * scene.cercleRayon;
+        if (scene.planche === undefined) return;   // pas encore de géométrie
+        const c = this._course();
+        this.bouleX = scene.planche.cx + this.fracX * c.jeuX;
+        this.bouleY = c.haut + this.fracY * (c.bas - c.haut);
     }
 
     /**
-     * Place la boule au point `p` (glisser libre en 2D, clampé au
-     * DEMI-cercle de placement) : jamais au-dessus de la ligne de lancer
-     * (dy < 0 interdit — le côté plat du demi-cercle), et jamais au-delà
-     * du rayon (glisser au-delà colle au bord, comme un curseur).
+     * Place la boule au point `p` (glisser libre en 2D), ramenée sur la
+     * planche : glisser au-delà d'un bord colle la boule à ce bord, comme
+     * un curseur.
      */
     poser(p) {
         const scene = this.scene;
-        const dx = p.x - scene.cercleX;
-        const dy = Math.max(0, p.y - scene.cercleY);
-        const dist = Math.hypot(dx, dy);
-        if (dist <= scene.cercleRayon) {
-            this.fracX = dx / scene.cercleRayon;
-            this.fracY = dy / scene.cercleRayon;
-        } else if (dist > 0) {
-            this.fracX = dx / dist;
-            this.fracY = dy / dist;
-        }
+        const c = this._course();
+        this.fracX = c.jeuX > 0
+            ? Phaser.Math.Clamp((p.x - scene.planche.cx) / c.jeuX, -1, 1)
+            : 0;
+        this.fracY = c.bas > c.haut
+            ? Phaser.Math.Clamp((p.y - c.haut) / (c.bas - c.haut), 0, 1)
+            : 0;
         this.majPosition();
         this.positionnerBoule();
         this.dessiner();
@@ -106,14 +131,11 @@ class Visee {
         this.g.clear();
         if (scene.etat !== "placement") return;
 
-        // Demi-cercle de placement (zone où la boule peut être posée) :
-        // seulement l'arc du BAS (0 → PI, sens horaire = vers le bas en
-        // coordonnées écran), le côté plat coïncide avec la ligne de lancer
-        // déjà dessinée par la piste (pas besoin de la retracer).
-        this.g.lineStyle(UI.u(scene, 0.4), coulCercle, 0.5);
-        this.g.beginPath();
-        this.g.arc(scene.cercleX, scene.cercleY, scene.cercleRayon, 0, Math.PI, false);
-        this.g.strokePath();
+        // Contour de la planche (zone où la boule peut être posée), en
+        // surbrillance pendant le placement seulement.
+        const pl = scene.planche;
+        this.g.lineStyle(UI.u(scene, 0.4), coulCercle, 0.7);
+        this.g.strokeRect(pl.cx - pl.largeur / 2, pl.haut, pl.largeur, pl.bas - pl.haut);
 
         // Ligne de visée : direction choisie via les boutons ◄/►, depuis la
         // position actuelle de la boule (angle 0 = tout droit vers le haut).

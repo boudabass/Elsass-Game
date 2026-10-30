@@ -14,6 +14,18 @@
 
     Arcade.UI = {
         /**
+         * Planchers d'accessibilité de l'arcade, en PIXELS (seule entorse
+         * assumée au « tout en % » : en u() ils suivraient l'écran et
+         * rateraient justement le petit téléphone qu'ils doivent protéger).
+         * Texte : jamais sous 13 px. Ce qui se touche : jamais sous 44 px
+         * (cible tactile iOS/Android). Appliqués par les briques de core/ui/
+         * (bouton, pastilles, en-tête de menu, flèche) — critique
+         * Schieweschlawe du 25/09/2026, décision John : pour tous les jeux.
+         */
+        policeMinPx: 13,
+        cibleMinPx: 44,
+
+        /**
          * Taille relative : u(scene, 5) = 5 % du plus petit côté de l'écran.
          * Un texte à u(4) reste lisible partout.
          */

@@ -11,6 +11,10 @@
  *     réussie ; raté → lancer suivant ; 3 ratés → fin de niveau ratée ;
  *   - interface à la charte : pastilles (niveau, lancer, vent, résultat),
  *     bouton « Tirer » rouge.
+ * Critique du 25/09 : bouton « Menu » (noir, haut-gauche) pour quitter un
+ * niveau à tout moment — rien n'est perdu, la save n'est écrite qu'à la
+ * réussite ; et UN SEUL bouton rouge, qui suit l'état : « Tirer » →
+ * « Stop » (jauge) → caché (vol) → « Relancer » (raté, lancers restants).
  *
  * Coordonnées de visée 0-100 SANS NÉGATIF sur les deux axes : distance
  * (0 = sous la pierre, 100 = bas de l'écran → bout du terrain) et latéral
@@ -58,6 +62,16 @@ class GameScene extends Phaser.Scene {
         g.fillStyle(C.couleurs.braise, 1);
         g.fillCircle(4, 4, 4);
         g.generateTexture("braise", 8, 8);
+        g.clear();
+
+        // Étincelle (8x8) : point pâle qui scintille, halo doux — décor
+        // « vallée de nuit » du 25/09, distinct des braises (statique,
+        // pas de dérive au vent).
+        g.fillStyle(C.couleurs.etincelle, 0.35);
+        g.fillCircle(4, 4, 4);
+        g.fillStyle(C.couleurs.etincelle, 1);
+        g.fillCircle(4, 4, 1.4);
+        g.generateTexture("etincelle", 8, 8);
 
         g.destroy();
     }
@@ -92,11 +106,12 @@ class GameScene extends Phaser.Scene {
         this.trainee = [];
         this.traineeTimer = 0;
         this.marqueur = null;
-        this.boutonSuivant = null;
+        this.peutRelancer = false;         // raté avec des lancers restants
 
         this.ciel = this.add.graphics().setDepth(0);
         this.sol = this.add.graphics().setDepth(1);
         this.grilleG = this.add.graphics().setDepth(2);
+        this.nuitG = this.add.graphics().setDepth(3);   // voile de nuit, au-dessus du champ
         this.pierreG = this.add.graphics().setDepth(4);
         this.cibleG = this.add.graphics().setDepth(4);
         this.ombreDisque = this.add.circle(0, 0, 4, C.couleurs.ombreDisque, 0.35).setDepth(5);
@@ -106,6 +121,7 @@ class GameScene extends Phaser.Scene {
         this.ventG = this.add.graphics().setDepth(20);
         this.jaugeG = this.add.graphics().setDepth(22);
         this._creerBraises();
+        this._creerEtincelles();
         this._creerInterface();
 
         // Zone de saisie globale (clic/tap), sous les boutons (hit-test
@@ -139,6 +155,7 @@ class GameScene extends Phaser.Scene {
         }
         this._fonduTrainee(dt);
         this._animerBraises(dt);
+        this._animerEtincelles(dt);
     }
 
     // --- Création ---------------------------------------------------------------
@@ -160,6 +177,23 @@ class GameScene extends Phaser.Scene {
         this._braisesPlacees = false;
     }
 
+    /** Étincelles statiques qui scintillent (décor « vallée de nuit », 25/09). */
+    _creerEtincelles() {
+        const C = window.SchieweschlaweConfig;
+        this.etincelles = [];
+        for (let i = 0; i < C.nuit.etincellesNombre; i++) {
+            this.etincelles.push({
+                obj: this.add.image(0, 0, "etincelle").setDepth(3.5).setBlendMode(Phaser.BlendModes.ADD),
+                x: Math.random(),
+                y: Math.random(),
+                phase: Math.random() * Math.PI * 2,
+                vitesse: Phaser.Math.FloatBetween(
+                    C.nuit.twinkleVitesseMinPar_s, C.nuit.twinkleVitesseMaxPar_s)
+            });
+        }
+        this._etincellesPlacees = false;
+    }
+
     _creerInterface() {
         const C = window.SchieweschlaweConfig;
         const T = C.textes;
@@ -176,27 +210,55 @@ class GameScene extends Phaser.Scene {
         this.hudVent = pastille(3.3, 0.5).setText(
             T.vent.replace("{nom}", T.ventNoms[this.niv.vent.nom] || this.niv.vent.nom));
 
-        // Consignes : seulement au tout premier lancer du niveau 1.
-        this.consignes = [pastille(3.2, 0.5), pastille(3.2, 0.5)];
-        if (this.niv.n === 1) {
-            this.consignes[0].setText(T.consigneLigne1);
-            this.consignes[1].setText(T.consigneLigne2);
-        }
+        // Consignes : seulement au tout premier lancer du niveau 1 (visée),
+        // ou du niveau 11 (vent — décision John 25/09, 1er niveau où il
+        // cesse d'être Calme, §7). Les 3 pastilles sont toujours créées
+        // (mêmes emplacements que le layout attend) ; les inutilisées
+        // restent vides et ne comptent pour rien dans l'empilement.
+        const consignesNiveau = this.niv.n === 1 ? T.consignes
+            : this.niv.n === 11 ? [T.consigneVent]
+            : [];
+        this.consignes = T.consignes.map((_, i) =>
+            pastille(3.4, 0.5).setText(consignesNiveau[i] || ""));
 
         this.texteJauge = pastille(3.6, 0.5);
         this.texteResultat = pastille(4.5, 0.5);
 
-        // « Tirer » : LA prochaine action (rouge). Lance la jauge, puis
-        // arrête l'aiguille au 2e appui.
-        this.boutonTirer = UI.boutonMenu(this, {
+        // Quitter le niveau à tout moment (navigation = noir, charte).
+        this.boutonMenu = UI.boutonMenu(this, {
+            variante: "accent",
+            label: T.menu,
+            marqueurClic: true,
+            onClick: () => this.scene.start(MenuScene.KEY)
+        }).setDepth(30);
+
+        // LE bouton d'action (rouge, un seul à l'écran) : son libellé et
+        // son rôle suivent l'état (_majBoutonAction).
+        this.boutonAction = UI.boutonMenu(this, {
             variante: "jouer",
             label: T.tirer,
             marqueurClic: true,
             onClick: () => {
                 if (this.etat === "placement") this._demarrerJauge();
                 else if (this.etat === "jauge") this._arreterJauge();
+                else if (this.etat === "resultat") this._lancerSuivant();
             }
         }).setDepth(30);
+    }
+
+    /** Libellé du bouton d'action selon l'état ; caché s'il n'y a rien à faire. */
+    _majBoutonAction() {
+        const T = window.SchieweschlaweConfig.textes;
+        const libelle = this.etat === "placement" ? T.tirer
+            : this.etat === "jauge" ? T.stop
+            : (this.etat === "resultat" && this.peutRelancer) ? T.relancer
+            : null;
+        if (libelle) {
+            this.boutonAction.label.setText(libelle);
+            this.boutonAction.setAlpha(1).refresh();
+        } else {
+            this.boutonAction.setAlpha(0);
+        }
     }
 
     _majHudLancer() {
@@ -244,6 +306,7 @@ class GameScene extends Phaser.Scene {
         this._dessinerCible();
         this._dessinerVisee();
         this._positionnerBraises();
+        this._positionnerEtincelles();
         this._dessinerVent();
         this._dessinerJaugeBarre();
         this._positionnerInterface();
@@ -271,6 +334,17 @@ class GameScene extends Phaser.Scene {
         this.sol.fillRect(0, this.pierreY, w, h - this.pierreY);
         this.sol.fillStyle(c(C.couleurs.champ), 0.35);
         this.sol.fillRect(w3, this.pierreY, w3, h - this.pierreY);
+
+        // Voile de nuit (25/09) : le fond du terrain (loin de la pierre)
+        // sombre vers le noir, la lumière du disque domine près de la
+        // pierre. Dégradé vertical superposé au champ, purement décoratif
+        // — le champ garde exactement les mêmes dimensions (zone visuelle
+        // = zone fonctionnelle).
+        const cNuit = c(C.couleurs.ciel);
+        this.nuitG.clear();
+        this.nuitG.fillGradientStyle(cNuit, cNuit, cNuit, cNuit,
+            C.nuit.voileAlphaHaut, C.nuit.voileAlphaHaut, 0, 0);
+        this.nuitG.fillRect(0, topY, w, this.terrainLongueurPx);
         this.sol.lineStyle(Math.max(1, Arcade.UI.u(this, 0.15)), c(C.couleurs.grilleLigne), 0.8);
         this.sol.lineBetween(w3, this.pierreY, w3, h);
         this.sol.lineBetween(2 * w3, this.pierreY, 2 * w3, h);
@@ -341,29 +415,35 @@ class GameScene extends Phaser.Scene {
         const w3 = this.colLargeur;
         const bande = h - this.pierreY;
 
-        this.hudNiveau.placer(u(2), u(2));
-        this.hudLancer.placer(w - u(2), u(2));
+        // Haut : Menu à gauche, puis Niveau ; Lancer à droite — centrés
+        // sur la même ligne que le bouton.
+        const minPx = C.lancer.cibleMinPx;
+        const hMenu = Math.max(minPx, u(9));
+        const lMenu = Math.max(minPx * 1.6, u(18));
+        this.boutonMenu.redimensionner(lMenu, hMenu)
+            .setPosition(u(2) + lMenu / 2, u(2) + hMenu / 2);
+        const yHud = u(2) + (hMenu - this.hudNiveau.hauteur()) / 2;
+        this.hudNiveau.placer(u(2) + this.boutonMenu.largeur() + u(2), yHud);
+        this.hudLancer.placer(w - u(2), yHud);
 
         // Libellé du vent sous la rose (colonne de gauche).
         this.hudVent.placer(w3 / 2, this.pierreY + bande * 0.66);
 
-        const yConsigne = h * 0.16;
-        this.consignes[0].placer(w / 2, yConsigne);
-        this.consignes[1].placer(w / 2, yConsigne + this.consignes[0].hauteur() + u(1.2));
+        let yConsigne = h * 0.16;
+        this.consignes.forEach((c) => {
+            c.placer(w / 2, yConsigne);
+            yConsigne += c.hauteur() + u(1.2);
+        });
 
         // Libellé de la jauge, juste au-dessus de la barre.
         this.texteJauge.placer(w / 2,
             this._hautPierre() - u(C.jauge.hauteurU) - u(2) - u(8));
         this.texteResultat.placer(w / 2, h * 0.36);
 
-        const minPx = C.lancer.cibleMinPx;
-        this.boutonTirer.redimensionner(w3 * 0.7,
+        this.boutonAction.redimensionner(w3 * 0.8,
             Math.max(minPx, Math.min(u(10), bande * 0.6)))
             .setPosition(w - w3 / 2, this.pierreY + bande / 2);
-        if (this.boutonSuivant) {
-            this.boutonSuivant.redimensionner(Math.min(w * 0.6, u(44)), Math.max(minPx, u(10)))
-                .setPosition(w / 2, h * 0.36 + this.texteResultat.hauteur() + u(8));
-        }
+        this._majBoutonAction();
     }
 
     // --- Visée proportionnelle (PRD §4) ----------------------------------------
@@ -457,6 +537,7 @@ class GameScene extends Phaser.Scene {
         this.texteJauge.setText(C.textes.arreter);
         this.consignes.forEach((c) => c.setVisible(false));
         this._dessinerVisee();
+        this._majBoutonAction();
     }
 
     _avancerJauge(dt) {
@@ -482,6 +563,7 @@ class GameScene extends Phaser.Scene {
         this.texteJauge.setText(
             this.jaugeDeviation === 0 ? C.textes.conforme : C.textes.manque);
         this._dessinerJaugeBarre();
+        this._majBoutonAction();
     }
 
     _dessinerJaugeBarre() {
@@ -531,6 +613,20 @@ class GameScene extends Phaser.Scene {
                 .setAlpha(0.4 + Math.random() * 0.4);
         });
         this._braisesPlacees = true;
+    }
+
+    /** Étincelles : positions fixes (fraction du champ), pas de dérive au vent. */
+    _positionnerEtincelles() {
+        const C = window.SchieweschlaweConfig;
+        const taille = Arcade.UI.u(this, C.nuit.etincelleTaillePct);
+        this.etincelles.forEach((e) => {
+            if (!this._etincellesPlacees) {
+                e.x = e.x * this.w;
+                e.y = e.y * this.pierreY;    // champ = 0..pierreY (topY = 0)
+            }
+            e.obj.setPosition(e.x, e.y).setDisplaySize(taille, taille);
+        });
+        this._etincellesPlacees = true;
     }
 
     /** Rose des vents + flèche (longueur ∝ force), colonne de gauche. */
@@ -586,6 +682,16 @@ class GameScene extends Phaser.Scene {
             if (b.y > h + 20) b.y = -20;
             if (b.y < -20) b.y = h + 20;
             b.obj.setPosition(b.x, b.y);
+        });
+    }
+
+    /** Scintillement des étincelles : alpha qui pulse, aucune dérive. */
+    _animerEtincelles(dt) {
+        this._tempsEtincelles = (this._tempsEtincelles || 0) + dt;
+        const t = this._tempsEtincelles;
+        this.etincelles.forEach((e) => {
+            const pulse = 0.5 + 0.5 * Math.sin(t * e.vitesse * Math.PI * 2 + e.phase);
+            e.obj.setAlpha(0.15 + pulse * 0.55);
         });
     }
 
@@ -734,16 +840,16 @@ class GameScene extends Phaser.Scene {
             });
             return;
         }
-        this.boutonSuivant = UI.boutonMenu(this, {
-            variante: "jouer",
-            label: T.lancerSuivant,
-            onClick: () => this._lancerSuivant()
-        }).setDepth(30);
-        this._positionnerInterface();
+        // Le bouton d'action reste à sa place (bas-droite) et devient
+        // « Relancer » : rien ne se pose sur le terrain, la cible et le
+        // point d'impact restent visibles pour corriger le tir.
+        this.peutRelancer = true;
+        this._majBoutonAction();
     }
 
     _lancerSuivant() {
-        if (this.etat !== "resultat") return;
+        if (this.etat !== "resultat" || !this.peutRelancer) return;
+        this.peutRelancer = false;
         this.lancerNum += 1;
         this._majHudLancer();
         this.etat = "placement";
@@ -751,7 +857,6 @@ class GameScene extends Phaser.Scene {
         this.trainee.forEach((t) => t.obj.destroy());
         this.trainee = [];
         if (this.marqueur) { this.marqueur.destroy(); this.marqueur = null; }
-        if (this.boutonSuivant) { this.boutonSuivant.destroy(); this.boutonSuivant = null; }
         this.texteResultat.setText("");
 
         // Le disque reprend la DERNIÈRE visée : le joueur corrige son tir
@@ -759,5 +864,6 @@ class GameScene extends Phaser.Scene {
         this._majVisee();
         this._poserDisqueVisuel();
         this._dessinerVisee();
+        this._majBoutonAction();
     }
 }

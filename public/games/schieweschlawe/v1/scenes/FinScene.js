@@ -44,11 +44,8 @@ class FinScene extends Phaser.Scene {
             UI.menuPrincipal(this, {
                 iconesPlateforme: false,
                 surtitre: C.titre,
-                titre: T.niveauRate,
-                infos: [
-                    T.infoRateNiveau.replace("{n}", this.niveau),
-                    T.infoRateLancers.replace("{total}", C.niveaux.lancersParNiveau)
-                ],
+                titre: T.niveauRate.replace("{n}", this.niveau),
+                infos: [T.infoRateLancers.replace("{total}", C.niveaux.lancersParNiveau)],
                 jouer: { label: T.reessayer, onClick: rejouer(this.niveau) },
                 secondaires: [niveaux, menu]
             });
@@ -61,9 +58,11 @@ class FinScene extends Phaser.Scene {
             T.infoLancers.replace("{lancers}", NiveauxScene.texteLancers(this.lancers)),
             T.infoProximite.replace("{p}", this.proximite)
         ];
+        // Première réussite du niveau : ni « record » (il n'y avait rien à
+        // battre) ni « meilleur » (c'est ce résultat-ci).
         if (record.nouveau) {
             infos.push(T.infoRecord);
-        } else {
+        } else if (!record.premier) {
             infos.push(T.infoMeilleur
                 .replace("{lancers}", NiveauxScene.texteLancers(record.meilleur.lancers))
                 .replace("{p}", record.meilleur.proximite));
@@ -108,7 +107,8 @@ class FinScene extends Phaser.Scene {
         Arcade.Save.saveLocal();
         Arcade.Save.saveCloud();
         return {
-            nouveau: mieux,
+            nouveau: !!avant && mieux,
+            premier: !avant,
             meilleur: resultats[cle],
             toutReussi: Object.keys(resultats).length >= C.niveaux.total
         };

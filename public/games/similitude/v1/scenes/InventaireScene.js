@@ -226,10 +226,13 @@ class InventaireScene extends Phaser.Scene {
     /**
      * Anti-débordement VERTICAL (pattern ShopScene / CommentJouerScene) :
      * si le texte wrapé dépasse la hauteur allouée dans sa colonne, la
-     * police est réduite jusqu'au plancher config.inventaire.policeMinU.
+     * police est réduite jusqu'au plancher config.inventaire.policeMinU —
+     * jamais sous le plancher de lisibilité de l'arcade (13 px, critique du
+     * 25/09 : ce plancher était en u() et pouvait tomber à ~6 px sur un
+     * petit téléphone).
      */
     _ajusterTexte(texte, hauteurMax, u) {
-        const plancher = u(this.C.inventaire.policeMinU);
+        const plancher = Math.max(Arcade.UI.policeMinPx, u(this.C.inventaire.policeMinU));
         let fs = parseFloat(texte.style.fontSize);
         while (texte.height > hauteurMax && fs > plancher) {
             fs -= 0.5;

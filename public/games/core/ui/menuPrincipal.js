@@ -112,7 +112,8 @@
             var interieur = largeur - 2 * pX;
             var curseur = y + pY;
 
-            surtitre.setFontSize(Math.round(u(2.5)) + "px")
+            var P = Arcade.UI.policeMinPx;
+            surtitre.setFontSize(Math.round(Math.max(P, u(2.5))) + "px")
                 .setLetterSpacing(u(0.35))
                 .setPosition(x + pX, curseur);
             curseur += surtitre.height + u(1);
@@ -122,7 +123,7 @@
             curseur += titre.height;
 
             if (accroche) {
-                accroche.setFontSize(Math.round(u(3.4)) + "px")
+                accroche.setFontSize(Math.round(Math.max(P, u(3.4))) + "px")
                     .setWordWrapWidth(interieur, true)
                     .setPosition(x + pX, curseur + u(1));
                 curseur += u(1) + accroche.height;
@@ -131,7 +132,7 @@
             pastilles.clear();
             if (infos.some(function (t) { return t.text !== ""; })) {
                 curseur += u(3);
-                var hP = u(6.5);
+                var hP = Math.max(u(6.5), P * 1.9);
                 var mP = u(2.6);
                 var ecart = u(2);
                 var px = x + pX;
@@ -141,7 +142,7 @@
                     // ex. le gain de pièces avant l'envoi du score).
                     t.setVisible(t.text !== "");
                     if (t.text === "") return;
-                    ajusterLargeur(t, u(3), interieur - 2 * mP, u(2));
+                    ajusterLargeur(t, Math.max(P, u(3)), interieur - 2 * mP, P);
                     var lP = t.width + 2 * mP;
                     if (px > x + pX && px + lP > x + pX + interieur) {
                         px = x + pX;          // pas la place : ligne suivante

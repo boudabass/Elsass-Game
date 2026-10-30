@@ -221,15 +221,18 @@ class ShopScene extends Phaser.Scene {
         if (action.width > texteW * 0.5 && actionCourt !== actionTexte) {
             action.setText(actionCourt);
         }
+        // Jamais sous le plancher de lisibilité de l'arcade (13 px, critique
+        // du 25/09) : ces planchers étaient en u() et pouvaient tomber à
+        // ~9 px sur un petit téléphone.
         let fsAction = 3.4;
         while (action.width > texteW * 0.5 && fsAction > 2.4) {
             fsAction -= 0.2;
-            action.setFontSize(Math.round(UI.u(this, fsAction)) + "px");
+            action.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, UI.u(this, fsAction))) + "px");
         }
         let fsNom = 4;
         while (nom.width > texteW - action.width - gap && fsNom > 3) {
             fsNom -= 0.2;
-            nom.setFontSize(Math.round(UI.u(this, fsNom)) + "px");
+            nom.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, UI.u(this, fsNom))) + "px");
         }
         action.setPosition(texteW, 0);
 

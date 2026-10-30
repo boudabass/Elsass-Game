@@ -60,7 +60,7 @@
         }).setOrigin(0.5).setDepth(profondeur + 1);
 
         var dessiner = function () {
-            texte.setFontSize(Math.round(u(tailleU)) + "px")
+            texte.setFontSize(Math.round(Math.max(UI.policeMinPx, u(tailleU))) + "px")
                 .setColor(alerte ? "#ffffff" : T.creme);
             var hauteur = texte.height + u(tailleU * 0.45);
             var largeur = texte.width + u(tailleU * 1.2);

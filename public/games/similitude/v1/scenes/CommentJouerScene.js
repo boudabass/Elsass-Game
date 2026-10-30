@@ -287,13 +287,15 @@ class CommentJouerScene extends Phaser.Scene {
      * Ajustement anti-débordement (pattern InventaireScene) : si le texte
      * wrapé dépasse la hauteur allouée dans sa carte, la police est
      * réduite progressivement (plancher config.policeMinU) — le texte ne
-     * déborde JAMAIS par-dessus l'élément suivant.
+     * déborde JAMAIS par-dessus l'élément suivant. Jamais sous le plancher
+     * de lisibilité de l'arcade (13 px, critique du 25/09 : ce plancher
+     * était en u() et pouvait tomber à ~6 px sur un petit téléphone).
      */
     _ajusterTexte(texte, hauteurMax, u) {
         const cj = window.SimilitudeConfig.commentJouer;
         const margeSecu = 2 * u(cj.margeTexteU);
         let fs = parseFloat(texte.style.fontSize);
-        const plancher = u(cj.policeMinU);
+        const plancher = Math.max(Arcade.UI.policeMinPx, u(cj.policeMinU));
         while (texte.height > hauteurMax - margeSecu && fs > plancher) {
             fs -= 0.5;
             texte.setFontSize(Math.round(fs) + "px");

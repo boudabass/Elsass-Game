@@ -147,7 +147,12 @@
              *                       calculées en u() par la scène).
              */
             placer: function (p) {
-                var cote = p.cote;
+                // Jamais sous la cible tactile de l'arcade (44 px, critique
+                // du 25/09 : la barre de jokers de Similitude tenait à
+                // 27 px sur petit téléphone). La case grandit, visuel ET
+                // zone de clic ensemble — pas juste une zone invisible
+                // plus grande autour d'une case restée petite.
+                var cote = Math.max(Arcade.UI.cibleMinPx, p.cote);
                 var espace = p.espace !== undefined ? p.espace : cote * 0.2;
                 var pas = cote + espace;
                 var x0 = p.x - (items.length - 1) * pas / 2;

@@ -10,7 +10,8 @@
  *      chaque quille touchée tombe et sort du jeu ;
  *   3. le TIR EN 2 ÉTAPES RÉUTILISÉ de Schieweschlawe (873 §5) : placement
  *      de la boule dans un DEMI-CERCLE (glisser libre 2D) dont le côté
- *      plat est collé à la ligne de lancer, orientation de la visée via 2
+ *      plat est collé à la ligne de lancer — REMPLACÉ le 27/09/2026 par
+ *      la planche de tir, cf. `planche` —, orientation de la visée via 2
  *      boutons ◄/► EN BAS de la zone de recul (rotation, 1° par clic, max
  *      10° de chaque côté), FORCE du tir réglable via 2 boutons -/+ EN
  *      HAUT de la colonne de droite (au-dessus de « Tirer », avec une
@@ -129,7 +130,7 @@ window.QuillesSaintGallConfig = {
         // PRD §10/12) ------------------------------------------------------
         menuSousTitre: "Choisis ta difficulté",
         menu: "Menu",
-        consigneLigne1: "Place la boule, oriente avec ◄ ►",
+        consigneLigne1: "Place la boule sur la planche, oriente avec ◄ ►",
         // Espaces insécables ( ) dans les guillemets : « » ne se
         // retrouve jamais seul en début de ligne quand la colonne est étroite.
         consigneLigne2: "Règle la force avec -/+, puis « Tirer »",
@@ -244,7 +245,27 @@ window.QuillesSaintGallConfig = {
         couleurBord: "#4a3220"
     },
 
-    // --- Zone de tir : demi-cercle de placement (les boutons de pivot/
+    // --- Planche de tir (27/09/2026, demande John — article 780 : « la
+    // boule doit être déposée sur la planche avant de toucher la piste »)
+    // Remplace le demi-cercle de placement libre décrit ci-dessous : la
+    // boule ne se pose QUE sur la planche (Visee.poser), la visée se fait
+    // uniquement par la rotation ◄/►. Largeur réelle (28-30 cm, borne
+    // haute) convertie via pxParCm comme la piste. Longueur : la vraie
+    // planche fait 300 cm sur 660 cm de zone de tir (45 %), mais la zone de
+    // tir du jeu est comprimée (hauteur = demi-largeur de piste) ; on garde
+    // de la place sous la planche pour l'élan, sans la rendre ridicule.
+    planche: {
+        largeurCm: 30,
+        longueurPctZoneTir: 80,
+        ligneFauteCm: 3,            // ligne de faute blanche, sur la piste juste après la planche
+        couleur: "#c9ced4",         // fibre de verre / acier
+        couleurBord: "#6b7580",
+        couleurLigneFaute: "#ffffff"
+    },
+
+    // --- Zone de tir : HISTORIQUE, demi-cercle de placement remplacé par
+    // la planche le 27/09 (seuls les réglages de rotation restent utilisés)
+    // (les boutons de pivot/
     // force/tirer sont dans la colonne d'info depuis le 31/08, cf.
     // GameScene._positionnerColonneInfo) ----------------------------------
     // (demande John, 30/08, revu plusieurs fois le 31/08). La boule se

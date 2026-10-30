@@ -86,8 +86,9 @@
             chevron.lineTo(s * r * 0.32, r * 0.35);
             chevron.strokePath();
             chevron.setPosition(x, y);
-            // Zone tactile : au moins ~9,5 % du petit côté.
-            var z = Math.max(diametre, UI.u(scene, 9.5));
+            // Zone tactile : au moins ~9,5 % du petit côté, et jamais sous
+            // la cible tactile de l'arcade (44 px).
+            var z = Math.max(UI.cibleMinPx, diametre, UI.u(scene, 9.5));
             zone.setPosition(x, y).setSize(z, z);
             if (zone.input && zone.input.hitArea) zone.input.hitArea.setSize(z, z);
         };

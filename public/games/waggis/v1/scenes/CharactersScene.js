@@ -202,15 +202,18 @@ class CharactersScene extends Phaser.Scene {
         if (!debloque && etat.width > texteW * 0.5) {
             etat.setText(C.textes.verrouille + " " + C.textes.aDebloquerCourt);
         }
+        // Jamais sous le plancher de lisibilité de l'arcade (13 px, critique
+        // du 25/09) : ces planchers étaient en u() et pouvaient tomber à
+        // ~9 px sur un petit téléphone.
         let fsEtat = 3.4;
         while (etat.width > texteW * 0.5 && fsEtat > 2.4) {
             fsEtat -= 0.2;
-            etat.setFontSize(Math.round(UI.u(this, fsEtat)) + "px");
+            etat.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, UI.u(this, fsEtat))) + "px");
         }
         let fsNom = 4;
         while (nom.width > texteW - etat.width - gap && fsNom > 3) {
             fsNom -= 0.2;
-            nom.setFontSize(Math.round(UI.u(this, fsNom)) + "px");
+            nom.setFontSize(Math.round(Math.max(Arcade.UI.policeMinPx, UI.u(this, fsNom))) + "px");
         }
         etat.setPosition(texteW, 0);
 
