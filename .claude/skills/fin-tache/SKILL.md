@@ -21,11 +21,22 @@ jamais « ça devrait marcher ». Si on ne peut pas prouver, on écrit « Non pr
 - « Fait ? » : Oui, Non, ou Partiel.
 - « Preuve » : `fichier:ligne` ou la sortie d'une commande lancée pendant ce run.
 
+## Base de comparaison (utilisée en §3 et §4)
+
+- **Par défaut** : tout ce qui n'est pas encore en prod, c'est-à-dire
+  `origin/main...HEAD`, plus les modifications non commitées.
+  Le travail est souvent déjà poussé avant ce contrôle : ne pas se fier à
+  `origin/dev` seul, qui ne montre alors rien.
+- **Si un commit est donné en argument** `<commit>` : `<commit>^..<commit>`
+  (on ne regarde que ce commit, sans les modifications non commitées).
+
 ## 3. Contrôles (à lancer réellement)
 
-- **Syntaxe** : lister les `.js` modifiés, suivis et non suivis :
-  `git diff --name-only origin/dev -- '*.js'` et
-  `git ls-files --others --exclude-standard -- '*.js'`.
+- **Syntaxe** : lister les `.js` modifiés, suivis et non suivis, dans la base :
+  `git diff --name-only origin/main...HEAD -- '*.js'`,
+  `git diff --name-only HEAD -- '*.js'` (non commités suivis) et
+  `git ls-files --others --exclude-standard -- '*.js'` (non suivis).
+  Pour un commit donné : `git diff --name-only <commit>^ <commit> -- '*.js'`.
   Lancer `node --check` sur chacun. Noter le résultat de chaque fichier.
 - **Tests du jeu touché** : pour chaque fichier `public/games/<jeu>/v1/tests/*.test.js`,
   lancer `node tests/<fichier>` depuis `public/games/<jeu>/v1`. Si le jeu n'a pas
@@ -37,7 +48,9 @@ Donner la sortie utile (exit code, dernières lignes) pour chaque contrôle.
 
 ## 4. Pièges de la charte, dans le diff seulement
 
-Chercher uniquement dans les lignes AJOUTÉES (`git diff origin/dev`, lignes `+`) :
+Chercher uniquement dans les lignes AJOUTÉES, avec la base de la section
+« Base de comparaison » (`git diff origin/main...HEAD` et `git diff HEAD`, ou
+`git diff <commit>^ <commit>` si un commit est donné ; lignes qui commencent par `+`) :
 - `fillStyle(` suivi d'une chaîne entre guillemets (il n'accepte que des nombres ;
   passer par `Arcade.UI.couleur`).
 - Texte entre guillemets écrit directement dans une scène (il doit venir de

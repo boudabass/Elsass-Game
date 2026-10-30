@@ -32,7 +32,7 @@ Correspondance jeu → article Odoo :
 - schieweschlawe : 873
 - quillessaintgall : 875 (règles 780 et 877)
 - similitude : 473 et 728
-- elsass-farm : 434
+- elsass-farm : 434 (roadmap, contient le Bloc B)
 - Si la demande touche `core/ui/` : l'article 458 aussi.
 
 **Cigogne et Waggis n'ont pas d'article PRD dédié.** Le dire à John et ne rien
@@ -52,16 +52,27 @@ Options : « Oui, je code » / « Non, je ne fais rien » / « Autre chose ».
 
 **Sans « oui » explicite de John : stop. Ne rien coder.**
 
-## 5. Coder, puis documenter
+## 5. Écrire la règle dans la PRD, AVANT de coder
+
+Une fois le « oui » de John reçu, et seulement alors :
+- mettre à jour la section concernée de l'article PRD avec la nouvelle règle
+  (valeur exacte, nouveau comportement), avec l'outil Odoo `update_record` sur
+  `knowledge.article` ;
+- ne jamais écrire « cf. mémoire » ou « voir la mémoire du studio » : John doit
+  pouvoir lire l'article seul.
+
+## 6. Coder
 
 - Faire la modification : dans `config.js` pour un réglage, dans la scène pour
   une retouche (en passant toujours par la config).
-- Mettre à jour la section concernée de l'article PRD.
-- **Relire l'article ENTIER**, pas seulement la section changée. Vérifier qu'aucune
-  autre section n'est devenue fausse (leçon de l'article 875). Corriger ce qui l'est.
-- Ne jamais écrire « cf. mémoire » ou « voir la mémoire du studio » dans un
-  article : John doit pouvoir le lire seul.
+- Rester strictement dans ce que la règle écrite en §5 décrit.
 
-## 6. Terminer
+## 7. Relire l'article ENTIER, puis corriger
+
+- Après le code, relire **l'article entier**, pas seulement la section changée.
+- Vérifier qu'aucune autre section n'est devenue fausse (leçon de l'article 875).
+  Corriger ce qui l'est.
+
+## 8. Terminer
 
 Dire à John : **« Lance /fin-tache avant de dire que c'est fini. »**

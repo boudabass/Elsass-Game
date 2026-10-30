@@ -31,6 +31,13 @@ Langage : français simple, sans jargon. Pas de mots comme « commit », « core
 6. Mettre EN PREMIER les points jamais vérifiés par un humain : lire la section
    « Attend le test de John » d'`ETAT.md`. Si ce fichier est absent, le dire et
    s'appuyer seulement sur les commits.
+   - Les changements déjà marqués « validé par John » dans `ETAT.md` (ou dans
+     `CLAUDE-journal.md`) sont **ÉCARTÉS** de la fiche. On ne les liste que sur
+     une ligne finale : « Déjà validé : … ».
+   - **Décrire seulement ce que le code fait réellement** : vérifier dans
+     `config.js` et les scènes avant d'écrire « au niveau N » ou « à tel moment ».
+     Exemple : un décor présent sur tous les niveaux ne se décrit pas comme lié
+     à un seul niveau. Seule la consigne propre à un niveau le dit.
 7. Afficher la fiche dans la conversation. **Ne rien écrire sur le disque.**
 
 ## Mode `apres` : trier les retours
