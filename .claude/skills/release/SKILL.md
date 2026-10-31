@@ -98,8 +98,11 @@ origin) seulement avec l'accord de John.
 
 - Mettre à jour l'article Odoo **406** (faits saillants : version et nouveautés).
 - Mettre à jour l'article Odoo **425** (périmètre des jeux) si un jeu a changé d'état.
-- Noter la release dans `CLAUDE.md` (fichier local gitignoré, pas versionné) :
-  version, date, contenu, et ce qui reste à faire.
+- Réécrire `ETAT.md` (fichier local gitignoré, ≤ 40 lignes) : version en prod,
+  « Prêt pour release » vidé, ce qui reste à faire.
+- Ajouter une entrée datée dans `CLAUDE-journal.md` (local, gitignoré) :
+  version, hash du merge, commits livrés, incidents éventuels.
+- Ne rien écrire dans `CLAUDE.md` (contexte stable uniquement).
 
 Annoncer à John la version mise en prod, le hash du commit de merge et le lien
 vers le tag.
