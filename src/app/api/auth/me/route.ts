@@ -4,7 +4,7 @@ import { getSessionUser } from '@/app/actions/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  // Session signée vérifiée côté serveur (plus fiable que le cookie arcade_user).
+  // Session signée vérifiée côté serveur (plus fiable que le cookie arcade_user_v2).
   const sessionUser = await getSessionUser();
 
   if (!sessionUser) {

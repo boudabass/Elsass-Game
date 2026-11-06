@@ -4,7 +4,6 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/components/auth-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
-import { IframeResizer } from "@/components/iframe-resizer";
 
 export const metadata: Metadata = {
   title: "Arcade | The Elsassisch",
@@ -22,7 +21,6 @@ export default function RootLayout({
         className={`${azimut.variable} ${montserrat.variable} font-sans antialiased`}
         suppressHydrationWarning
       >
-        <IframeResizer />
         <AuthProvider>
           <LayoutWrapper>
             {children}

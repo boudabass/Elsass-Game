@@ -4,28 +4,29 @@ import { cookies } from "next/headers";
 import { odooClient } from "@/lib/odoo";
 import { signSession, verifySession, type SessionUser } from "@/lib/session";
 
-const SESSION_COOKIE_NAME = "arcade_session";
-const USER_COOKIE_NAME = "arcade_user";
+// Suffixe "_v2" (07/11/2026) : les anciens cookies étaient posés avec
+// `partitioned` (CHIPS), donc stockés à part par le navigateur. En changeant
+// de nom, l'app ne lit plus jamais l'ancienne copie ; elle expire seule
+// (7 jours). Même nom en dur dans src/middleware.ts.
+const SESSION_COOKIE_NAME = "arcade_session_v2";
+const USER_COOKIE_NAME = "arcade_user_v2";
 
 // Durée de la session (c'est NOUS qui décidons maintenant, plus Odoo).
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 jours
 
-// Domaine de cookie optionnel (ex. ".monsite.com") : la session devient
-// "same-site" dans l'iframe quand l'app est servie sur un sous-domaine.
+// Domaine de cookie optionnel (ex. ".monsite.com") : partagé entre les
+// sous-domaines (elsass-game. et elsass-game-dev.).
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined;
 
-// Options communes aux cookies de session.
-// - sameSite "none" + secure : requis pour un contexte d'iframe cross-site.
-// - partitioned (CHIPS) : autorise le cookie dans une iframe tierce sur
-//   Chrome/Edge/Firefox (partitionné par site parent) au lieu d'être bloqué.
-//   NB: Safari n'honore pas CHIPS -> la solution durable reste le sous-domaine.
+// Options communes aux cookies de session. L'arcade est ouverte directement
+// dans le navigateur (plus d'iframe Odoo) : sameSite "lax" suffit, et le jeu
+// est une iframe de même origine, donc le cookie lui parvient aussi.
 function baseCookieOptions() {
   const opts: Record<string, unknown> = {
     secure: true,
-    sameSite: "none",
+    sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
-    partitioned: true,
   };
   if (COOKIE_DOMAIN) opts.domain = COOKIE_DOMAIN;
   return opts;
@@ -37,7 +38,7 @@ export async function setSessionCookie(token: string, user?: any) {
 
   if (user) {
     // Cookie lisible côté client, pour l'affichage uniquement (jamais une
-    // preuve d'identité : seule la signature d'arcade_session fait foi).
+    // preuve d'identité : seule la signature d'arcade_session_v2 fait foi).
     cookieStore.set(USER_COOKIE_NAME, JSON.stringify(user), { ...baseCookieOptions(), httpOnly: false } as any);
   }
 }
@@ -54,8 +55,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function clearSessionCookie() {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
-  cookieStore.delete(USER_COOKIE_NAME);
+  // Un cookie ne s'efface que si le navigateur reçoit les MÊMES attributs
+  // (domain, path) qu'à la pose : un simple delete(nom) sans domaine laisse
+  // le cookie posé sur COOKIE_DOMAIN en place.
+  const effacement = { ...baseCookieOptions(), maxAge: 0 };
+  cookieStore.set(SESSION_COOKIE_NAME, "", { ...effacement, httpOnly: true } as any);
+  cookieStore.set(USER_COOKIE_NAME, "", { ...effacement, httpOnly: false } as any);
 }
 
 export async function signInAction(formData: FormData) {

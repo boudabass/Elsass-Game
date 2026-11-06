@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors *;",
+            // 'self' (pas 'none') : le jeu est servi dans une iframe de même
+            // origine (game-shell.tsx). L'arcade n'est plus embarquée ailleurs.
+            value: "frame-ancestors 'self';",
           },
         ],
       },
