@@ -370,9 +370,32 @@ window.QuillesSaintGallConfig = {
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
-        // seconde, appliquée directement à `body.velocity` chaque frame
-        // (GameScene.update). Plus haut = elle s'arrête plus vite.
+        // seconde. 07/11/2026 : ne s'applique plus qu'à la composante LE LONG de
+        // l'axe de la quille (le roulement de côté a son propre frottement,
+        // cf. frictionRoulementPar_s). Valeur inchangée : 4. Plus haut = elle
+        // s'arrête plus vite.
         frictionGlissementPar_s: 4,
+        // 07/11/2026 (demande John : « comme elles sont en forme de tube elles
+        // doivent pouvoir rouler sur le côté ») : NOUVEAU. Fraction de la vitesse
+        // PERPENDICULAIRE à l'axe de la quille perdue par seconde (roulement, très
+        // faible). Ancien comportement : aucun frottement de roulement, le
+        // frottement de glissement de 4/s s'appliquait dans toutes les directions,
+        // donc une quille lancée de côté s'arrêtait comme dans sa longueur.
+        // 1,2/s : une quille lancée de côté parcourt ~3× plus loin que dans sa
+        // longueur (4 / 1,2 ≈ 3,3).
+        frictionRoulementPar_s: 1.2,
+        // 07/11/2026 (demande John : « elles doivent pouvoir pivoter comme une
+        // toupie ») : NOUVEAU. Fraction de la vitesse de rotation perdue par
+        // seconde. Plus haut = la toupie s'arrête plus vite.
+        frictionRotationPar_s: 2,
+        // 07/11/2026 : NOUVEAU. Part de la vitesse tangentielle du choc qui fait
+        // tourner une quille renversée : ω0 = facteur × composante tangentielle /
+        // rayon. 0 = pas de toupie ; plus haut = rotation plus forte.
+        toupieAuChocFacteur: 0.3,
+        // 07/11/2026 : NOUVEAU. Vitesse de rotation maximale d'une quille (rad/s),
+        // appliquée au frottement et au choc. 15 rad/s ≈ 860 °/s, sous la borne
+        // native d'Arcade (maxAngular = 1000 °/s).
+        vitesseRotationMaxRad_s: 15,
         // Seuil de vitesse (% de hauteur écran/s) en dessous duquel une
         // quille qui glisse et touche une quille encore debout ne la
         // renverse pas (elle agit comme un mur immobile, cf.

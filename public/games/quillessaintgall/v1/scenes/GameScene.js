@@ -317,6 +317,7 @@ class GameScene extends Phaser.Scene {
             q.setData("debout", dansLeJet && !dejaAbattue);
             q.setData("absente", !dansLeJet || dejaAbattue);
             q.body.setVelocity(0, 0);
+            q.body.setAngularVelocity(0);
             q.setAngle(0);
         });
 
