@@ -368,9 +368,11 @@ class Quilles {
 
             // Corps physique : absente = désactivé (jamais collisionnable) ;
             // debout = mur immobile (masse "infinie", cf. _rendreQuilleMobile
-            // qui le bascule mobile SEULEMENT si elle tombe) ; déjà tombée
-            // (phases D/E persistantes, cf. _demarrerJet) = corps mobile,
-            // au repos, avec sa vraie masse — peut encore être bousculée.
+            // qui le bascule mobile SEULEMENT si elle tombe) ; tombée pendant le
+            // jet en cours (redimensionnement en cours de jet) = corps mobile, au
+            // repos, avec sa vraie masse. Entre deux jets, une quille abattue en
+            // phases D/E est absente (retirée de la piste, cf. GameScene._demarrerJet),
+            // donc ce cas ne se présente plus à ce moment-là.
             const debout = q.getData("debout");
             const absente = q.getData("absente");
             q.body.enable = !absente;

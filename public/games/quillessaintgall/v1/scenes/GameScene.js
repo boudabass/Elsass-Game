@@ -292,6 +292,13 @@ class GameScene extends Phaser.Scene {
         // demande explicite de John. `this.ordrePhaseAbattues` (Set des
         // indices déjà légitimement tombés) n'est réinitialisé qu'au 1er
         // jet de la phase (9 ou 14) ; cf. _calculerOrdreJet pour son usage.
+        // Une quille déjà légitimement abattue est RETIRÉE de la piste pour
+        // les jets suivants (absente : invisible, sans collision), et non
+        // laissée couchée. Règlement, art. 877 fig. 8 : « Le jet sur la quille
+        // N°4 (25) doit être effectué avec cette seule quille sur le jeu » ; les
+        // quilles régulièrement abattues sont retirées par le préposé et ne sont
+        // PAS relevées (demande John du 07/11/2026). Une quille tombée PAR ERREUR
+        // (jet fautif) n'est pas dans ce Set : elle est relevée.
         const jc = this.jetConfig;
         if (jc.type === "ordre" && (n === 9 || n === 14)) {
             this.ordrePhaseAbattues = new Set();
@@ -308,7 +315,7 @@ class GameScene extends Phaser.Scene {
             const dansLeJet = !figureIndices || figureIndices.includes(idx);
             const dejaAbattue = !!abattuesPhase && abattuesPhase.has(idx);
             q.setData("debout", dansLeJet && !dejaAbattue);
-            q.setData("absente", !dansLeJet);
+            q.setData("absente", !dansLeJet || dejaAbattue);
             q.body.setVelocity(0, 0);
             q.setAngle(0);
         });
