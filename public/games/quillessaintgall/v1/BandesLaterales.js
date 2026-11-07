@@ -55,9 +55,9 @@ class BandesLaterales {
 
     /**
      * Colliders boule↔bandes et quilles↔bandes. Appelé depuis
-     * GameScene._creerColliders(), juste après le collider quille↔quille
+     * Quilles._creerColliders(), juste après le collider quille↔quille
      * (même ordre relatif d'enregistrement qu'avant l'extraction).
-     * `scene._corrigerRebondMur` reste dans GameScene (générique, partagé
+     * `scene.quillesSys._corrigerRebondMur` (Quilles.js, générique, partagé
      * avec boule↔quille/quille↔quille) — rappelé ici en collideCallback.
      */
     creerColliders() {
@@ -65,10 +65,10 @@ class BandesLaterales {
         // Boule ↔ bandes latérales (PRD 875 §12) : la boule rebondit
         // (collision solide), le contact est détecté pour faute. Un seul
         // collider pour les 2 bandes (this.groupe), même idiome que
-        // boule↔quillesGroup dans GameScene._creerColliders.
+        // boule↔quillesGroup dans Quilles._creerColliders.
         scene.physics.add.collider(
             scene.boule, this.groupe,
-            (boule, bande) => scene._corrigerRebondMur(boule, bande),
+            (boule, bande) => scene.quillesSys._corrigerRebondMur(boule, bande),
             (boule, bande) => this.processCollisionBoule(boule, bande),
             this
         );
@@ -76,7 +76,7 @@ class BandesLaterales {
         // une bande est considérée comme renversée.
         scene.physics.add.collider(
             scene.quillesGroup, this.groupe,
-            (quille, bande) => scene._corrigerRebondMur(quille, bande),
+            (quille, bande) => scene.quillesSys._corrigerRebondMur(quille, bande),
             (quille, bande) => this.processCollisionQuille(quille, bande),
             this
         );
@@ -96,7 +96,7 @@ class BandesLaterales {
      * DEBOUT après contact avec une bande est considérée comme RENVERSÉE
      * (compter ses points normalement selon le jet en cours). S'il s'agit
      * déjà d'une quille tombée, on laisse le rebond physique
-     * (scene._corrigerRebondMur) sans changer son état. Direction de
+     * (scene.quillesSys._corrigerRebondMur) sans changer son état. Direction de
      * chute = normale de contact (quille - bande), même convention que
      * _corrigerRebondMur — la quille tombe en s'écartant de la bande,
      * pas toujours vers le bas.
@@ -104,8 +104,8 @@ class BandesLaterales {
     processCollisionQuille(quille, bande) {
         const scene = this.scene;
         if (quille.getData("debout")) {
-            scene._toucherQuille(quille, quille.x - bande.x, quille.y - bande.y);
-            scene._rendreQuilleMobile(quille);
+            scene.quillesSys._toucherQuille(quille, quille.x - bande.x, quille.y - bande.y);
+            scene.quillesSys._rendreQuilleMobile(quille);
         }
         return true;
     }
