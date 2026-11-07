@@ -409,7 +409,13 @@ window.QuillesSaintGallConfig = {
         // quilles) ; à 30, 6 % ; à 40, 0 %. Le frottement des quilles
         // couchées et la restitution ne changent presque rien. N'agit que
         // sur les chocs quille→quille : la boule n'est pas concernée.
-        vitesseMinRenverseAutreQuillePct: 27
+        // 07/11/2026 (soir) : 27 → 10, recalibré après le passage des quilles
+        // couchées en capsule (ContactsCouchees.js) : elles ne renversent plus
+        // leurs voisines « à distance » (ancien test de portée du rectangle),
+        // seulement par un vrai contact. À 27 : moyenne 5,7, jamais 9/9 ;
+        // à 10 : moyenne 6,3, 9/9 dans 20 % des tirs quasi droits ; tir moins
+        // précis (±4°) : moyenne 4,7.
+        vitesseMinRenverseAutreQuillePct: 10
     },
 
     // --- Boule ---------------------------------------------------------------

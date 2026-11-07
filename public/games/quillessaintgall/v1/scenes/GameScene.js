@@ -189,7 +189,6 @@ class GameScene extends Phaser.Scene {
 
     update(time, delta) {
         const dt = delta / 1000;
-        this.frameMoteur++;
         if (this.etat === "jauge") {
             this.jauge.avancer(dt);
         } else if (this.etat === "feedback") {
@@ -207,6 +206,11 @@ class GameScene extends Phaser.Scene {
         // Quilles couchées : contacts boule / quille / bande en capsule,
         // résolus à chaque frame (cf. ContactsCouchees.js).
         this.contacts.resoudre();
+        // Incrémenté en FIN d'update : une quille renversée pendant le pas
+        // Arcade de cette frame (qui tourne AVANT update) porte chuteFrame =
+        // frameMoteur jusqu'ici, et n'est donc pas encore « couchée » pour
+        // contacts.resoudre() (son choc vient d'être traité par Arcade).
+        this.frameMoteur++;
     }
 
     // --- Partie / jets (PRD §7-9) ----------------------------------------------
@@ -274,6 +278,7 @@ class GameScene extends Phaser.Scene {
             const dejaAbattue = !!abattuesPhase && abattuesPhase.has(idx);
             q.setData("debout", dansLeJet && !dejaAbattue);
             q.setData("absente", !dansLeJet || dejaAbattue);
+            q.setData("decalageChute", null);
             q.body.setVelocity(0, 0);
             q.body.setAngularVelocity(0);
             q.setAngle(0);

@@ -533,6 +533,14 @@ class Quilles {
         const norme = Math.hypot(dirX, dirY);
         if (norme > 0.0001) {
             quille.setRotation(Math.atan2(-dirX / norme, dirY / norme));
+            // Une quille tombe en pivotant sur sa BASE : couchée, son centre
+            // est une demi-longueur (moins le rayon) DEVANT sa place debout.
+            // Sans ça, la moitié arrière de sa capsule se retrouve dans la
+            // boule qui vient de la frapper (07/11/2026). Décalage appliqué par
+            // ContactsCouchees.resoudre et pas ici : on est parfois dans un
+            // processCallback Arcade, qui reteste le recouvrement juste après.
+            const hs = scene.quilleHauteurTombeePx / 2 - scene.rayonQuille;
+            quille.setData("decalageChute", { x: dirX / norme * hs, y: dirY / norme * hs });
         }
 
         // Chute de CE frame : une quille couchée depuis un frame antérieur est

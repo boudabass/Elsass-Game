@@ -82,6 +82,14 @@ class ContactsCouchees {
     resoudre() {
         const scene = this.scene;
         const S = scene.quillesSys;
+        // Pivot sur la base des quilles tombées depuis le dernier passage
+        // (cf. Quilles._toucherQuille) : leur centre avance d'une demi-longueur.
+        scene.quilles.forEach((q) => {
+            const d = q.getData("decalageChute");
+            if (!d) return;
+            q.setData("decalageChute", null);
+            if (q.body.enable) this._deplacer(q, d.x, d.y);
+        });
         const couchees = scene.quilles.filter((q) => S._estCouchee(q));
         if (couchees.length === 0) return;
         const debout = scene.quilles.filter((q) => q.body.enable && q.getData("debout"));
@@ -99,8 +107,9 @@ class ContactsCouchees {
         const boule = scene.boule;
         const rB = boule.displayWidth / 2;             // rayon effectif (cf. Visee.positionnerBoule)
         const seg = this._segment(q);
-        const p = ContactsCouchees.pointLePlusProcheSegment(boule.x, boule.y, seg.c.x, seg.c.y, seg.a.x, seg.a.y, seg.hs);
-        const dx = p.qx - boule.x, dy = p.qy - boule.y;   // de la boule vers la quille
+        const cb = boule.body.center;
+        const p = ContactsCouchees.pointLePlusProcheSegment(cb.x, cb.y, seg.c.x, seg.c.y, seg.a.x, seg.a.y, seg.hs);
+        const dx = p.qx - cb.x, dy = p.qy - cb.y;         // de la boule vers la quille
         const d = Math.hypot(dx, dy);
         if (d >= rB + scene.rayonQuille) return;
         const n = d > 1e-6 ? { x: dx / d, y: dy / d } : { x: -seg.a.y, y: seg.a.x };
@@ -123,8 +132,9 @@ class ContactsCouchees {
         const C = window.QuillesSaintGallConfig;
         const rQ = scene.rayonQuille;
         const seg = this._segment(q);
-        const p = ContactsCouchees.pointLePlusProcheSegment(d.x, d.y, seg.c.x, seg.c.y, seg.a.x, seg.a.y, seg.hs);
-        const dx = d.x - p.qx, dy = d.y - p.qy;       // du point de contact vers la quille debout
+        const cd = d.body.center;
+        const p = ContactsCouchees.pointLePlusProcheSegment(cd.x, cd.y, seg.c.x, seg.c.y, seg.a.x, seg.a.y, seg.hs);
+        const dx = cd.x - p.qx, dy = cd.y - p.qy;     // du point de contact vers la quille debout
         const dist = Math.hypot(dx, dy);
         if (dist >= 2 * rQ) return;
         const n = dist > 1e-6 ? { x: dx / dist, y: dy / dist } : { x: -seg.a.y, y: seg.a.x };
@@ -185,12 +195,18 @@ class ContactsCouchees {
         this._choquer(sortie, q, bande);
     }
 
-    /** Axe, centre et demi-longueur de la partie droite de la capsule d'une quille couchée. */
+    /**
+     * Axe, centre et demi-longueur de la partie droite de la capsule d'une
+     * quille couchée. Lus sur le CORPS (body.center, body.rotation en degrés),
+     * pas sur le sprite : resoudre() tourne dans GameScene.update, après le pas
+     * Arcade mais AVANT que le sprite ne le recopie (body.postUpdate) ; le
+     * sprite a donc une frame de retard à ce moment-là.
+     */
     _segment(q) {
         const scene = this.scene;
-        const th = q.rotation;
+        const th = Phaser.Math.DegToRad(q.body.rotation);
         return {
-            c: { x: q.x, y: q.y },
+            c: { x: q.body.center.x, y: q.body.center.y },
             a: { x: -Math.sin(th), y: Math.cos(th) },
             hs: scene.quilleHauteurTombeePx / 2 - scene.rayonQuille,
         };
@@ -211,11 +227,16 @@ class ContactsCouchees {
         this._deplacer(B, n.x * k * iB, n.y * k * iB);
     }
 
-    /** Déplace le sprite (ses x, y) puis resynchronise son corps Arcade. */
+    /**
+     * Déplace le CORPS seulement : body.postUpdate recopie ensuite sur le
+     * sprite tout le déplacement de la frame (mouvement Arcade + cette
+     * correction). Déplacer le sprite puis appeler updateFromGameObject()
+     * perdrait le mouvement de la frame et appliquerait la correction deux fois.
+     */
     _deplacer(go, dx, dy) {
-        go.x += dx;
-        go.y += dy;
-        go.body.updateFromGameObject();
+        go.body.position.x += dx;
+        go.body.position.y += dy;
+        go.body.updateCenter();
     }
 
     /** Applique les vitesses calculées par Quilles._impulsion (un mur ne reçoit rien). */

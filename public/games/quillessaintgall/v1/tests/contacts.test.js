@@ -41,10 +41,10 @@ function corps(x, y, { masse = 2.8, immovable = false, index, debout = false, ro
         body: {
             mass: masse, immovable, enable: true,
             velocity: { x: 0, y: 0 }, angularVelocity: 0, bounce: { x: 0.85, y: 0.85 },
-            center: { x, y },
+            position: { x, y }, center: { x, y }, rotation: rotation * 180 / Math.PI,
             setVelocity(vx, vy) { this.velocity = { x: vx, y: vy }; },
             setAngularVelocity(w) { this.angularVelocity = w; },
-            updateFromGameObject() { this.center = { x: go.x, y: go.y }; },
+            updateCenter() { this.center = { x: this.position.x, y: this.position.y }; },
         },
     };
     return go;
@@ -169,7 +169,7 @@ test('bande : le bout qui dépasse est ramené dans la piste et rebondit', () =>
     q.body.velocity = { x: -50, y: 0 };
     const s = scene({ quilles: [q] });
     new ContactsCouchees(s).resoudre();
-    assert.ok(near(q.x, -68.5, 1e-9), `ramenée de 1,5 px vers la piste (x = ${q.x})`);
+    assert.ok(near(q.body.center.x, -68.5, 1e-9), `ramenée de 1,5 px vers la piste (x = ${q.body.center.x})`);
     assert.ok(q.body.velocity.x > 0, `rebond vers la piste (vx = ${q.body.velocity.x})`);
 });
 
