@@ -357,6 +357,16 @@ window.QuillesSaintGallConfig = {
         // ≈ 4/3 de la vitesse d'impact). Valeur de départ : 0,9, à valider sur
         // elsass-game-dev (cf. compte rendu du 07/11).
         restitutionChoc: 0.9,
+        // 07/11/2026 (Orchestrateur, retour de John « la boule ne devrait pas
+        // être autant déviée » / « les quilles semblent 2 fois plus lourdes que
+        // la boule ») : nouveau. Part de la masse réelle d'une quille qui
+        // s'oppose à un choc (Quilles._chocElastique) : frappée près de sa
+        // base, elle bascule au lieu de reculer d'un bloc (tige frappée à son
+        // extrémité = m/4). Les masses réelles (2,8 / 5,5 kg) ne changent pas.
+        // 1 = disques pleins (boule déviée jusqu'à 31°) ; 0.25 : boule déviée
+        // de 7° au plus, qui garde ~70 % de sa vitesse, quille éjectée à ~1,6 ×
+        // la vitesse d'impact. Plus bas = boule encore moins déviée.
+        masseEffectiveChocFacteur: 0.25,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par

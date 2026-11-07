@@ -215,9 +215,54 @@ class Quilles {
         const nx = dx / dist, ny = dy / dist;
         const approche = (va.x - vb.x) * nx + (va.y - vb.y) * ny;
         if (approche <= 0) { ca.setVelocity(va.x, va.y); cb.setVelocity(vb.x, vb.y); return; }
-        const j = (1 + C.quille.restitutionChoc) * approche / (1 / ca.mass + 1 / cb.mass);
-        ca.setVelocity(va.x - (j / ca.mass) * nx, va.y - (j / ca.mass) * ny);
-        cb.setVelocity(vb.x + (j / cb.mass) * nx, vb.y + (j / cb.mass) * ny);
+        // Masse EFFECTIVE d'une quille au choc (07/11/2026, Orchestrateur,
+        // retour de John « on dirait que les quilles sont 2 fois plus lourdes
+        // que la boule ») : une quille frappée près de sa base bascule au lieu
+        // de reculer d'un bloc, elle oppose donc bien moins que ses 2,8 kg
+        // (tige frappée à son extrémité : m / (1 + m·d²/I) = m/4). Sans ça, en
+        // disques 2D, la boule est déviée jusqu'à asin(2,8/5,5) ≈ 31° ; avec,
+        // au plus ≈ 7°. Entre deux quilles, le facteur s'annule (même masse).
+        const m = (go) => go.getData("index") !== undefined
+            ? go.body.mass * C.quille.masseEffectiveChocFacteur
+            : go.body.mass;
+        const ma = m(a), mb = m(b);
+        const j = (1 + C.quille.restitutionChoc) * approche / (1 / ma + 1 / mb);
+        ca.setVelocity(va.x - (j / ma) * nx, va.y - (j / ma) * ny);
+        cb.setVelocity(vb.x + (j / mb) * nx, vb.y + (j / mb) * ny);
+    }
+
+    /**
+     * Une quille TOMBÉE qui glisse (`source`) renverse-t-elle la quille
+     * debout `cible` en tombant dessus ? (07/11/2026, Orchestrateur, retour de
+     * John : « les quilles devraient être presque éjectées et toucher les
+     * autres »). Appelé par GameScene._resoudreChevauchements AVANT d'écarter
+     * la quille tombée : jusque-là, la règle de non-chevauchement (31/08)
+     * repoussait la quille tombée hors de sa voisine avant que leurs corps ne
+     * se touchent, si bien qu'aucune quille n'en renversait une autre.
+     * Géométrie : le rectangle de la quille tombée, orienté selon sa vitesse ;
+     * seule sa moitié AVANT compte (une quille tombe vers l'avant), et la
+     * cible doit être devant elle. Même seuil de vitesse que le contact direct
+     * (vitesseMinRenverseAutreQuillePct), puis même échange de vitesse que les
+     * autres chocs (_chocElastique). Retourne true si la cible est tombée.
+     */
+    _renverserParQuilleTombee(cible, source) {
+        const scene = this.scene;
+        if (!cible.getData("debout") || !cible.body.immovable) return false;
+        const v = source.body.velocity;
+        const vitesse = Math.hypot(v.x, v.y);
+        if (vitesse < 0.0001) return false;
+        const ux = v.x / vitesse, uy = v.y / vitesse;
+        const dx = cible.x - source.x, dy = cible.y - source.y;
+        const avant = dx * ux + dy * uy;                 // distance le long de la chute
+        const cote = Math.abs(dx * uy - dy * ux);        // écart à l'axe de la quille
+        if (avant <= 0) return false;
+        if (avant > scene.quilleHauteurTombeePx / 2 + scene.rayonQuille) return false;
+        if (cote > 2 * scene.rayonQuille) return false;
+        this._essayerRenverserParContact(cible, source);
+        if (cible.getData("debout")) return false;
+        this._memoriserAvantChoc(source, cible);
+        this._chocElastique(source, cible);
+        return true;
     }
 
     /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */

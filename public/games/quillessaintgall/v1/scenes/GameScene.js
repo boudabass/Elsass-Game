@@ -223,6 +223,12 @@ class GameScene extends Phaser.Scene {
                 const rSomme = rayonEffectif(a) + rayonEffectif(b);
                 if (dist >= rSomme || dist < 0.0001) return;
 
+                // Quille tombée qui arrive sur une quille debout : elle la
+                // renverse si elle tombe dessus assez vite (07/11/2026, cf.
+                // Quilles._renverserParQuilleTombee) ; sinon elle est écartée
+                // comme avant.
+                if (b.getData("debout")) this.quillesSys._renverserParQuilleTombee(b, a);
+
                 const chevauchement = rSomme - dist;
                 const nx = dx / dist, ny = dy / dist;
                 // b debout (fixe) : a absorbe tout le chevauchement.
