@@ -343,20 +343,73 @@ window.QuillesSaintGallConfig = {
         // chiffré le 01/09 : à 0.15, un choc à vitesse d'impact 198 ne
         // transmettait que ~3 de vitesse à la quille ; l'objectif est
         // qu'elle glisse pour de vrai.
+        // 07/11/2026 (diagnostic) : `bounce` ne s'applique plus aux chocs ENTRE
+        // quilles mobiles ni à la boule qui en percute une : ces chocs sont
+        // recalculés par Quilles._chocElastique (cf. restitutionChoc ci-dessous).
+        // `bounce` reste utilisé pour le rebond sur un mur ou une quille immobile
+        // (Quilles._corrigerRebondMur). Valeur inchangée : 0.85 → 0.85.
         bounce: 0.85,
+        // 07/11/2026 (diagnostic, cf. Quilles._chocElastique) : coefficient de
+        // restitution des chocs ENTRE CORPS MOBILES (boule↔quille et quille↔quille).
+        // Nouveau. Avant, ces chocs passaient par l'impulsion d'Arcade, qui oublie le
+        // facteur masse×masse : la quille ne recevait que ~7 % de la vitesse d'impact,
+        // la boule gardait ~80 %. 1 = choc parfaitement élastique (boule ≈ 1/3, quille
+        // ≈ 4/3 de la vitesse d'impact). Valeur de départ : 0,9, à valider sur
+        // elsass-game-dev (cf. compte rendu du 07/11).
+        restitutionChoc: 0.9,
+        // 07/11/2026 (Orchestrateur, retour de John « la boule ne devrait pas
+        // être autant déviée » / « les quilles semblent 2 fois plus lourdes que
+        // la boule ») : nouveau. Part de la masse réelle d'une quille qui
+        // s'oppose à un choc (Quilles._chocElastique) : frappée près de sa
+        // base, elle bascule au lieu de reculer d'un bloc (tige frappée à son
+        // extrémité = m/4). Les masses réelles (2,8 / 5,5 kg) ne changent pas.
+        // 1 = disques pleins (boule déviée jusqu'à 31°) ; 0.25 : boule déviée
+        // de 7° au plus, qui garde ~70 % de sa vitesse, quille éjectée à ~1,6 ×
+        // la vitesse d'impact. Plus bas = boule encore moins déviée.
+        masseEffectiveChocFacteur: 0.25,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
-        // seconde, appliquée directement à `body.velocity` chaque frame
-        // (GameScene.update). Plus haut = elle s'arrête plus vite.
+        // seconde. 07/11/2026 : ne s'applique plus qu'à la composante LE LONG de
+        // l'axe de la quille (le roulement de côté a son propre frottement,
+        // cf. frictionRoulementPar_s). Valeur inchangée : 4. Plus haut = elle
+        // s'arrête plus vite.
         frictionGlissementPar_s: 4,
+        // 07/11/2026 (demande John : « comme elles sont en forme de tube elles
+        // doivent pouvoir rouler sur le côté ») : NOUVEAU. Fraction de la vitesse
+        // PERPENDICULAIRE à l'axe de la quille perdue par seconde (roulement, très
+        // faible). Ancien comportement : aucun frottement de roulement, le
+        // frottement de glissement de 4/s s'appliquait dans toutes les directions,
+        // donc une quille lancée de côté s'arrêtait comme dans sa longueur.
+        // 1,2/s : une quille lancée de côté parcourt ~3× plus loin que dans sa
+        // longueur (4 / 1,2 ≈ 3,3).
+        frictionRoulementPar_s: 1.2,
+        // 07/11/2026 (demande John : « elles doivent pouvoir pivoter comme une
+        // toupie ») : NOUVEAU. Fraction de la vitesse de rotation perdue par
+        // seconde. Plus haut = la toupie s'arrête plus vite.
+        frictionRotationPar_s: 2,
+        // 07/11/2026 : NOUVEAU. Part de la vitesse tangentielle du choc qui fait
+        // tourner une quille renversée : ω0 = facteur × composante tangentielle /
+        // rayon. 0 = pas de toupie ; plus haut = rotation plus forte.
+        toupieAuChocFacteur: 0.3,
+        // 07/11/2026 : NOUVEAU. Vitesse de rotation maximale d'une quille (rad/s),
+        // appliquée au frottement et au choc. 15 rad/s ≈ 860 °/s, sous la borne
+        // native d'Arcade (maxAngular = 1000 °/s).
+        vitesseRotationMaxRad_s: 15,
         // Seuil de vitesse (% de hauteur écran/s) en dessous duquel une
         // quille qui glisse et touche une quille encore debout ne la
         // renverse pas (elle agit comme un mur immobile, cf.
         // Body.immovable dans _processCollisionQuilleQuille) — règle
         // fédérale du ricochet (quille qui revient de la fosse en renverse
         // une autre, jets 12/16), simulée pour de vrai depuis le 31/08.
-        vitesseMinRenverseAutreQuillePct: 8
+        // 07/11/2026 : 8 → 27 (retour de John : « en touchant la première,
+        // toutes les quilles volent et tombent »). Mesuré dans le vrai jeu
+        // (Chrome headless, jeu plein, force par défaut, tir quasi droit
+        // ±1,5°) : à 8, 9/9 dans 62 % des tirs ; à 27, 14 % (moyenne 7,5
+        // quilles) ; à 30, 6 % ; à 40, 0 %. Le frottement des quilles
+        // couchées et la restitution ne changent presque rien. N'agit que
+        // sur les chocs quille→quille : la boule n'est pas concernée.
+        vitesseMinRenverseAutreQuillePct: 27
     },
 
     // --- Boule ---------------------------------------------------------------
@@ -392,6 +445,10 @@ window.QuillesSaintGallConfig = {
         // sur un choc qui renverse une quille ; sur un choc qui n'en
         // renverse aucune (mur), un léger recul visuel est désormais
         // laissé possible, "le jeu le permet").
+        // 07/11/2026 (diagnostic) : pour un choc avec une quille MOBILE, `bounce`
+        // ne s'applique plus (vitesse recalculée par Quilles._chocElastique, cf.
+        // quille.restitutionChoc). Il reste utilisé pour le rebond sur un mur ou une
+        // quille immobile. Valeur inchangée : 0.85 → 0.85.
         bounce: 0.85,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :
@@ -593,15 +650,19 @@ window.QuillesSaintGallConfig = {
         texteSombre: "#141210",
         // Panneau lumineux du vrai jeu (demande John 31/08) : les 9 quilles
         // sont TOUTES identiques physiquement, seul l'affichage varie.
-        // quilleBase = base neutre de la texture "quille" (tintée en jaune
-        // ou rouge au runtime, cf. GameScene._appliquerEtatQuille) ;
+        // quilleBase = base blanche de la texture "quille" (animation de
+        // chute seulement) ; jaune et rouge ont chacune leur texture
+        // ("quilleEnPlace", "quilleAViser", cf. GameScene.genererTextures) ;
         // quilleEnPlace = JAUNE (debout, pas prépondérante) ;
-        // quillePreponderante = ROUGE (debout ET prépondérante du jet en
-        // cours) ; quilleTombee = BLANC (couchée au sol, texture
+        // quillePreponderante = ROUGE (debout ET à viser : prépondérante ou
+        // cible du jet en cours, cf. Regles._indexQuilleAViser) ; quilleTombee = BLANC (couchée au sol, texture
         // "quilleTombee", rectangle — jamais tintée).
         quilleBase: "#ffffff",
         quilleEnPlace: "#f4c430",
-        quillePreponderante: "#e5484d",
+        // 07/11/2026 : était #e5484d (rouge framboise, pas assez net : John ne
+        // distinguait pas la quille à viser du jaune). Nouvelle valeur = jeton
+        // rouge de la charte (core/ui/tokens.js, couleurs.rouge), demande John.
+        quillePreponderante: "#E31B23",
         quilleTombee: "#ffffff",
         quilleContour: "#2b3547",
         boule: 0xff7a1a,

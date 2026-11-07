@@ -62,19 +62,29 @@ class GameScene extends Phaser.Scene {
         const g = scene.make.graphics({ add: false });
 
         // Quille DEBOUT (32x32, vue du dessus) : disque + contour + reflet,
-        // base neutre (blanche) — la couleur réelle (jaune = en place,
-        // rouge = prépondérante) est appliquée au runtime via setTint,
-        // cf. GameScene._appliquerEtatQuille (demande John 31/08 :
+        // une texture par couleur (jaune = en place, rouge = à viser),
+        // choisie dans Quilles._appliquerEtatQuille (demande John 31/08 :
         // reproduit le panneau lumineux du vrai jeu, pas une quille
         // physiquement différente).
-        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
-        g.fillCircle(16, 16, 15);
-        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleBase).color, 1);
-        g.fillCircle(16, 16, 12);
-        g.fillStyle(0xffffff, 0.35);
-        g.fillCircle(12, 12, 4);
-        g.generateTexture("quille", 32, 32);
-        g.clear();
+        // 07/11/2026 : la couleur n'est plus appliquée par setTint mais par
+        // une texture par couleur. En rendu Canvas (navigateur sans carte
+        // graphique, ex. le Chrome du VPS de John), Phaser ignore setTint :
+        // toutes les quilles restaient blanches et la quille à viser ne se
+        // distinguait pas. "quille" (base blanche) reste pour l'animation de
+        // chute (cf. Quilles._toucherQuille).
+        const dessinerQuille = (cle, couleurBase) => {
+            g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
+            g.fillCircle(16, 16, 15);
+            g.fillStyle(Phaser.Display.Color.HexStringToColor(couleurBase).color, 1);
+            g.fillCircle(16, 16, 12);
+            g.fillStyle(0xffffff, 0.35);
+            g.fillCircle(12, 12, 4);
+            g.generateTexture(cle, 32, 32);
+            g.clear();
+        };
+        dessinerQuille("quille", C.couleurs.quilleBase);
+        dessinerQuille("quilleEnPlace", C.couleurs.quilleEnPlace);
+        dessinerQuille("quilleAViser", C.couleurs.quillePreponderante);
 
         // Quille TOMBÉE (32x32, vue du dessus) : rectangle blanc (couchée
         // au sol), PAS de tint appliqué au runtime — reste toujours dans
@@ -127,12 +137,14 @@ class GameScene extends Phaser.Scene {
         this.boutonRejouer = null;
         this.boutonMenu = null;
 
+        this.regles = new Regles(this);
+        this.quillesSys = new Quilles(this);
         this._creerDecor();
-        this._creerQuilles();
+        this.quillesSys._creerQuilles();
         this._creerBouleEtOmbre();
         this.bandes = new BandesLaterales(this);
         this.bandes.creer();
-        this._creerColliders();
+        this.quillesSys._creerColliders();
         this.visee = new Visee(this);
         this.visee.creer();
         this.jauge = new JaugePrecision(this);
@@ -185,7 +197,7 @@ class GameScene extends Phaser.Scene {
         // ralentir (jusqu'à l'arrêt) même une fois le jet terminé — leur
         // déplacement lui-même et les collisions quille↔quille sont
         // désormais gérés par Arcade Physics (cf. _creerColliders).
-        this._amortirQuillesMobiles(dt);
+        this.quillesSys._amortirQuillesMobiles(dt);
         // Les quilles TOMBÉES (rectangle 21% de long) sont plus grandes
         // que l'écart de la grille (12%) — sans ça elles chevaucheraient
         // leurs voisines dès la chute (demande John, 31/08).
@@ -220,6 +232,12 @@ class GameScene extends Phaser.Scene {
                 const dist = Math.hypot(dx, dy);
                 const rSomme = rayonEffectif(a) + rayonEffectif(b);
                 if (dist >= rSomme || dist < 0.0001) return;
+
+                // Quille tombée qui arrive sur une quille debout : elle la
+                // renverse si elle tombe dessus assez vite (07/11/2026, cf.
+                // Quilles._renverserParQuilleTombee) ; sinon elle est écartée
+                // comme avant.
+                if (b.getData("debout")) this.quillesSys._renverserParQuilleTombee(b, a);
 
                 const chevauchement = rSomme - dist;
                 const nx = dx / dist, ny = dy / dist;
@@ -274,6 +292,13 @@ class GameScene extends Phaser.Scene {
         // demande explicite de John. `this.ordrePhaseAbattues` (Set des
         // indices déjà légitimement tombés) n'est réinitialisé qu'au 1er
         // jet de la phase (9 ou 14) ; cf. _calculerOrdreJet pour son usage.
+        // Une quille déjà légitimement abattue est RETIRÉE de la piste pour
+        // les jets suivants (absente : invisible, sans collision), et non
+        // laissée couchée. Règlement, art. 877 fig. 8 : « Le jet sur la quille
+        // N°4 (25) doit être effectué avec cette seule quille sur le jeu » ; les
+        // quilles régulièrement abattues sont retirées par le préposé et ne sont
+        // PAS relevées (demande John du 07/11/2026). Une quille tombée PAR ERREUR
+        // (jet fautif) n'est pas dans ce Set : elle est relevée.
         const jc = this.jetConfig;
         if (jc.type === "ordre" && (n === 9 || n === 14)) {
             this.ordrePhaseAbattues = new Set();
@@ -290,8 +315,9 @@ class GameScene extends Phaser.Scene {
             const dansLeJet = !figureIndices || figureIndices.includes(idx);
             const dejaAbattue = !!abattuesPhase && abattuesPhase.has(idx);
             q.setData("debout", dansLeJet && !dejaAbattue);
-            q.setData("absente", !dansLeJet);
+            q.setData("absente", !dansLeJet || dejaAbattue);
             q.body.setVelocity(0, 0);
+            q.body.setAngularVelocity(0);
             q.setAngle(0);
         });
 
@@ -421,133 +447,11 @@ class GameScene extends Phaser.Scene {
         this._positionnerTextes();
     }
 
-    // --- Score du jet (PRD §7-9) -------------------------------------------
-
-    /**
-     * Calcule le résultat du jet qui vient de se terminer, selon son
-     * type (cf. config.jets) : { annule, points }. `annule` ne peut être
-     * vrai que pour un jet à ordre imposé (D/E) — cf. _calculerOrdreJet.
-     */
-    _calculerScoreJet() {
-        const jc = this.jetConfig;
-        if (jc.type === "plein") {
-            // Jet 4 (phase B) : 2 bois/quille SI la prépondérante (idx8,
-            // cf. config.js) est tombée, sinon 1 bois/quille (texte
-            // fédéral) — jets 1-3 n'ont pas de `prependerante` et gardent
-            // le barème flat `pointsParQuille`.
-            if (jc.prependerante !== undefined) {
-                const prependeranteEstTombee = this._quilleEstTombee(jc.prependerante);
-                const parQuille = prependeranteEstTombee ? jc.pointsSiPrependerante : jc.pointsSinon;
-                return { annule: false, points: this.quillesTombeesCount * parQuille };
-            }
-            return { annule: false, points: this.quillesTombeesCount * jc.pointsParQuille };
-        }
-        if (jc.type === "figure") {
-            const prependeranteEstTombee = this._quilleEstTombee(jc.figure.prependerante);
-            const parQuille = prependeranteEstTombee ? jc.pointsSiPrependerante : jc.pointsSinon;
-            return { annule: false, points: this.quillesTombeesCount * parQuille };
-        }
-        return this._calculerOrdreJet(jc);
-    }
-
-    _quilleEstTombee(index) {
-        const q = this.quilles[index];
-        return !!q && !q.getData("debout") && !q.getData("absente");
-    }
-
-    /**
-     * Ordre imposé (phases D/E, règlement fédéral, persistance des
-     * quilles tombées cf. _demarrerJet) : la figure est posée une seule
-     * fois pour toute la phase, ce jet ne vise qu'UNE quille cible
-     * (jc.cible, les autres quilles ENCORE debout de la figure restent
-     * des obstacles), avec sa propre valeur en points (jc.points).
-     *   - la cible tombe SEULE → points = jc.points, elle reste tombée
-     *     pour la suite de la phase (cf. _jetTermine) ;
-     *   - EXCEPTION fédérale (jc.ricochetAutorise, jets 12/16
-     *     uniquement) : la cible ET la TOUTE DERNIÈRE quille de la phase
-     *     tombent ENSEMBLE (ricochet), rien d'autre → pas une faute, les
-     *     2 jets sont validés d'un coup (cf. _jetTermine, avance de 2) ;
-     *   - aucune quille requise ne tombe → PAS une faute (art. 877
-     *     art. 10), jet compté 0 point, on passe au jet suivant ;
-     *   - tout autre cas (mauvaise quille, 2+ quilles requises
-     *     simultanément hors ricochet) → violation : les quilles requises
-     *     du jet se relèvent, réédition SANS LIMITE de reprises.
-     */
-    _calculerOrdreJet(jc) {
-        const chutes = this.ordreChute.filter((c) => jc.figure.indices.includes(c.index));
-        const indicesChus = chutes.map((c) => c.index);
-
-        if (jc.ricochetAutorise) {
-            const derniere = this._dernierCiblePhase(jc.phase);
-            const estRicochet = indicesChus.length === 2 &&
-                indicesChus.includes(jc.cible) && indicesChus.includes(derniere.cible);
-            if (estRicochet) {
-                return { annule: false, points: jc.points, ricochet: true,
-                    pointsSupplementaires: derniere.points };
-            }
-        }
-
-        // Aucune quille de la figure n'est tombée : cible non atteinte
-        // SANS violation (art. 877 art. 10) → 0 point, jet suivant.
-        if (indicesChus.length === 0) return { annule: true, violation: false };
-
-        // La cible tombe seule → jet conforme, points normaux.
-        if (indicesChus.length === 1 && indicesChus[0] === jc.cible) return { annule: false, points: jc.points };
-
-        // Tout autre cas (mauvaise quille, 2+ quilles requises ensemble
-        // hors ricochet) → violation : les quilles requises se relèvent,
-        // réédition sans limite.
-        return { annule: true, violation: true };
-    }
-
-    /** Cible + points du DERNIER jet de la phase D ou E (exception de
-     * ricochet, cf. _calculerOrdreJet / _jetTermine). */
-    _dernierCiblePhase(phase) {
-        const C = window.QuillesSaintGallConfig;
-        const jetsPhase = C.jets.filter((j) => j.phase === phase);
-        const dernier = jetsPhase[jetsPhase.length - 1];
-        return { cible: dernier.cible, points: dernier.points };
-    }
-
     // --- Création des éléments ------------------------------------------------
 
     _creerDecor() {
         this.ciel = this.add.graphics().setDepth(0);
         this.sol = this.add.graphics().setDepth(1);
-    }
-
-    _creerQuilles() {
-        const C = window.QuillesSaintGallConfig;
-        this.quilles = [];
-        this.numerosQuille = [];
-        this.quillesGroup = this.physics.add.group();
-
-        for (let i = 0; i < 9; i++) {
-            const q = this.physics.add.sprite(0, 0, "quille").setDepth(4);
-            q.body.setAllowGravity(false);
-            // Rayon LOCAL = moitié de la texture "quille" (32×32, cf.
-            // genererTextures) × le facteur de config — le corps Arcade
-            // suit ensuite tout seul l'échelle du sprite (`_sx`, dérivée de
-            // `setDisplaySize`) : tant que la LARGEUR affichée reste
-            // `this.rayonQuille * 2` (vrai debout ET tombée, cf.
-            // _appliquerEtatQuille/_toucherQuille — seule la HAUTEUR
-            // s'étire), le rayon de collision reste PILE `this.rayonQuille`
-            // dans les 2 états, sans recalcul à chaque frame/resize.
-            q.body.setCircle(16 * C.quille.rayonCollisionFacteur);
-            q.setData("index", i);
-            q.setData("debout", true);
-            q.setData("absente", false);
-            this.quilles.push(q);
-            this.quillesGroup.add(q);
-
-            // Numéro (1-9) affiché UNIQUEMENT pendant les jets à ordre
-            // imposé (D/E) — indispensable pour que le joueur sache quelle
-            // quille est laquelle (le PRD §6 ne prévoyait cette
-            // numérotation que comme référence interne à config.js).
-            const num = Arcade.UI.text(this, 0, 0, String(i + 1), 2.4, C.couleurs.texteSombre)
-                .setDepth(5).setVisible(false);
-            this.numerosQuille.push(num);
-        }
     }
 
     _creerBouleEtOmbre() {
@@ -564,132 +468,6 @@ class GameScene extends Phaser.Scene {
         this.boule.body.setCircle(24);
         this.boule.body.mass = C.boule.masseKg;
         this.boule.body.setBounce(C.boule.bounce);
-    }
-
-    /**
-     * Colliders Arcade Physics boule↔quilles et quille↔quille (refonte
-     * masse réelle du 31/08, cf. commentaire d'en-tête de la classe). Les
-     * `processCallback` tournent AVANT que Phaser ne calcule la séparation/
-     * l'échange de vitesse : c'est là qu'on décide si une quille encore
-     * debout (`body.immovable = true`, cf. _positionnerQuilles) tombe ou
-     * reste un mur — si elle tombe, on la rend mobile AVANT de laisser
-     * Phaser résoudre le choc (_rendreQuilleMobile), pour que l'échange de
-     * quantité de mouvement de CE MÊME contact utilise déjà sa vraie masse.
-     * Retourne toujours `true` : la séparation/le rebond doivent de toute
-     * façon avoir lieu (mur immobile OU quille désormais mobile).
-     */
-    _creerColliders() {
-        this.physics.add.collider(
-            this.boule, this.quillesGroup,
-            (boule, quille) => this._corrigerRebondMur(boule, quille),
-            (boule, quille) => this._processCollisionBouleQuille(boule, quille),
-            this
-        );
-        this.physics.add.collider(
-            this.quillesGroup, this.quillesGroup,
-            (a, b) => { this._corrigerRebondMur(a, b); this._corrigerRebondMur(b, a); },
-            (a, b) => this._processCollisionQuilleQuille(a, b),
-            this
-        );
-        // Bandes latérales (PRD 875 §12) : colliders boule/quilles↔bandes
-        // délégués à BandesLaterales.creerColliders() — même ordre relatif
-        // d'enregistrement qu'avant l'extraction (boule↔bande PUIS
-        // quille↔bande). this._corrigerRebondMur (générique, partagé avec
-        // boule↔quille/quille↔quille) reste ici, rappelé en retour.
-        this.bandes.creerColliders();
-    }
-
-    /**
-     * Décide si `quille` (encore debout, donc `body.immovable`) tombe sous
-     * le choc de la boule — même seuil que l'ancien modèle
-     * (`boule.vitesseMinRenversePct`). Si oui : bookkeeping du score
-     * (_toucherQuille) + bascule en corps mobile massique
-     * (_rendreQuilleMobile) AVANT que Phaser ne résolve le contact. Sinon,
-     * la quille reste un mur : cf. _corrigerRebondMur (collideCallback,
-     * après résolution) pour ce qui se passe alors.
-     */
-    _processCollisionBouleQuille(boule, quille) {
-        const C = window.QuillesSaintGallConfig;
-        if (quille.getData("debout")) {
-            const seuil = (C.boule.vitesseMinRenversePct / 100) * this.h;
-            if (boule.body.speed >= seuil) {
-                this._toucherQuille(quille, boule.body.velocity.x, boule.body.velocity.y);
-                this._rendreQuilleMobile(quille);
-            }
-        }
-        boule.setData("dejaTouche", true);
-        return true;
-    }
-
-    /**
-     * Même principe côté quille↔quille (ricochet — une quille qui glisse
-     * après avoir été renversée peut à son tour en renverser une autre
-     * encore debout, règle fédérale des jets 12/16, cf. l'historique de ce
-     * fichier). `a`/`b` peuvent arriver dans n'importe quel ordre — on
-     * teste les 2 sens. Si aucune des deux n'est un mur debout (2 quilles
-     * déjà tombées qui se percutent), Phaser résout directement l'échange
-     * de vitesse par les masses réelles, sans logique dédiée.
-     */
-    _processCollisionQuilleQuille(a, b) {
-        this._essayerRenverserParContact(a, b);
-        this._essayerRenverserParContact(b, a);
-        return true;
-    }
-
-    /**
-     * Corrige un défaut du moteur (trouvé le 01/09, demande John : « la
-     * quille arrive quand même à arrêter net la boule ») : quand une
-     * quille reste un mur (`body.immovable`, elle n'a pas basculé sur CE
-     * choc), la formule d'impulsion d'Arcade Physics pour un corps
-     * immobile reste basée sur sa masse RÉELLE (finie, 2,8kg) au lieu de
-     * la traiter comme infiniment lourde — pour une quille bien plus
-     * légère que la boule, ça ne la repousse presque pas : elle continue
-     * de foncer vers le mur, le repercute dès la frame suivante, et
-     * s'arrête net en une quinzaine de frames à force de freinages
-     * répétés (vérifié chiffré : vitesse d'impact 55 → 42,8 après UNE
-     * résolution native, mais la boule continue toujours d'AVANCER vers
-     * la quille au lieu d'être repoussée). Corrigé ici en recalculant
-     * nous-mêmes une vraie réflexion sur la normale de contact
-     * (v' = v - 2(v·n)n, un vrai rebond de mur), à la place du résultat
-     * natif — mais SEULEMENT si le corps `mobile` s'apprêtait encore à
-     * foncer DANS le mur après résolution (`vN < 0`) : sur une quille qui
-     * tombe (mobile ↔ mobile) ou un contact déjà en train de s'écarter,
-     * on ne touche à rien, la conservation de quantité de mouvement de
-     * Phaser reste seule maîtresse (elle, elle fonctionne bien).
-     */
-    _corrigerRebondMur(mobile, mur) {
-        if (mobile.body.immovable || !mur.body.immovable) return;
-        const dx = mobile.x - mur.x, dy = mobile.y - mur.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 0.001) return;
-        const nx = dx / dist, ny = dy / dist;
-        const v = mobile.body.velocity;
-        const vN = v.x * nx + v.y * ny;
-        if (vN >= 0) return;   // s'éloigne déjà du mur, rien à corriger
-        const bounce = mobile.body.bounce.y;
-        mobile.body.setVelocity(
-            (v.x - 2 * vN * nx) * bounce,
-            (v.y - 2 * vN * ny) * bounce
-        );
-    }
-
-    /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */
-    _essayerRenverserParContact(cible, source) {
-        if (cible === source || !cible.getData("debout") || !cible.body.immovable) return;
-        const C = window.QuillesSaintGallConfig;
-        const seuil = (C.quille.vitesseMinRenverseAutreQuillePct / 100) * this.h;
-        if (source.body.speed >= seuil) {
-            this._toucherQuille(cible, source.body.velocity.x, source.body.velocity.y);
-            this._rendreQuilleMobile(cible);
-        }
-    }
-
-    /** Bascule une quille de "mur immobile" à "corps mobile massique" au moment où elle tombe. */
-    _rendreQuilleMobile(q) {
-        const C = window.QuillesSaintGallConfig;
-        q.body.setImmovable(false);
-        q.body.mass = C.quille.masseKg;
-        q.body.setBounce(C.quille.bounce);
     }
 
     _creerBouton() {
@@ -859,7 +637,7 @@ class GameScene extends Phaser.Scene {
             bas: this.ligneLancerY + this.zoneTirHauteur * C.planche.longueurPctZoneTir / 100
         };
 
-        this._positionnerQuilles();
+        this.quillesSys._positionnerQuilles();
         this.bandes.positionner();
         this.visee.majPosition();
 
@@ -1108,223 +886,6 @@ class GameScene extends Phaser.Scene {
             .setPosition(xCentre, curY + this.consigne2.displayHeight / 2);
     }
 
-    // --- Quilles ---------------------------------------------------------------
-
-    /**
-     * Losange (quinconce 1-2-3-2-1), PAS un carré 3×3 — corrigé le
-     * 30/08/2026 (soir) d'après le vrai schéma fédéral (article 780,
-     * cf. en-tête de config.js). `POSITIONS[i]` donne, pour chaque indice
-     * de quille (0-8, fond → avant), sa rangée (0=fond … 4=pointe avant)
-     * et son décalage horizontal en fraction de la demi-largeur
-     * de la rangée du milieu (la plus large, 3 quilles) — modèle "grille
-     * 3×3 tournée à 45°" (rangées de 2 à mi-écart de la rangée de 3).
-     */
-    _positionnerQuilles() {
-        const C = window.QuillesSaintGallConfig;
-        const UI = Arcade.UI;
-        // Grille FIXE 5×5, CARRÉE — refonte du 31/08 (dernière passe,
-        // demande John : "peu importe l'espace que cela prend sur la
-        // piste, la grille doit être carrée 1/1"). Largeur ET hauteur de
-        // la grille = grilleLargeurPct % de pisteLargeur UNIQUEMENT (60%
-        // par défaut) : les 2 dimensions suivent la MÊME base (la largeur
-        // de piste), donc un vrai carré peu importe le format d'écran —
-        // remplace l'ancien calcul qui dérivait la hauteur en % de LA
-        // HAUTEUR de piste (this.ligneLancerY, une échelle différente),
-        // ce qui écrasait le losange près du bord haut sur certains
-        // formats.
-        const grilleTaillePx = this.pisteLargeur * (C.piste.grilleLargeurPct / 100);
-        const centreX = this.pisteOffsetX + this.pisteLargeur / 2;
-        // Ancrage : marge FIXE en haut de la piste (% de LA HAUTEUR de
-        // piste — volontairement la seule valeur ici liée à cette
-        // échelle-là, cf. commentaire de piste.grilleHautYPct en config).
-        // this.ligneLancerPiste (PAS this.ligneLancerY) : référence SANS
-        // la rallonge (31/08, passe suivante) — les quilles ne doivent
-        // jamais bouger quand la rallonge apparaît/change de taille.
-        const grilleHautY = (C.piste.grilleHautYPct / 100) * this.ligneLancerPiste;
-
-        const nbCases = C.piste.grilleCases;   // 5
-        const tailleCase = grilleTaillePx / nbCases;   // 12% de pisteLargeur si grilleLargeurPct=60
-        // Les quilles sont posées au CENTRE de leur case (demande John) —
-        // col/row 0-4 (POSITIONS ci-dessous). Pas de quille physiquement
-        // plus grosse ni de position fixe spéciale : « le Roi » = la
-        // quille prépondérante DU JET EN COURS, indice propre à chaque
-        // jet (cf. config.jets et en-tête de config.js, 5e passe 31/08).
-        const colToX = (col) => centreX + (col - (nbCases - 1) / 2) * tailleCase;
-        const rowToY = (row) => grilleHautY + (row + 0.5) * tailleCase;
-
-        // Quinconce 1-2-3-2-1 (losange), désormais exprimé en cases
-        // entières (col, row) de la grille 5×5 — mêmes emplacements
-        // relatifs qu'avant (dx -1/-0.5/0/0.5/1 sur 5 rangées).
-        const POSITIONS = [
-            { row: 0, col: 2 },
-            { row: 1, col: 1 }, { row: 1, col: 3 },
-            { row: 2, col: 0 }, { row: 2, col: 2 }, { row: 2, col: 4 },
-            { row: 3, col: 1 }, { row: 3, col: 3 },
-            { row: 4, col: 2 }
-        ];
-
-        // Rayon RÉEL (diamètre en cm × this.pxParCm), demande John 31/08 —
-        // remplace l'ancien % du plus petit côté de l'écran (UI.u), sans
-        // lien avec l'échelle de la piste. Les 9 quilles ont TOUTES le même
-        // rayon (pas de quille physiquement plus grosse — cf. en-tête de
-        // config.js, 5e passe du 31/08 : « le Roi » = la quille prépondérante
-        // du jet en cours, pas une quille distincte).
-        this.rayonQuille = this.pxParCm * (C.quille.diametreCm / 2);
-        // Longueur du rectangle d'une quille TOMBÉE (couchée au sol) —
-        // hauteur RÉELLE de la quille (42cm = 21% de la largeur de piste),
-        // PAS un rayon (demande John 31/08). Largeur du rectangle = même
-        // diamètre que la quille debout (rayonQuille × 2).
-        this.quilleHauteurTombeePx = this.pxParCm * C.quille.hauteurCm;
-
-        const showNumeros = this.jetConfig && this.jetConfig.type === "ordre";
-
-        this.quilles.forEach((q, i) => {
-            const pos = POSITIONS[i];
-            const x = colToX(pos.col);
-            const y = rowToY(pos.row);
-
-            q.setPosition(x, y);
-            // Taille d'affichage définie dans _appliquerEtatQuille (cercle
-            // si debout, rectangle allongé si tombée) ; le rayon de
-            // collision suit tout seul via body.setCircle (cf. _creerQuilles).
-            q.body.updateFromGameObject();
-            q.body.setVelocity(0, 0);
-
-            // Corps physique : absente = désactivé (jamais collisionnable) ;
-            // debout = mur immobile (masse "infinie", cf. _rendreQuilleMobile
-            // qui le bascule mobile SEULEMENT si elle tombe) ; déjà tombée
-            // (phases D/E persistantes, cf. _demarrerJet) = corps mobile,
-            // au repos, avec sa vraie masse — peut encore être bousculée.
-            const debout = q.getData("debout");
-            const absente = q.getData("absente");
-            q.body.enable = !absente;
-            q.body.setImmovable(debout);
-            q.body.mass = C.quille.masseKg;
-            q.body.setBounce(C.quille.bounce);
-
-            this._appliquerEtatQuille(q);
-
-            const num = this.numerosQuille[i];
-            num.setPosition(x, y).setFontSize(Math.round(UI.u(this, 2.4)) + "px");
-            num.setVisible(showNumeros && q.getData("debout"));
-        });
-    }
-
-    /**
-     * Indice (0-8) de la quille prépondérante du jet en cours, ou
-     * `undefined` si ce jet n'en a pas (phases D/E : `cible` joue un rôle
-     * équivalent mais n'est pas une « prépondérante », cf. config.jets).
-     * Lu directement depuis `config.jets` — CHAQUE jet a son propre indice,
-     * indépendant des autres (pas de quille physique fixe/spéciale, cf.
-     * en-tête de config.js).
-     */
-    _indexPrependeranteDuJet() {
-        const jc = this.jetConfig;
-        if (!jc) return undefined;
-        if (jc.type === "figure") return jc.figure.prependerante;
-        if (jc.type === "plein") return jc.prependerante;
-        return undefined;
-    }
-
-    /**
-     * `absente` (PRD §7 phase C) : la quille n'est PAS présente sur la
-     * piste pour ce jet (hors figure) — entièrement invisible, jamais
-     * collisionnable (elle reste `debout=false`, déjà exclue par
-     * _suivreBoule).
-     *
-     * Reproduit le panneau lumineux du vrai jeu (demande John, 31/08) —
-     * les 9 quilles réelles sont TOUTES identiques, seul l'affichage les
-     * distingue, à 3 états : RIEN (absente, rien à l'écran) / JAUNE
-     * (debout, en place) / ROUGE (debout ET prépondérante du jet en
-     * cours — remplace l'ancien anneau doré séparé, la couleur de la
-     * quille porte directement l'info). Une quille TOMBÉE reste BLANCHE
-     * mais change de FORME (rectangle = couchée au sol, texture
-     * "quilleTombee" générée dans genererTextures) plutôt que de
-     * couleur — distincte d'une quille absente (invisible).
-     */
-    _appliquerEtatQuille(q) {
-        const C = window.QuillesSaintGallConfig;
-        if (q.getData("absente")) {
-            q.setVisible(false);
-            return;
-        }
-        q.setVisible(true);
-        q.setAlpha(1);
-        const debout = q.getData("debout");
-        if (!debout) {
-            q.setTexture("quilleTombee");
-            q.setTint(0xffffff);
-            // Rectangle : diamètre (6% piste, largeur) × hauteur réelle de
-            // la quille (21% piste, longueur) — PAS un carré, cf.
-            // this.quilleHauteurTombeePx (demande John 31/08).
-            q.setDisplaySize(this.rayonQuille * 2, this.quilleHauteurTombeePx);
-            return;
-        }
-        q.setTexture("quille");
-        q.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
-        const estPrependerante = q.getData("index") === this._indexPrependeranteDuJet();
-        q.setTint(Phaser.Display.Color.HexStringToColor(
-            estPrependerante ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace
-        ).color);
-    }
-
-    /**
-     * `dirX`/`dirY` : direction du choc qui fait tomber cette quille (la
-     * vitesse de la boule à l'impact, ou celle de la quille source pour
-     * un ricochet en chaîne) — demande John, 31/08 : "il faut que la
-     * quille tombe dans sa direction, pas tous vers le haut". Optionnel,
-     * défaut (0,1) = ancien comportement (toujours à la verticale) si
-     * appelé sans direction connue.
-     */
-    _toucherQuille(quille, dirX = 0, dirY = 1) {
-        if (!quille.getData("debout")) return;
-        quille.setData("debout", false);
-        this.quillesTombeesCount++;
-        if (quille.getData("index") === this._indexPrependeranteDuJet()) this.prependeranteTombee = true;
-
-        // Horodatage de la chute (frame courant) — utilisé par
-        // _calculerOrdreJet pour vérifier l'ordre imposé et détecter les
-        // chutes simultanées (phases D/E uniquement, inoffensif sinon).
-        this.ordreChute.push({ index: quille.getData("index"), frame: this.frameId });
-        this.numerosQuille[quille.getData("index")].setVisible(false);
-
-        // Oriente la quille pour que son axe long (la hauteur qui va
-        // s'étirer ci-dessous) s'aligne avec la direction du choc, plutôt
-        // que de toujours pointer vers le haut de l'écran. Le repère local
-        // non tourné a son axe long vertical (0, r) ; après rotation par
-        // θ, ce point va en (-r·sinθ, r·cosθ) — poser θ = atan2(-dirX, dirY)
-        // aligne donc cet axe sur (dirX, dirY).
-        const norme = Math.hypot(dirX, dirY);
-        if (norme > 0.0001) {
-            quille.setRotation(Math.atan2(-dirX / norme, dirY / norme));
-        }
-
-        // Animation « le rond s'allonge » (demande John, 31/08) : reste
-        // sur la texture CERCLE ("quille") et étire uniquement la HAUTEUR
-        // d'affichage jusqu'à la taille cible du rectangle (largeur
-        // JAMAIS touchée, jamais de rétrécissement) — visuellement, le
-        // cercle s'étire en ovale dans la direction du choc. Bascule vers
-        // la texture rectangle aux contours nets ("quilleTombee")
-        // seulement une fois la taille cible atteinte, cf.
-        // _appliquerEtatQuille pour l'état final (utilisé aussi par
-        // _positionnerQuilles au redimensionnement, sans animation dans
-        // ce cas-là — la rotation y est laissée telle quelle).
-        quille.setTexture("quille");
-        quille.setTint(0xffffff);
-        quille.setDisplaySize(this.rayonQuille * 2, this.rayonQuille * 2);
-        this.tweens.add({
-            targets: quille,
-            displayHeight: this.quilleHauteurTombeePx,
-            duration: 220,
-            ease: "Quad.easeOut",
-            onComplete: () => {
-                if (quille.getData("debout")) return; // resize entre-temps
-                quille.setTexture("quilleTombee");
-                quille.setTint(0xffffff);
-            }
-        });
-    }
-
     // --- Jauge de précision (étape 2) -----------------------------------------
 
     _demarrerJauge() {
@@ -1440,27 +1001,6 @@ class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Ralentit (jusqu'à l'arrêt) les quilles devenues des corps mobiles
-     * (renversées, cf. _rendreQuilleMobile) — les quilles encore debout
-     * (`body.immovable`) ou absentes (`body.enable = false`) sont ignorées.
-     * Le déplacement lui-même (intégration de la vitesse) et les
-     * collisions quille↔quille sont gérés par Arcade Physics, cf.
-     * _creerColliders ; cette méthode n'applique QUE le frottement.
-     */
-    _amortirQuillesMobiles(dt) {
-        const C = window.QuillesSaintGallConfig;
-        const amorti = Math.max(0, 1 - C.quille.frictionGlissementPar_s * dt);
-        this.quilles.forEach((q) => {
-            if (!q.body.enable || q.body.immovable) return;
-            const v = q.body.velocity;
-            if (v.x === 0 && v.y === 0) return;
-            let nvx = v.x * amorti, nvy = v.y * amorti;
-            if (Math.hypot(nvx, nvy) < 2) { nvx = 0; nvy = 0; }
-            q.body.setVelocity(nvx, nvy);
-        });
-    }
-
-    /**
      * La boule s'arrête : le jet est terminé — calcule le score (ou
      * l'annulation) via _calculerScoreJet(), puis affiche l'écran de
      * retour de jet avec l'action appropriée (nouvel essai / jet suivant
@@ -1486,7 +1026,7 @@ class GameScene extends Phaser.Scene {
         }
 
         const jc = this.jetConfig;
-        const resultat = this._calculerScoreJet();
+        const resultat = this.regles._calculerScoreJet();
 
         if (resultat.annule) {
             if (resultat.violation) {
@@ -1516,7 +1056,7 @@ class GameScene extends Phaser.Scene {
         if (jc.type === "ordre") {
             this.ordrePhaseAbattues.add(jc.cible);
             if (resultat.ricochet) {
-                this.ordrePhaseAbattues.add(this._dernierCiblePhase(jc.phase).cible);
+                this.ordrePhaseAbattues.add(this.regles._dernierCiblePhase(jc.phase).cible);
             }
         }
 
