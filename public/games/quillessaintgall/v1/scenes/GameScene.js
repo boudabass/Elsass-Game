@@ -62,19 +62,29 @@ class GameScene extends Phaser.Scene {
         const g = scene.make.graphics({ add: false });
 
         // Quille DEBOUT (32x32, vue du dessus) : disque + contour + reflet,
-        // base neutre (blanche) — la couleur réelle (jaune = en place,
-        // rouge = prépondérante) est appliquée au runtime via setTint,
-        // cf. GameScene._appliquerEtatQuille (demande John 31/08 :
+        // une texture par couleur (jaune = en place, rouge = à viser),
+        // choisie dans Quilles._appliquerEtatQuille (demande John 31/08 :
         // reproduit le panneau lumineux du vrai jeu, pas une quille
         // physiquement différente).
-        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
-        g.fillCircle(16, 16, 15);
-        g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleBase).color, 1);
-        g.fillCircle(16, 16, 12);
-        g.fillStyle(0xffffff, 0.35);
-        g.fillCircle(12, 12, 4);
-        g.generateTexture("quille", 32, 32);
-        g.clear();
+        // 07/11/2026 : la couleur n'est plus appliquée par setTint mais par
+        // une texture par couleur. En rendu Canvas (navigateur sans carte
+        // graphique, ex. le Chrome du VPS de John), Phaser ignore setTint :
+        // toutes les quilles restaient blanches et la quille à viser ne se
+        // distinguait pas. "quille" (base blanche) reste pour l'animation de
+        // chute (cf. Quilles._toucherQuille).
+        const dessinerQuille = (cle, couleurBase) => {
+            g.fillStyle(Phaser.Display.Color.HexStringToColor(C.couleurs.quilleContour).color, 1);
+            g.fillCircle(16, 16, 15);
+            g.fillStyle(Phaser.Display.Color.HexStringToColor(couleurBase).color, 1);
+            g.fillCircle(16, 16, 12);
+            g.fillStyle(0xffffff, 0.35);
+            g.fillCircle(12, 12, 4);
+            g.generateTexture(cle, 32, 32);
+            g.clear();
+        };
+        dessinerQuille("quille", C.couleurs.quilleBase);
+        dessinerQuille("quilleEnPlace", C.couleurs.quilleEnPlace);
+        dessinerQuille("quilleAViser", C.couleurs.quillePreponderante);
 
         // Quille TOMBÉE (32x32, vue du dessus) : rectangle blanc (couchée
         // au sol), PAS de tint appliqué au runtime — reste toujours dans

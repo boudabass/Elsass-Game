@@ -423,12 +423,12 @@ class Quilles {
             q.setDisplaySize(scene.rayonQuille * 2, scene.quilleHauteurTombeePx);
             return;
         }
-        q.setTexture("quille");
-        q.setDisplaySize(scene.rayonQuille * 2, scene.rayonQuille * 2);
+        // Couleur portée par la texture, pas par setTint (ignoré en rendu
+        // Canvas, cf. GameScene.genererTextures).
         const estAViser = q.getData("index") === scene.regles._indexQuilleAViser();
-        q.setTint(Phaser.Display.Color.HexStringToColor(
-            estAViser ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace
-        ).color);
+        q.setTexture(estAViser ? "quilleAViser" : "quilleEnPlace");
+        q.setTint(0xffffff);
+        q.setDisplaySize(scene.rayonQuille * 2, scene.rayonQuille * 2);
     }
 
     /**

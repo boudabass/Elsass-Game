@@ -620,8 +620,9 @@ window.QuillesSaintGallConfig = {
         texteSombre: "#141210",
         // Panneau lumineux du vrai jeu (demande John 31/08) : les 9 quilles
         // sont TOUTES identiques physiquement, seul l'affichage varie.
-        // quilleBase = base neutre de la texture "quille" (tintée en jaune
-        // ou rouge au runtime, cf. GameScene._appliquerEtatQuille) ;
+        // quilleBase = base blanche de la texture "quille" (animation de
+        // chute seulement) ; jaune et rouge ont chacune leur texture
+        // ("quilleEnPlace", "quilleAViser", cf. GameScene.genererTextures) ;
         // quilleEnPlace = JAUNE (debout, pas prépondérante) ;
         // quillePreponderante = ROUGE (debout ET à viser : prépondérante ou
         // cible du jet en cours, cf. Regles._indexQuilleAViser) ; quilleTombee = BLANC (couchée au sol, texture
