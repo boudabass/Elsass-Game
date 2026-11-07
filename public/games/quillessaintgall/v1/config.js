@@ -343,7 +343,20 @@ window.QuillesSaintGallConfig = {
         // chiffré le 01/09 : à 0.15, un choc à vitesse d'impact 198 ne
         // transmettait que ~3 de vitesse à la quille ; l'objectif est
         // qu'elle glisse pour de vrai.
+        // 07/11/2026 (diagnostic) : `bounce` ne s'applique plus aux chocs ENTRE
+        // quilles mobiles ni à la boule qui en percute une : ces chocs sont
+        // recalculés par Quilles._chocElastique (cf. restitutionChoc ci-dessous).
+        // `bounce` reste utilisé pour le rebond sur un mur ou une quille immobile
+        // (Quilles._corrigerRebondMur). Valeur inchangée : 0.85 → 0.85.
         bounce: 0.85,
+        // 07/11/2026 (diagnostic, cf. Quilles._chocElastique) : coefficient de
+        // restitution des chocs ENTRE CORPS MOBILES (boule↔quille et quille↔quille).
+        // Nouveau. Avant, ces chocs passaient par l'impulsion d'Arcade, qui oublie le
+        // facteur masse×masse : la quille ne recevait que ~7 % de la vitesse d'impact,
+        // la boule gardait ~80 %. 1 = choc parfaitement élastique (boule ≈ 1/3, quille
+        // ≈ 4/3 de la vitesse d'impact). Valeur de départ : 0,9, à valider sur
+        // elsass-game-dev (cf. compte rendu du 07/11).
+        restitutionChoc: 0.9,
         // Ralentissement d'une quille qui glisse après avoir été renversée
         // (demande John, 30/08 : la quille doit vraiment se déplacer, pas
         // juste basculer sur place) — fraction de sa vitesse perdue par
@@ -392,6 +405,10 @@ window.QuillesSaintGallConfig = {
         // sur un choc qui renverse une quille ; sur un choc qui n'en
         // renverse aucune (mur), un léger recul visuel est désormais
         // laissé possible, "le jeu le permet").
+        // 07/11/2026 (diagnostic) : pour un choc avec une quille MOBILE, `bounce`
+        // ne s'applique plus (vitesse recalculée par Quilles._chocElastique, cf.
+        // quille.restitutionChoc). Il reste utilisé pour le rebond sur un mur ou une
+        // quille immobile. Valeur inchangée : 0.85 → 0.85.
         bounce: 0.85,
         // Ralentissement continu appliqué à la boule à CHAQUE frame une
         // fois qu'elle a touché au moins une quille (demande John, 30/08 :

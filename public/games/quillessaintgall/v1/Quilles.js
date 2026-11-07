@@ -24,6 +24,8 @@ class Quilles {
     /** @param {Phaser.Scene} scene la GameScene propriétaire */
     constructor(scene) {
         this.scene = scene;
+        // Vitesses des deux corps AVANT un contact (cf. _memoriserAvantChoc).
+        this._avantChoc = new Map();
     }
 
     _creerQuilles() {
@@ -77,13 +79,13 @@ class Quilles {
         const scene = this.scene;
         scene.physics.add.collider(
             scene.boule, scene.quillesGroup,
-            (boule, quille) => this._corrigerRebondMur(boule, quille),
+            (boule, quille) => { this._corrigerRebondMur(boule, quille); this._chocElastique(boule, quille); },
             (boule, quille) => this._processCollisionBouleQuille(boule, quille),
             scene
         );
         scene.physics.add.collider(
             scene.quillesGroup, scene.quillesGroup,
-            (a, b) => { this._corrigerRebondMur(a, b); this._corrigerRebondMur(b, a); },
+            (a, b) => { this._corrigerRebondMur(a, b); this._corrigerRebondMur(b, a); this._chocElastique(a, b); },
             (a, b) => this._processCollisionQuilleQuille(a, b),
             scene
         );
@@ -114,6 +116,7 @@ class Quilles {
                 this._rendreQuilleMobile(quille);
             }
         }
+        this._memoriserAvantChoc(boule, quille);
         boule.setData("dejaTouche", true);
         return true;
     }
@@ -130,6 +133,7 @@ class Quilles {
     _processCollisionQuilleQuille(a, b) {
         this._essayerRenverserParContact(a, b);
         this._essayerRenverserParContact(b, a);
+        this._memoriserAvantChoc(a, b);
         return true;
     }
 
@@ -168,6 +172,52 @@ class Quilles {
             (v.x - 2 * vN * nx) * bounce,
             (v.y - 2 * vN * ny) * bounce
         );
+    }
+
+    /**
+     * Mémorise les vitesses des deux corps AVANT que Phaser ne résolve le
+     * contact (appelé depuis les processCallback, après le basculement éventuel
+     * de la quille). Lu par _chocElastique au collideCallback.
+     */
+    _memoriserAvantChoc(a, b) {
+        for (const g of [a, b]) this._avantChoc.set(g.body, { x: g.body.velocity.x, y: g.body.velocity.y });
+    }
+
+    /**
+     * Choc élastique entre deux corps MOBILES (boule↔quille, quille↔quille),
+     * calculé ici avec les VRAIES masses (config.quille.restitutionChoc).
+     *
+     * Pourquoi (diagnostic du 07/11, harnais de simulation sur le vrai moteur
+     * Arcade) : pour deux cercles, Arcade calcule N = 2·(vitesse d'approche)/(mA+mB)
+     * puis ajoute N/mA à A et N/mB à B. La formule physique est
+     * J = 2·mA·mB·(vitesse d'approche)/(mA+mB) : le moteur oublie le facteur
+     * mA·mB. Avec la boule (5,5 kg) et une quille (2,8 kg), la quille ne reçoit
+     * que ~7 % de la vitesse d'impact (au lieu de ~130 %), et la boule garde
+     * ~80 % de sa vitesse (au lieu d'un tiers). Les masses ne changent pas :
+     * seule l'impulsion est recalculée.
+     *
+     * Les POSITIONS restent celles d'Arcade (séparation des corps). Seules les
+     * vitesses sont remplacées. Un contact qui s'éloigne déjà rétablit les
+     * vitesses d'avant le contact, qu'Arcade avait modifiées. Les corps
+     * IMMOBILES (mur, quille encore debout) sont ignorés : leur rebond reste
+     * géré par _corrigerRebondMur.
+     */
+    _chocElastique(a, b) {
+        const C = window.QuillesSaintGallConfig;
+        const ca = a.body, cb = b.body;
+        if (ca.immovable || cb.immovable) return;
+        const va = this._avantChoc.get(ca), vb = this._avantChoc.get(cb);
+        if (!va || !vb) return;
+        const dx = cb.center.x - ca.center.x, dy = cb.center.y - ca.center.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 0.001) { ca.setVelocity(va.x, va.y); cb.setVelocity(vb.x, vb.y); return; }
+        // Normale de contact (de A vers B) et vitesse d'approche le long de cette normale
+        const nx = dx / dist, ny = dy / dist;
+        const approche = (va.x - vb.x) * nx + (va.y - vb.y) * ny;
+        if (approche <= 0) { ca.setVelocity(va.x, va.y); cb.setVelocity(vb.x, vb.y); return; }
+        const j = (1 + C.quille.restitutionChoc) * approche / (1 / ca.mass + 1 / cb.mass);
+        ca.setVelocity(va.x - (j / ca.mass) * nx, va.y - (j / ca.mass) * ny);
+        cb.setVelocity(vb.x + (j / cb.mass) * nx, vb.y + (j / cb.mass) * ny);
     }
 
     /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */
