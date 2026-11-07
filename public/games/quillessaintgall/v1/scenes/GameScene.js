@@ -137,6 +137,9 @@ class GameScene extends Phaser.Scene {
         this.boutonRejouer = null;
         this.boutonMenu = null;
 
+        // Compteur monotone (jamais remis à zéro par jet) : sert à dater les chutes
+        // (chuteFrame) pour Quilles._estCouchee.
+        this.frameMoteur = 0;
         this.regles = new Regles(this);
         this.quillesSys = new Quilles(this);
         this._creerDecor();
@@ -145,6 +148,7 @@ class GameScene extends Phaser.Scene {
         this.bandes = new BandesLaterales(this);
         this.bandes.creer();
         this.quillesSys._creerColliders();
+        this.contacts = new ContactsCouchees(this);
         this.visee = new Visee(this);
         this.visee.creer();
         this.jauge = new JaugePrecision(this);
@@ -185,6 +189,7 @@ class GameScene extends Phaser.Scene {
 
     update(time, delta) {
         const dt = delta / 1000;
+        this.frameMoteur++;
         if (this.etat === "jauge") {
             this.jauge.avancer(dt);
         } else if (this.etat === "feedback") {
@@ -196,59 +201,12 @@ class GameScene extends Phaser.Scene {
         // Les quilles envoyées en mouvement par un choc continuent de
         // ralentir (jusqu'à l'arrêt) même une fois le jet terminé — leur
         // déplacement lui-même et les collisions quille↔quille sont
-        // désormais gérés par Arcade Physics (cf. _creerColliders).
+        // gérées par Arcade Physics (cf. _creerColliders), sauf celles qui
+        // touchent une quille couchée (ContactsCouchees).
         this.quillesSys._amortirQuillesMobiles(dt);
-        // Les quilles TOMBÉES (rectangle 21% de long) sont plus grandes
-        // que l'écart de la grille (12%) — sans ça elles chevaucheraient
-        // leurs voisines dès la chute (demande John, 31/08).
-        this._resoudreChevauchements();
-    }
-
-    /**
-     * Empêche une quille TOMBÉE (rectangle) de chevaucher visuellement
-     * une voisine (debout ou tombée) — demande John, 31/08 : "les
-     * quilles ne peuvent pas se chevaucher". Une quille DEBOUT ne bouge
-     * jamais (position de grille fixe) ; seule une quille TOMBÉE est
-     * repoussée hors d'un chevauchement. Rayon « effectif » d'une quille
-     * tombée = la moitié de sa plus grande dimension (la longueur du
-     * rectangle) — approximation circulaire volontairement généreuse, pas
-     * de suivi de la rotation réelle du rectangle. Tourne chaque frame
-     * (cf. update()) : une paire tombée/tombée converge en quelques
-     * frames vers un partage 50/50 du chevauchement (chaque quille est
-     * traitée indépendamment lors de son propre passage dans la boucle).
-     */
-    _resoudreChevauchements() {
-        const rayonEffectif = (q) => q.getData("debout")
-            ? this.rayonQuille
-            : this.quilleHauteurTombeePx / 2;
-
-        this.quilles.forEach((a) => {
-            if (a.getData("absente") || a.getData("debout")) return;
-
-            this.quilles.forEach((b) => {
-                if (a === b || b.getData("absente")) return;
-
-                const dx = a.x - b.x, dy = a.y - b.y;
-                const dist = Math.hypot(dx, dy);
-                const rSomme = rayonEffectif(a) + rayonEffectif(b);
-                if (dist >= rSomme || dist < 0.0001) return;
-
-                // Quille tombée qui arrive sur une quille debout : elle la
-                // renverse si elle tombe dessus assez vite (07/11/2026, cf.
-                // Quilles._renverserParQuilleTombee) ; sinon elle est écartée
-                // comme avant.
-                if (b.getData("debout")) this.quillesSys._renverserParQuilleTombee(b, a);
-
-                const chevauchement = rSomme - dist;
-                const nx = dx / dist, ny = dy / dist;
-                // b debout (fixe) : a absorbe tout le chevauchement.
-                // b tombée aussi (mobile) : partage à 50/50.
-                const part = b.getData("debout") ? 1 : 0.5;
-                a.x += nx * chevauchement * part;
-                a.y += ny * chevauchement * part;
-                a.body.updateFromGameObject();
-            });
-        });
+        // Quilles couchées : contacts boule / quille / bande en capsule,
+        // résolus à chaque frame (cf. ContactsCouchees.js).
+        this.contacts.resoudre();
     }
 
     // --- Partie / jets (PRD §7-9) ----------------------------------------------
@@ -975,7 +933,8 @@ class GameScene extends Phaser.Scene {
         // s'applique aussi bien aux quilles ENCORE DEBOUT (mur, ou tombent
         // si le choc est assez fort) qu'à celles déjà TOMBÉES (`!absente`,
         // corps mobile au repos, la boule ne les traverse jamais : demande
-        // John, 31/08).
+        // John, 31/08). Les quilles COUCHÉES sont résolues en capsule par
+        // ContactsCouchees (cf. update()).
 
         // Ralentissement continu une fois que la boule a touché au moins
         // une quille (demande John, 30/08 : sinon une boule qui continue

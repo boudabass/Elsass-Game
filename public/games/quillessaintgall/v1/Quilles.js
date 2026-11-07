@@ -18,6 +18,8 @@
  * `scene.rayonQuille`, `scene.quilleHauteurTombeePx`…), lues ou écrites ici.
  * BandesLaterales.js appelle aussi _corrigerRebondMur, _rendreQuilleMobile et
  * _toucherQuille, via `scene.quillesSys`.
+ * Les contacts avec une quille COUCHÉE (capsule) ne passent plus par Arcade :
+ * ContactsCouchees.js les résout à chaque frame (cf. _processCollisionBouleQuille).
  */
 
 class Quilles {
@@ -72,8 +74,9 @@ class Quilles {
      * reste un mur — si elle tombe, on la rend mobile AVANT de laisser
      * Phaser résoudre le choc (_rendreQuilleMobile), pour que l'échange de
      * quantité de mouvement de CE MÊME contact utilise déjà sa vraie masse.
-     * Retourne toujours `true` : la séparation/le rebond doivent de toute
-     * façon avoir lieu (mur immobile OU quille désormais mobile).
+     * Retourne `true` : la séparation/le rebond doivent de toute façon avoir
+     * lieu (mur immobile OU quille désormais mobile), SAUF pour une quille
+     * couchée (false : ContactsCouchees la résout en capsule).
      */
     _creerColliders() {
         const scene = this.scene;
@@ -109,6 +112,9 @@ class Quilles {
     _processCollisionBouleQuille(boule, quille) {
         const scene = this.scene;
         const C = window.QuillesSaintGallConfig;
+        // Quille couchée : contact résolu en capsule par ContactsCouchees
+        // (07/11, John : la boule traversait les bouts). Arcade ne sépare pas.
+        if (this._estCouchee(quille)) return false;
         if (quille.getData("debout")) {
             const seuil = (C.boule.vitesseMinRenversePct / 100) * scene.h;
             if (boule.body.speed >= seuil) {
@@ -131,6 +137,8 @@ class Quilles {
      * de vitesse par les masses réelles, sans logique dédiée.
      */
     _processCollisionQuilleQuille(a, b) {
+        // Une quille couchée est résolue en capsule par ContactsCouchees.
+        if (this._estCouchee(a) || this._estCouchee(b)) return false;
         this._essayerRenverserParContact(a, b);
         this._essayerRenverserParContact(b, a);
         this._memoriserAvantChoc(a, b);
@@ -203,6 +211,8 @@ class Quilles {
      * et pouvoir tourner comme une toupie »). Le point de contact est sur l'axe :
      * s = projection du centre de l'autre corps sur l'axe, bornée à ±L/2. Le choc
      * donne une vitesse linéaire ET une rotation (I = m·L²/12).
+     * Depuis la capsule (07/11) Arcade ne transmet plus ces contacts : ContactsCouchees
+     * les résout avec le même modèle (cf. _bras et _impulsion).
      * Cohérence : frappée au centre (s = 0), la quille garde sa masse entière et
      * ne tourne pas ; frappée en bout, perpendiculairement, sa masse effective
      * vaut m/4, la même valeur que masseEffectiveChocFacteur.
@@ -210,8 +220,6 @@ class Quilles {
      * d'avant (masse effective, cf. _masseChoc).
      */
     _chocElastique(a, b) {
-        const C = window.QuillesSaintGallConfig;
-        const scene = this.scene;
         const ca = a.body, cb = b.body;
         if (ca.immovable || cb.immovable) return;
         const va = this._avantChoc.get(ca), vb = this._avantChoc.get(cb);
@@ -225,54 +233,88 @@ class Quilles {
         if (dist < 0.001) { remettre(); return; }
         // Normale de contact (de A vers B)
         const nx = dx / dist, ny = dy / dist;
+        const sortie = this._impulsion(a, b, nx, ny, va, vb, this._bras(a, cb), this._bras(b, ca));
+        if (!sortie) { remettre(); return; }
+        ca.setVelocity(sortie.A.x, sortie.A.y); ca.setAngularVelocity(sortie.A.w);
+        cb.setVelocity(sortie.B.x, sortie.B.y); cb.setAngularVelocity(sortie.B.w);
+    }
+
+    /**
+     * Bras de levier du point de contact d'une quille COUCHÉE, sur son axe, pour
+     * un autre corps : s = projection du centre de l'autre sur l'axe, bornée à ±L/2
+     * (tige rigide). null si le corps n'est pas couché.
+     */
+    _bras(go, autreBody) {
+        if (!this._estCouchee(go)) return null;
+        const L = this.scene.quilleHauteurTombeePx;
+        const th = go.rotation;
+        const ax = -Math.sin(th), ay = Math.cos(th);
+        const proj = (autreBody.center.x - go.body.center.x) * ax + (autreBody.center.y - go.body.center.y) * ay;
+        const s = Math.max(-L / 2, Math.min(L / 2, proj));
+        return { x: s * ax, y: s * ay };
+    }
+
+    /**
+     * Impulsion d'un choc entre deux corps, pour TOUS les chocs (07/11/2026,
+     * Orchestrateur : une seule formule, y compris les contacts en capsule de
+     * ContactsCouchees). n = normale unitaire de A vers B. vA, vB = {x, y, w} AVANT
+     * le choc (w en °/s). rA, rB = bras de levier (point de contact moins centre)
+     * pour un corps COUCHÉ, null sinon. Formules inchangées : u = v + ω×r ;
+     * k = 1/m + cross(r,n)²/I pour un corps couché, sinon 1/masse effective
+     * (_masseChoc) ; j = (1 + restitutionChoc)·approche/(kA + kB) ; ω bornée à
+     * vitesseRotationMaxRad_s. Un corps IMMOBILE (mur, quille debout qui ne tombe
+     * pas) a k = 0 et ne reçoit rien. Retourne { A, B } (vitesses après le choc,
+     * w en °/s), ou null si les corps s'éloignent déjà ou si ce sont deux murs.
+     */
+    _impulsion(A, B, nx, ny, vA, vB, rA, rB) {
+        const C = window.QuillesSaintGallConfig;
         const maxW = C.quille.vitesseRotationMaxRad_s;
-        const L = scene.quilleHauteurTombeePx;
-        // Par corps : vitesse de son point de contact (ux, uy), inverse de masse
-        // (invM) et, si couché, ce qu'il faut pour la rotation (cross, I).
-        const etat = (go, memo, autreBody) => {
-            const body = go.body;
-            const w = Phaser.Math.DegToRad(memo.w);   // Arcade parle en degrés/s
-            if (!this._estCouchee(go)) {
+        const L = this.scene.quilleHauteurTombeePx;
+        const etat = (go, v, r) => {
+            const w = Phaser.Math.DegToRad(v.w);   // Arcade parle en degrés/s
+            if (go.body.immovable) return { mur: true, w, ux: v.x, uy: v.y, invM: 0, k: 0 };
+            if (!r) {
                 const invM = 1 / this._masseChoc(go);
-                return { couche: false, invM, k: invM, w, ux: memo.x, uy: memo.y };
+                return { mur: false, couche: false, w, ux: v.x, uy: v.y, invM, k: invM };
             }
-            const th = go.rotation;
-            const ax = -Math.sin(th), ay = Math.cos(th);
-            const proj = (autreBody.center.x - body.center.x) * ax + (autreBody.center.y - body.center.y) * ay;
-            const s = Math.max(-L / 2, Math.min(L / 2, proj));
-            const rx = s * ax, ry = s * ay;
+            const body = go.body;
+            const cross = r.x * ny - r.y * nx;          // cross(r, n)
             const I = body.mass * L * L / 12;
-            const cross = rx * ny - ry * nx;          // cross(r, n)
             return {
-                couche: true, invM: 1 / body.mass, w, cross, I,
+                mur: false, couche: true, w, cross, I, invM: 1 / body.mass,
                 k: 1 / body.mass + cross * cross / I,
-                ux: memo.x - w * ry, uy: memo.y + w * rx,   // v + ω × r
+                ux: v.x - w * r.y, uy: v.y + w * r.x,   // v + ω × r
             };
         };
-        const A = etat(a, va, cb), B = etat(b, vb, ca);
-        // Vitesse d'approche au point de contact
-        const approche = (A.ux - B.ux) * nx + (A.uy - B.uy) * ny;
-        if (approche <= 0) { remettre(); return; }
-        const j = (1 + C.quille.restitutionChoc) * approche / (A.k + B.k);
-        const appliquer = (body, memo, E, sens) => {
-            body.setVelocity(memo.x + sens * j * E.invM * nx, memo.y + sens * j * E.invM * ny);
+        const EA = etat(A, vA, rA), EB = etat(B, vB, rB);
+        if (EA.mur && EB.mur) return null;
+        const approche = (EA.ux - EB.ux) * nx + (EA.uy - EB.uy) * ny;
+        if (approche <= 0) return null;
+        const j = (1 + C.quille.restitutionChoc) * approche / (EA.k + EB.k);
+        const sortie = (v, E, sens) => {
+            if (E.mur) return { x: v.x, y: v.y, w: v.w };
             let w = E.w;
             if (E.couche) w += sens * j * E.cross / E.I;
             w = Math.max(-maxW, Math.min(maxW, w));
-            body.setAngularVelocity(Phaser.Math.RadToDeg(w));
+            return {
+                x: v.x + sens * j * E.invM * nx,
+                y: v.y + sens * j * E.invM * ny,
+                w: Phaser.Math.RadToDeg(w),
+            };
         };
-        appliquer(ca, va, A, -1);
-        appliquer(cb, vb, B, +1);
+        return { A: sortie(vA, EA, -1), B: sortie(vB, EB, +1) };
     }
 
     /**
      * Quille couchée AVANT ce frame : au sol, mobile, active. Une quille
-     * renversée CE frame (chuteFrame = frameId) n'en fait pas partie.
+     * renversée CE frame (chuteFrame = frameMoteur) n'en fait pas partie.
+     * frameMoteur (et non frameId) : il avance à chaque frame, y compris après
+     * la fin du lancer, pendant que les quilles roulent encore.
      */
     _estCouchee(go) {
         return go.getData("index") !== undefined && !go.getData("debout")
             && go.body.enable && !go.body.immovable
-            && go.getData("chuteFrame") !== this.scene.frameId;
+            && go.getData("chuteFrame") !== this.scene.frameMoteur;
     }
 
     /**
@@ -289,43 +331,6 @@ class Quilles {
         return go.getData("index") !== undefined
             ? go.body.mass * C.quille.masseEffectiveChocFacteur
             : go.body.mass;
-    }
-
-    /**
-     * Une quille TOMBÉE qui glisse (`source`) renverse-t-elle la quille
-     * debout `cible` en tombant dessus ? (07/11/2026, Orchestrateur, retour de
-     * John : « les quilles devraient être presque éjectées et toucher les
-     * autres »). Appelé par GameScene._resoudreChevauchements AVANT d'écarter
-     * la quille tombée : jusque-là, la règle de non-chevauchement (31/08)
-     * repoussait la quille tombée hors de sa voisine avant que leurs corps ne
-     * se touchent, si bien qu'aucune quille n'en renversait une autre.
-     * Géométrie : le rectangle de la quille tombée, selon son VRAI axe
-     * (q.rotation) — 07/11, demande John : une quille qui roule de côté renverse
-     * dans le sens de son axe, pas de sa vitesse. Seule sa moitié AVANT compte,
-     * et la cible doit être devant elle (d·v > 0). Même seuil de vitesse que le contact direct
-     * (vitesseMinRenverseAutreQuillePct), puis même échange de vitesse que les
-     * autres chocs (_chocElastique). Retourne true si la cible est tombée.
-     */
-    _renverserParQuilleTombee(cible, source) {
-        const scene = this.scene;
-        if (!cible.getData("debout") || !cible.body.immovable) return false;
-        const v = source.body.velocity;
-        const vitesse = Math.hypot(v.x, v.y);
-        if (vitesse < 0.0001) return false;
-        // Axe VRAI de la quille source : a = (−sin θ, cos θ), cf. _toucherQuille
-        const th = source.rotation;
-        const ax = -Math.sin(th), ay = Math.cos(th);
-        const dx = cible.x - source.x, dy = cible.y - source.y;
-        const long = Math.abs(dx * ax + dy * ay);        // distance le long de l'axe
-        const ecart = Math.abs(dx * ay - dy * ax);       // écart à l'axe : |cross(d, a)|
-        if (dx * v.x + dy * v.y <= 0) return false;      // cible derrière le mouvement
-        if (long > scene.quilleHauteurTombeePx / 2 + scene.rayonQuille) return false;
-        if (ecart > 2 * scene.rayonQuille) return false;
-        this._essayerRenverserParContact(cible, source);
-        if (cible.getData("debout")) return false;
-        this._memoriserAvantChoc(source, cible);
-        this._chocElastique(source, cible);
-        return true;
     }
 
     /** `cible` tombe-t-elle sous le choc de `source` ? (cf. _processCollisionQuilleQuille) */
@@ -531,8 +536,8 @@ class Quilles {
         }
 
         // Chute de CE frame : une quille couchée depuis un frame antérieur est
-        // traitée en tige rigide (cf. _chocElastique), pas celle-ci.
-        quille.setData("chuteFrame", scene.frameId);
+        // résolue par ContactsCouchees (capsule), pas celle-ci.
+        quille.setData("chuteFrame", scene.frameMoteur);
         if (autre) this._donnerToupie(quille, autre);
 
         // Animation « le rond s'allonge » (demande John, 31/08) : reste
@@ -590,7 +595,8 @@ class Quilles {
      * roulement PERPENDICULAIRE à l'axe (frictionRoulementPar_s, bien plus faible),
      * et ralentissement de la rotation (frictionRotationPar_s). Les quilles encore
      * debout (immovable) ou absentes sont ignorées. Le déplacement et les chocs
-     * restent gérés par Arcade (cf. _creerColliders) et _chocElastique.
+     * restent gérés par Arcade (cf. _creerColliders) et _chocElastique, sauf
+     * les contacts des quilles couchées (ContactsCouchees).
      */
     _amortirQuillesMobiles(dt) {
         const scene = this.scene;
