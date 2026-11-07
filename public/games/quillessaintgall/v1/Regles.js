@@ -126,4 +126,16 @@ class Regles {
         if (jc.type === "plein") return jc.prependerante;
         return undefined;
     }
+
+    /**
+     * Quille « à viser » du jet en cours (rouge à l'écran, cf.
+     * Quilles._appliquerEtatQuille) : la prépondérante (phases A à C), ou la
+     * cible (phases D/E, ordre imposé). Sert à l'AFFICHAGE seulement : le
+     * score passe toujours par _indexPrependeranteDuJet et _calculerOrdreJet.
+     */
+    _indexQuilleAViser() {
+        const jc = this.scene.jetConfig;
+        if (jc && jc.type === "ordre") return jc.cible;
+        return this._indexPrependeranteDuJet();
+    }
 }

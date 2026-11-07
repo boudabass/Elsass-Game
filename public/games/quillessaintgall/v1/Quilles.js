@@ -287,6 +287,8 @@ class Quilles {
 
             const num = scene.numerosQuille[i];
             num.setPosition(x, y).setFontSize(Math.round(UI.u(scene, 2.4)) + "px");
+            // Numéro crème sur la quille à viser (lisible sur le rouge), sombre ailleurs.
+            num.setColor(i === scene.regles._indexQuilleAViser() ? C.couleurs.texte : C.couleurs.texteSombre);
             num.setVisible(showNumeros && q.getData("debout"));
         });
     }
@@ -300,7 +302,7 @@ class Quilles {
      * Reproduit le panneau lumineux du vrai jeu (demande John, 31/08) —
      * les 9 quilles réelles sont TOUTES identiques, seul l'affichage les
      * distingue, à 3 états : RIEN (absente, rien à l'écran) / JAUNE
-     * (debout, en place) / ROUGE (debout ET prépondérante du jet en
+     * (debout, en place) / ROUGE (debout ET à viser : prépondérante ou cible du jet en
      * cours — remplace l'ancien anneau doré séparé, la couleur de la
      * quille porte directement l'info). Une quille TOMBÉE reste BLANCHE
      * mais change de FORME (rectangle = couchée au sol, texture
@@ -328,9 +330,9 @@ class Quilles {
         }
         q.setTexture("quille");
         q.setDisplaySize(scene.rayonQuille * 2, scene.rayonQuille * 2);
-        const estPrependerante = q.getData("index") === scene.regles._indexPrependeranteDuJet();
+        const estAViser = q.getData("index") === scene.regles._indexQuilleAViser();
         q.setTint(Phaser.Display.Color.HexStringToColor(
-            estPrependerante ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace
+            estAViser ? C.couleurs.quillePreponderante : C.couleurs.quilleEnPlace
         ).color);
     }
 

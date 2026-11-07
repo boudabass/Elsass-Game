@@ -596,12 +596,15 @@ window.QuillesSaintGallConfig = {
         // quilleBase = base neutre de la texture "quille" (tintée en jaune
         // ou rouge au runtime, cf. GameScene._appliquerEtatQuille) ;
         // quilleEnPlace = JAUNE (debout, pas prépondérante) ;
-        // quillePreponderante = ROUGE (debout ET prépondérante du jet en
-        // cours) ; quilleTombee = BLANC (couchée au sol, texture
+        // quillePreponderante = ROUGE (debout ET à viser : prépondérante ou
+        // cible du jet en cours, cf. Regles._indexQuilleAViser) ; quilleTombee = BLANC (couchée au sol, texture
         // "quilleTombee", rectangle — jamais tintée).
         quilleBase: "#ffffff",
         quilleEnPlace: "#f4c430",
-        quillePreponderante: "#e5484d",
+        // 07/11/2026 : était #e5484d (rouge framboise, pas assez net : John ne
+        // distinguait pas la quille à viser du jaune). Nouvelle valeur = jeton
+        // rouge de la charte (core/ui/tokens.js, couleurs.rouge), demande John.
+        quillePreponderante: "#E31B23",
         quilleTombee: "#ffffff",
         quilleContour: "#2b3547",
         boule: 0xff7a1a,
