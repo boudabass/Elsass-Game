@@ -2,7 +2,7 @@
  * Session signée par l'app (HMAC-SHA256 avec SESSION_SECRET).
  *
  * Odoo n'est plus appelé qu'AU LOGIN : entre deux logins, c'est ce jeton
- * signé (stocké dans le cookie arcade_session) qui prouve l'identité du
+ * signé (stocké dans le cookie arcade_session_v2) qui prouve l'identité du
  * joueur. Sans la signature, impossible de se faire passer pour un autre uid.
  *
  * Format du jeton : base64url(JSON payload) + "." + base64url(signature)

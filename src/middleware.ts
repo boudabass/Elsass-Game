@@ -20,7 +20,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = !!request.cookies.get('arcade_session')?.value;
+  // Même nom que SESSION_COOKIE_NAME dans app/actions/auth.ts.
+  const hasSession = !!request.cookies.get('arcade_session_v2')?.value;
   if (hasSession) {
     return NextResponse.next();
   }

@@ -1,7 +1,7 @@
 # Elsass Game — arcade The Elsassisch
 
-Arcade de jeux **Phaser 4** gratuite, réservée aux clients, embarquée en iframe
-dans le site de la boutique. Application **Next.js 15**, authentification via
+Arcade de jeux **Phaser 4** gratuite, réservée aux clients, accessible par un
+lien depuis le site de la boutique. Application **Next.js 15**, authentification via
 Odoo, données dans PostgreSQL.
 
 Remplace l'arcade précédente écrite en p5.js.

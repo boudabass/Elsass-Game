@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 
 // Écrans authentifiés avec nav persistante (barre du bas / rail) — voir
-// app-shell.tsx. Même liste que iframe-resizer.tsx (mode "game" côté Odoo).
+// app-shell.tsx.
 const PREFIXES_COQUILLE = ["/dashboard", "/games", "/scores", "/profile", "/admin"];
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
@@ -24,6 +24,6 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     }
 
     // Landing (/) et /login : pas de nav, ces pages gèrent leur propre
-    // centrage plein-écran (hauteur pilotée par leur contenu côté Odoo).
+    // centrage plein-écran.
     return <div className="min-h-dvh bg-elsass-cream">{children}</div>;
 }

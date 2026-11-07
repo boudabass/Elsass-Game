@@ -9,10 +9,9 @@
  * deux tailles (CSS uniquement, pas de duplication de logique).
  *
  * `h-dvh` + `overflow-y-auto` sur la zone de contenu : la nav reste fixe
- * pendant que le contenu défile en interne. Ça suppose que la page Odoo hôte
- * donne à l'iframe la hauteur pleine de l'écran ici (mode "game" du contrat
- * postMessage, voir iframe-resizer.tsx) — sinon une longue liste ferait
- * grandir toute l'iframe et la nav "fixe" scrollerait avec le reste.
+ * pendant que le contenu défile en interne. L'arcade est ouverte directement
+ * dans le navigateur (plus d'iframe Odoo), donc `h-dvh` est bien la hauteur
+ * visible de l'écran du visiteur.
  *
  * Pas de plafond de largeur ici : chaque page choisit sa propre largeur de
  * contenu (une fiche profil n'a pas besoin du même espace qu'un tableau

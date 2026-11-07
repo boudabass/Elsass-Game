@@ -41,8 +41,7 @@ export default async function PlayPage({ params }: { params: Promise<{ gameId: s
         notFound();
     }
 
-    // h-[100dvh] : la page de jeu occupe toute la hauteur visible
-    // (dans l'iframe Odoo, c'est toute la hauteur de l'iframe).
+    // h-[100dvh] : la page de jeu occupe toute la hauteur visible de l'écran.
     return (
         <div className="h-[100dvh]">
             <GameShell
