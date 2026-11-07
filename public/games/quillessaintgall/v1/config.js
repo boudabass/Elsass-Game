@@ -402,7 +402,14 @@ window.QuillesSaintGallConfig = {
         // Body.immovable dans _processCollisionQuilleQuille) — règle
         // fédérale du ricochet (quille qui revient de la fosse en renverse
         // une autre, jets 12/16), simulée pour de vrai depuis le 31/08.
-        vitesseMinRenverseAutreQuillePct: 8
+        // 07/11/2026 : 8 → 27 (retour de John : « en touchant la première,
+        // toutes les quilles volent et tombent »). Mesuré dans le vrai jeu
+        // (Chrome headless, jeu plein, force par défaut, tir quasi droit
+        // ±1,5°) : à 8, 9/9 dans 62 % des tirs ; à 27, 14 % (moyenne 7,5
+        // quilles) ; à 30, 6 % ; à 40, 0 %. Le frottement des quilles
+        // couchées et la restitution ne changent presque rien. N'agit que
+        // sur les chocs quille→quille : la boule n'est pas concernée.
+        vitesseMinRenverseAutreQuillePct: 27
     },
 
     // --- Boule ---------------------------------------------------------------
